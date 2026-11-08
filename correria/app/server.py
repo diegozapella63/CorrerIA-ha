@@ -1,11 +1,14 @@
-"""CorrerIA: o contato da CorrerIA Code no WhatsApp (a API oficial da Meta). As pessoas da casa mandam uma pergunta pelo
-WhatsApp; o CorrerIA confere quem mandou, passa para o app da família que responde aquele assunto (o GerencIA, para as
-finanças) e devolve a resposta pelo WhatsApp.
+"""CorrerIA: junta os apps da casa (da CorrerIA Code) no WhatsApp (a API oficial da Meta), no Claude e no Gemini (MCP).
+Cada app publica as suas ferramentas (share/<app>/correria.json); no WhatsApp e na conversa da tela, a IA do Home
+Assistant usa essas ferramentas (ia.py) e as mudanças só acontecem depois do "sim" da pessoa; o Claude e o Gemini
+chamam as mesmas ferramentas pelo MCP (mcp.py), com o login aprovado no painel (oauth.py).
 
 Dois servidores (só biblioteca padrão do Python):
-- a tela, pelo painel do Home Assistant (ingress, porta 8099): configuração, quem conversa, os apps e as últimas mensagens;
-- o webhook da Meta (porta 8443, https com o certificado do Duck DNS em /ssl): só GET e POST em /webhook, com a
-  assinatura conferida; o resto responde 404.
+- a tela, pelo painel do Home Assistant (ingress, porta 8099): configuração, quem conversa, os apps, o Claude e o Gemini
+  e as últimas mensagens;
+- a porta pública (8443, https com o certificado do Duck DNS em /ssl): o webhook da Meta (/webhook, com a assinatura
+  conferida) e, com o Claude e o Gemini ligados, o MCP (/mcp) e o login (/.well-known/*, /registrar, /autorizar,
+  /token); o resto responde 404.
 """
 import base64
 import json
@@ -25,9 +28,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import apps
 import fala
+import ferramentas
+import ia
+import mcp
+import oauth
 import whatsapp
 
-VERSAO = "0.3.0"
+VERSAO = "0.4.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -42,6 +49,9 @@ GRAPH = os.environ.get("CORRERIA_GRAPH", whatsapp.GRAPH)
 PERMITIDOS = {"172.30.32.2", "127.0.0.1", "::1"}  # o painel do Home Assistant (ingress)
 CONFIG_ARQ = os.path.join(DATA_DIR, "config.json")
 CONVERSAS_ARQ = os.path.join(DATA_DIR, "conversas.json")
+MCP_ARQ = os.path.join(DATA_DIR, "mcp.json")
+PENDENTE_VALE = 30 * 60       # uma mudança proposta espera o "sim" por até 30 minutos
+MAX_MCP = 1024 * 1024
 MAX_CORPO = 3 * 1024 * 1024   # a Meta manda até 3 MB
 MAX_HISTORICO = 16            # as últimas mensagens de cada pessoa que vão junto com a pergunta
 HORAS_CONVERSA = 12           # depois disso, a conversa recomeça
@@ -50,7 +60,7 @@ PESSOA_RE = re.compile(r"^person\.[a-z0-9_]+$")
 
 TRAVA = threading.Lock()
 _travas_numero = defaultdict(threading.Lock)  # uma pergunta de cada vez por pessoa (a conversa fica na ordem)
-ESTADO = {"ultimo_webhook": None, "verificado_em": None, "conta": None, "conta_em": None}
+ESTADO = {"ultimo_webhook": None, "verificado_em": None, "conta": None, "conta_em": None, "ia": None}
 
 
 def log(*a):
@@ -87,6 +97,7 @@ def ler_config():
     c = ler_json(CONFIG_ARQ)
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
+           "mcp": c.get("mcp") is True,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
     if len(out["verificacao"]) < 16:  # o token de verificação que a Meta manda de volta ao cadastrar o webhook
         out["verificacao"] = secrets.token_urlsafe(18)
@@ -134,6 +145,8 @@ def salvar_config(corpo):
             c["endereco"] = limpar_endereco(corpo.get("endereco"))
         if "ligado" in corpo:
             c["ligado"] = corpo.get("ligado") is not False
+        if "mcp" in corpo:
+            c["mcp"] = corpo.get("mcp") is True
         gravar_config(c)
     if any(k in corpo for k in ("numero_id", "token")):
         ESTADO.update(conta=None, conta_em=None)
@@ -221,7 +234,8 @@ def ler_conversas():
             "ultimo_app": c.get("ultimo_app") if isinstance(c.get("ultimo_app"), dict) else {},
             "vistos": [x for x in c.get("vistos") or [] if isinstance(x, str)][-500:],
             "registro": [x for x in c.get("registro") or [] if isinstance(x, dict)][:MAX_REGISTRO],
-            "tela": c.get("tela") if isinstance(c.get("tela"), dict) else {}}  # a conversa da tela, de cada login
+            "tela": c.get("tela") if isinstance(c.get("tela"), dict) else {},  # a conversa da tela, de cada login
+            "pendentes": c.get("pendentes") if isinstance(c.get("pendentes"), dict) else {}}  # mudanças esperando o "sim"
 
 
 def _gravar_conversas(c):
@@ -283,16 +297,123 @@ FALA = fala.Fala(HA_API, TOKEN, log, simulada=DEV and not TOKEN)
 SO_TEXTO = "Por enquanto eu entendo texto, áudio, foto e PDF."
 NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
 ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
-SEM_APP = "Ainda não há app respondendo por aqui. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp."
+SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
+FERR = ferramentas.Ferramentas(lambda: APPS, log)  # o APPS de agora (os testes trocam)
+SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
+NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
+
+
+# ---------------------------------------------------------------- a IA do Home Assistant com as ferramentas dos apps
+
+def ha_post(caminho, corpo, timeout=20):
+    req = urllib.request.Request(HA_API + caminho, data=json.dumps(corpo).encode(), method="POST",
+                                 headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read() or b"{}")
+
+
+def chamar_ia(instrucoes):
+    """A IA do Home Assistant (ai_task.generate_data, a entidade padrão de Configurações › Sistema › IA)."""
+    if not TOKEN:
+        raise ia.ErroIA("Sem o Home Assistant.")
+    try:
+        r = ha_post("/services/ai_task/generate_data?return_response", {"task_name": "CorrerIA", "instructions": instrucoes}, timeout=150)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read() or b"{}").get("message")
+        except (ValueError, AttributeError):
+            msg = None
+        ESTADO["ia"] = {"ok": False, "erro": msg or f"O Home Assistant respondeu {e.code}.", "em": agora_iso()}
+        raise ia.ErroIA(ESTADO["ia"]["erro"]) from None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        ESTADO["ia"] = {"ok": False, "erro": f"Não consegui falar com o Home Assistant ({getattr(e, 'reason', e)}).", "em": agora_iso()}
+        raise ia.ErroIA(ESTADO["ia"]["erro"]) from None
+    dados = ((r or {}).get("service_response") or {}).get("data")
+    if dados is None:
+        ESTADO["ia"] = {"ok": False, "erro": "A IA não devolveu resposta.", "em": agora_iso()}
+        raise ia.ErroIA(ESTADO["ia"]["erro"])
+    ESTADO["ia"] = {"ok": True, "erro": "", "em": agora_iso()}
+    return dados
+
+
+AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN)
+
+
+def pegar_pendente(chave):
+    """A mudança que espera o "sim" dessa conversa (sai da lista: vale uma resposta só)."""
+    with TRAVA:
+        c = ler_conversas()
+        p = c["pendentes"].pop(chave, None)
+        if p is not None:
+            _gravar_conversas(c)
+    if not p or not isinstance(p.get("acoes"), list) or str(p.get("em") or "") < (datetime.now() - timedelta(seconds=PENDENTE_VALE)).isoformat(timespec="seconds"):
+        return None
+    return p["acoes"]
+
+
+def guardar_pendente(chave, acoes):
+    with TRAVA:
+        c = ler_conversas()
+        if acoes:
+            c["pendentes"][chave] = {"em": agora_iso(), "acoes": acoes}
+        else:
+            c["pendentes"].pop(chave, None)
+        _gravar_conversas(c)
+
+
+def executar(acoes, pessoa, cliente):
+    """O "sim": faz cada mudança proposta, pelas ferramentas dos apps. Devolve (texto, nomes dos apps)."""
+    lista, linhas, nomes = FERR.todas(), [], []
+    for a in acoes:
+        f = FERR.achar(str(a.get("ferramenta") or ""), lista)
+        if not f:
+            linhas.append(f"- Não deu: {a.get('resumo') or a.get('ferramenta')} (o app não está mais ligado).")
+            continue
+        texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente)
+        linhas.append(f"- {'Não deu: ' if erro else ''}{texto.splitlines()[0] if texto else 'feito.'}")
+        if f["app"]["nome"] not in nomes:
+            nomes.append(f["app"]["nome"])
+        if erro:
+            registrar("erro", f["app"]["nome"], texto)
+    ok = all(not x.startswith("- Não deu") for x in linhas)
+    return ("Feito!\n" if ok else "") + "\n".join(linhas), nomes
+
+
+def responder_ia(chave, texto, hist, pessoa, canal, cliente):
+    """A pergunta pela IA do Home Assistant com as ferramentas dos apps: (resposta, nomes dos apps) ou None (nenhum app
+    com ferramentas, ou a IA fora do ar com um app que responde sozinho: vai pelo caminho antigo)."""
+    pend = pegar_pendente(chave)
+    if pend:
+        if SIM_RE.match(texto):
+            return executar(pend, pessoa, cliente)
+        if NAO_RE.match(texto):
+            return "Tudo bem, não mudei nada.", []
+    if not any(a["ferramentas"] for a in APPS.lista()):
+        return None
+    try:
+        r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente)
+    except ia.ErroIA as e:
+        log("IA:", e)
+        if any(a["rota"] for a in APPS.lista()):
+            return None
+        return f"A IA do Home Assistant não respondeu agora ({str(e).rstrip('.')}). Tente de novo daqui a pouco.", []
+    if r["pendente"]:
+        guardar_pendente(chave, r["pendente"])
+    return r["resposta"], r["apps"]
 
 
 def responder_pergunta(texto, pessoa, numero=None):
-    """A pergunta vai para o app do assunto; devolve (resposta, app). Serve para o WhatsApp e para o Testar da tela."""
+    """A pergunta vai para a IA com as ferramentas dos apps (ou, sem nenhum app com ferramentas, para o app do assunto
+    que responde com a IA dele); devolve (resposta, app). Serve para o WhatsApp."""
+    hist = historico(numero) if numero else []
+    r = responder_ia("wa:" + whatsapp.canonico(numero) if numero else "wa:", texto, hist, pessoa, "whatsapp", "WhatsApp")
+    if r is not None:
+        return r[0], {"app": "_ia", "nome": ", ".join(r[1]) or "CorrerIA"}
     app = APPS.escolher(texto, ultimo_app(numero) if numero else None)
     if not app:
         return SEM_APP, None
     try:
-        return APPS.perguntar(app, texto, historico(numero) if numero else [], pessoa), app
+        return APPS.perguntar(app, texto, hist, pessoa), app
     except apps.ErroApp as e:
         registrar("erro", app["nome"], str(e))
         log("CorrerIA:", e)
@@ -372,6 +493,7 @@ def tratar_anexo(wa, m, de, pessoa):
     app = APPS.escolher(legenda, ultimo_app(de), tipo=mime)
     if not app:
         return enviar(wa, de, pessoa, NAO_LE if APPS.lista() else SEM_APP)
+    guardar_pendente("wa:" + whatsapp.canonico(de), None)  # uma foto no meio desfaz a mudança que esperava o sim
     try:
         bruto, tipo_meta = wa.midia(info.get("id"))
     except whatsapp.ErroWhatsApp as e:
@@ -446,6 +568,57 @@ class ServidorWebhook(ThreadingHTTPServer):
         pass  # robôs da internet batendo na porta: sem barulho no registro
 
 
+# ---------------------------------------------------------------- o Claude e o Gemini (MCP, na porta pública)
+
+INSTRUCOES_MCP = ("CorrerIA: os apps da casa (da CorrerIA Code) num lugar só. Cada ferramenta tem o app na frente do nome "
+                  "(gerencia_..., cronologia_...). Leia antes de gravar: os ids vêm das ferramentas de leitura. Antes de uma "
+                  "ferramenta que grava ou apaga, diga à pessoa o que vai ser feito. Datas no formato AAAA-MM-DD; valores em reais.")
+
+
+def registrar_mcp(quem, f, args, texto, erro):
+    """Uma mudança feita pelo Claude ou pelo Gemini vai para Últimas mensagens."""
+    nome = (quem.get("pessoa") or {}).get("nome")
+    registrar("erro" if erro else "mcp", quem.get("cliente") + (f" · {nome}" if nome else ""),
+              (texto.splitlines()[0] if texto else f["titulo"]), f["app"]["nome"])
+
+
+def avisar_pedido(p):
+    """Um aviso no Home Assistant (o sino), para quem está no celular saber onde aprovar."""
+    if not TOKEN:
+        return
+    corpo = {"notification_id": "correria_conectar", "title": "CorrerIA",
+             "message": f"{p['nome']} quer se conectar aos apps da casa. Código {p['codigo']}. Abra o CorrerIA para aprovar ou recusar."}
+    threading.Thread(target=lambda: _tentar(ha_post, "/services/persistent_notification/create", corpo), daemon=True).start()
+
+
+def _tentar(fn, *args):
+    try:
+        fn(*args)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log("Home Assistant:", e)
+
+
+MCP = mcp.Servidor(FERR, VERSAO, INSTRUCOES_MCP, ao_gravar=registrar_mcp)
+AUT = oauth.Autorizacao(MCP_ARQ, gravar_arquivo, log, ao_pedir=avisar_pedido)
+
+
+def pagina_pedido(p):
+    codigo, pid = p["codigo"], json.dumps(p["id"])
+    corpo = f"""<h1>Conectar o {html_esc(p['nome'])}</h1>
+<p>Abra o <b>CorrerIA</b> no Home Assistant e aprove o pedido com este código:</p>
+<p class="codigo" id="codigo">{codigo}</p>
+<p id="msg"><span class="espera" aria-label="Esperando"><i></i><i></i><i></i></span></p>"""
+    script = f"""<script>(function(){{var id={pid};function ver(){{fetch('/autorizar/estado?p='+encodeURIComponent(id),{{cache:'no-store'}})
+.then(function(r){{return r.json()}}).then(function(j){{if(j.ir){{document.getElementById('msg').textContent=j.estado==='aprovado'?'Aprovado. Voltando…':'Recusado.';
+location.replace(j.ir);return}}if(j.estado==='vencido'){{document.getElementById('msg').textContent='O pedido venceu. Conecte de novo.';return}}
+setTimeout(ver,2000)}}).catch(function(){{setTimeout(ver,4000)}})}}setTimeout(ver,1500)}})();</script>"""
+    return oauth.pagina("Conectar", corpo, script)
+
+
+def html_esc(t):
+    return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
 class Webhook(BaseHTTPRequestHandler):
     server_version = "CorrerIA"
     sys_version = ""
@@ -460,19 +633,73 @@ class Webhook(BaseHTTPRequestHandler):
         if DEV and LOG_HTTP:
             log("Webhook:", self.address_string(), fmt % args)
 
-    def responder(self, status, texto=""):
-        corpo = texto.encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(corpo)))
-        self.end_headers()
-        self.wfile.write(corpo)
+    def caminho(self):
+        return urllib.parse.urlparse(self.path).path.rstrip("/") or "/"
 
+    def base(self):
+        """O endereço como quem chamou escreveu (o Claude confere que o recurso é igual ao que a pessoa colou)."""
+        host = re.sub(r"[^A-Za-z0-9.\-:\[\]]", "", self.headers.get("Host") or "") or f"localhost:{PORTA_WEBHOOK}"
+        proto = "https" if isinstance(self.request, ssl.SSLSocket) else ("https" if self.headers.get("X-Forwarded-Proto") == "https" else "http")
+        return f"{proto}://{host}"
+
+    def responder(self, status, texto="", tipo="text/plain; charset=utf-8", extra=None):
+        corpo = texto.encode() if isinstance(texto, str) else texto
+        self.send_response(status)
+        self.send_header("Content-Type", tipo)
+        self.send_header("Content-Length", str(len(corpo)))
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(corpo)
+
+    def json(self, status, obj, extra=None):
+        self.responder(status, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8",
+                       {"Cache-Control": "no-store", **(extra or {})})
+
+    def html(self, status, texto):
+        self.responder(status, texto, "text/html; charset=utf-8", {
+            "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"})
+
+    def ler_corpo(self, maximo):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n < 0 or n > maximo:
+            raise ValueError("grande demais")
+        return self.rfile.read(n) if n else b""
+
+    def mcp_ligado(self):
+        return ler_config()["mcp"]
+
+    # ---- GET
     def do_GET(self):
-        u = urllib.parse.urlparse(self.path)
-        if u.path.rstrip("/") != "/webhook":
+        p = self.caminho()
+        if p == "/webhook":
+            return self.get_webhook()
+        if not self.mcp_ligado():
             return self.responder(404)
-        q = urllib.parse.parse_qs(u.query)
+        if p in ("/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"):
+            return self.json(200, oauth.Autorizacao.recurso(self.base()))
+        if p in ("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration",
+                 "/.well-known/oauth-authorization-server/mcp", "/.well-known/openid-configuration/mcp"):
+            return self.json(200, oauth.Autorizacao.servidor(self.base()))
+        if p == "/autorizar":
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                return self.html(200, pagina_pedido(AUT.pedir(q, self.base())))
+            except oauth.ErroOAuth as e:
+                if e.ir:
+                    return self.responder(302, "", extra={"Location": e.ir, "Cache-Control": "no-store"})
+                return self.html(400, oauth.pagina("Não deu", f"<h1>Não deu para conectar</h1><p>{html_esc(e.descricao)}</p>"))
+        if p == "/autorizar/estado":
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            return self.json(200, AUT.situacao((q.get("p") or [""])[0]))
+        if p == "/mcp":
+            return self.responder(405, "", extra={"Allow": "POST"})
+        return self.responder(404)
+
+    def get_webhook(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         modo, tok, desafio = (q.get(k, [""])[0] for k in ("hub.mode", "hub.verify_token", "hub.challenge"))
         c = ler_config()
         if modo == "subscribe" and tok and secrets.compare_digest(tok, c["verificacao"]):
@@ -481,9 +708,54 @@ class Webhook(BaseHTTPRequestHandler):
             return self.responder(200, desafio)
         return self.responder(403)
 
+    # ---- POST
     def do_POST(self):
-        if urllib.parse.urlparse(self.path).path.rstrip("/") != "/webhook":
+        p = self.caminho()
+        if p == "/webhook":
+            return self.post_webhook()
+        if not self.mcp_ligado() or p not in ("/registrar", "/token", "/mcp"):
             return self.responder(404)
+        try:
+            corpo = self.ler_corpo(MAX_MCP)
+        except ValueError:
+            return self.responder(413)
+        if p == "/mcp":
+            return self.post_mcp(corpo)
+        try:
+            if p == "/registrar":
+                try:
+                    dados = json.loads(corpo or b"{}")
+                except ValueError:
+                    raise oauth.ErroOAuth("invalid_client_metadata", "JSON inválido.") from None
+                return self.json(201, AUT.registrar(dados))
+            tipo = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if tipo == "application/json":
+                try:
+                    form = json.loads(corpo or b"{}")
+                except ValueError:
+                    form = {}
+                form = form if isinstance(form, dict) else {}
+            else:
+                form = {k: v[0] for k, v in urllib.parse.parse_qs(corpo.decode("utf-8", "replace")).items()}
+            return self.json(200, AUT.trocar(form, self.headers.get("Authorization") or ""), {"Pragma": "no-cache"})
+        except oauth.ErroOAuth as e:
+            extra = {"WWW-Authenticate": 'Basic realm="CorrerIA"'} if e.status == 401 else {}
+            return self.json(e.status, e.json(), extra)
+
+    def post_mcp(self, corpo):
+        h = self.headers.get("Authorization") or ""
+        token = h[7:].strip() if h.startswith("Bearer ") else ""
+        con = AUT.conexao(token)
+        if not con:
+            meta = f'{self.base()}/.well-known/oauth-protected-resource/mcp'
+            aviso = f'Bearer resource_metadata="{meta}"' + (', error="invalid_token"' if token else "")
+            return self.json(401, {"erro": "Conecte pelo CorrerIA (aprovado no Home Assistant)."}, {"WWW-Authenticate": aviso})
+        status, resp = MCP.http(corpo, {"pessoa": con.get("pessoa") or {}, "cliente": con.get("nome") or "MCP"})
+        if resp is None:
+            return self.responder(status)
+        return self.json(status, resp)
+
+    def post_webhook(self):
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0 or n > MAX_CORPO:
             return self.responder(413 if n > MAX_CORPO else 400)
@@ -500,10 +772,15 @@ class Webhook(BaseHTTPRequestHandler):
         self.responder(200, "ok")  # a Meta quer o 200 logo; a resposta vai depois, pela API
         threading.Thread(target=receber, args=(dados,), daemon=True).start()
 
+    def do_DELETE(self):
+        if self.caminho() == "/mcp" and self.mcp_ligado():
+            return self.responder(405, "", extra={"Allow": "POST"})
+        self.responder(404)
+
     def do_HEAD(self):
         self.responder(404)
 
-    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD
+    do_PUT = do_PATCH = do_OPTIONS = do_HEAD
 
 
 # ---------------------------------------------------------------- a tela (porta 8099, pelo painel)
@@ -514,16 +791,24 @@ def estado():
     pessoas = [{"id": p["id"], "nome": p["nome"], "numero": nums.get(p["id"], "")} for p in pessoas_ha()]
     pessoas += [{"id": k, "nome": k[7:].replace("_", " ").title(), "numero": v, "fora": True} for k, v in nums.items() if k not in {p["id"] for p in pessoas}]
     cc = certificado()
+    lista = APPS.publicos()
+    todas = FERR.todas()
+    for a in lista:  # o que cada app faz pelo CorrerIA: quantas ferramentas (e quantas gravam)
+        fs = [f for f in todas if f["app"]["app"] == a["app"] and f["nome"] != ferramentas.PERGUNTAR]
+        a.update(ferramentas=len(fs), gravam=sum(1 for f in fs if f["grava"]), erro=FERR.erros.get(a["app"], ""))
     return {
         "versao": VERSAO,
         "config": {"numero_id": c["numero_id"], "token": _fim(c["token"]), "segredo": _fim(c["segredo"]), "verificacao": c["verificacao"],
                    "endereco": c["endereco"], "webhook": (c["endereco"] + "/webhook") if c["endereco"] else "", "ligado": c["ligado"]},
+        "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
+                "conexoes": AUT.conexoes()},
+        "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
                     "verificado_em": ESTADO["verificado_em"], "ultimo": ESTADO["ultimo_webhook"]},
         "pessoas": pessoas,
-        "apps": APPS.publicos(),
+        "apps": lista,
         "fala": FALA.status(),
         "registro": ler_conversas()["registro"][:30],
     }
@@ -579,19 +864,27 @@ def conversar(corpo, pessoa, chave):
             raise ValueError("O arquivo é grande demais (até 15 MB).")
         eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
-    app = APPS.escolher(texto, ultimo, tipo=tipo)
-    if not app:
-        resposta = NAO_LE if (tipo and APPS.lista()) else SEM_APP
+    r = None
+    if anexo:
+        guardar_pendente("tela:" + chave, None)
     else:
-        try:
-            resposta = APPS.perguntar(app, texto, hist, pessoa, timeout=300 if anexo else 150, anexo=anexo, canal="correria")
-        except apps.ErroApp as e:
-            log("CorrerIA:", e)
-            resposta = f"Não consegui falar com o {app['nome']} agora. {e}"
-    ia = {"papel": "ia", "texto": whatsapp.para_whatsapp(resposta), "em": agora_iso()}
+        r = responder_ia("tela:" + chave, texto, hist, pessoa, "correria", "CorrerIA")
+    if r is not None:  # a IA com as ferramentas dos apps
+        resposta, app = r[0], ({"app": "_ia", "nome": ", ".join(r[1])} if r[1] else None)
+    else:
+        app = APPS.escolher(texto, ultimo, tipo=tipo)
+        if not app:
+            resposta = NAO_LE if (tipo and APPS.lista()) else SEM_APP
+        else:
+            try:
+                resposta = APPS.perguntar(app, texto, hist, pessoa, timeout=300 if anexo else 150, anexo=anexo, canal="correria")
+            except apps.ErroApp as e:
+                log("CorrerIA:", e)
+                resposta = f"Não consegui falar com o {app['nome']} agora. {e}"
+    resp = {"papel": "ia", "texto": whatsapp.para_whatsapp(resposta), "em": agora_iso()}
     if app:
-        ia.update(app=app["nome"], app_id=app["app"])
-    lista += [eu, ia]
+        resp.update(app=app["nome"], app_id=app["app"])
+    lista += [eu, resp]
     _gravar_tela(chave, lista)
     return {"mensagens": lista[-MAX_TELA:]}
 
@@ -677,8 +970,20 @@ class Tela(BaseHTTPRequestHandler):
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, conversar(c, pessoa, chave))
             if p == "/api/conversa/limpar":
-                _gravar_tela(pessoa_da_tela(self.headers)[1], [])
+                chave = pessoa_da_tela(self.headers)[1]
+                _gravar_tela(chave, [])
+                guardar_pendente("tela:" + chave, None)
                 return self.enviar(200, {"mensagens": []})
+            if p == "/api/mcp/decidir":
+                pessoa, _ = pessoa_da_tela(self.headers)
+                AUT.decidir(c.get("id"), c.get("aprovar") is True, pessoa)
+                if TOKEN:
+                    threading.Thread(target=lambda: _tentar(ha_post, "/services/persistent_notification/dismiss",
+                                                            {"notification_id": "correria_conectar"}), daemon=True).start()
+                return self.enviar(200, estado())
+            if p == "/api/mcp/desconectar":
+                AUT.desconectar(c.get("id"))
+                return self.enviar(200, estado())
             if p == "/api/registro/limpar":
                 with TRAVA:
                     cv = ler_conversas()
@@ -686,7 +991,7 @@ class Tela(BaseHTTPRequestHandler):
                     _gravar_conversas(cv)
                 return self.enviar(200, estado())
             return self.enviar(404, {"erro": "não encontrado"})
-        except (ValueError, whatsapp.ErroWhatsApp) as e:
+        except (ValueError, LookupError, whatsapp.ErroWhatsApp) as e:
             return self.enviar(400, {"erro": str(e)})
         except Exception as e:  # noqa: BLE001
             log("Erro", p, e)
@@ -699,7 +1004,7 @@ def main():
     hook = ServidorWebhook(("0.0.0.0", PORTA_WEBHOOK), Webhook)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
     cc = certificado()
-    log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")
+    log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook e MCP na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")
     tela = ThreadingHTTPServer(("0.0.0.0", PORTA), Tela)
     tela.daemon_threads = True
     tela.serve_forever()

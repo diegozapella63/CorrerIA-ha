@@ -1,8 +1,12 @@
 """A tela do CorrerIA num Chromium (Playwright), com o servidor de verdade e a Meta e o GerencIA de mentira: configurar
 o WhatsApp (o token nunca volta para a tela), o webhook, quem conversa, os apps, Conversar com a IA, as últimas mensagens,
 o Sobre, o tema e o celular (390 px). Pessoas e números inventados (Ana, Beto)."""
+import base64
+import hashlib
 import json
 import os
+import secrets
+import urllib.parse
 import shutil
 import threading
 import unittest
@@ -11,7 +15,7 @@ from unittest import mock
 
 from playwright.sync_api import sync_playwright
 
-from tests.base import importar_servidor, MetaFalsa, ServidorFalso, ANA
+from tests.base import importar_servidor, AppFalso, MetaFalsa, ServidorFalso, ANA
 S = importar_servidor()
 import apps  # noqa: E402
 
@@ -45,9 +49,11 @@ class Tela(unittest.TestCase):
         cls.app.fechar()
 
     def setUp(self):
-        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ):
+        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ, S.MCP_ARQ):
             if os.path.exists(arq):
                 os.remove(arq)
+        S.AUT.pedidos.clear()
+        S.AUT.codigos.clear()
         shutil.rmtree(S.SHARE_DIR, ignore_errors=True)
         os.makedirs(S.SHARE_DIR)
         S.ESTADO.update(ultimo_webhook=None, verificado_em=None, conta=None, conta_em=None)
@@ -164,15 +170,82 @@ class Tela(unittest.TestCase):
 
     def test_sem_app_explica_e_sem_conversa(self):
         self.abrir()
-        self.assertIn("Nenhum app respondendo. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp.", self.texto("#apps"))
+        self.assertIn("Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.", self.texto("#apps"))
         self.assertEqual(self.pg.locator('[data-a="conversa"]').count(), 0, "sem app, nada para conversar")
 
     def test_apps_que_respondem(self):
         self.publicar_app()
         self.abrir()
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
-        self.assertEqual(self.texto("#apps .app-l .le"), "Também lê fotos e PDF.")
+        self.assertEqual(self.texto("#apps h2"), "Apps da casa")
+        self.assertEqual(self.texto("#apps .app-l .le"), "Responde; também lê fotos e PDF.")
         self.assertEqual(self.texto("#apps .status"), "Áudio: ouve pela fala para texto Fala simulada (teste).")
+
+    def test_apps_com_ferramentas(self):
+        app = AppFalso("CronologIA")
+        self.addCleanup(app.fechar)
+        app.publicar(S.SHARE_DIR, "cronologia")
+        self.abrir("light")
+        self.assertEqual(self.texto("#apps .app-l .le"), "Lê e muda.")
+        self.assertEqual(self.pg.locator("#apps .status").all_inner_texts()[0], "IA simulada (fora do Home Assistant).")
+        app.chave = "outra"
+        S.APPS._ferr.clear()
+        self.pg.reload()
+        self.pg.wait_for_selector("#apps")
+        self.assertEqual(self.texto("#apps .app-l .le"), "O CronologIA recusou a chave. Confira se a opção do CorrerIA está ligada nele.")
+
+    # ---- Claude e Gemini
+    def pedido(self):
+        cli = S.AUT.registrar({"client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"], "token_endpoint_auth_method": "none"})
+        v = secrets.token_urlsafe(48)
+        d = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).rstrip(b"=").decode()
+        p = S.AUT.pedir({"response_type": ["code"], "client_id": [cli["client_id"]], "code_challenge": [d], "code_challenge_method": ["S256"]}, "https://x")
+        return cli, v, p
+
+    def test_claude_e_gemini(self):
+        self.abrir()
+        self.assertEqual(self.texto("#mcp h2"), "Claude e Gemini")
+        self.assertIn("Desligado.", self.texto("#mcp"))
+        self.assertEqual(self.pg.locator("#f-mcp").count(), 0)
+        self.pg.click('[data-a="mcp"]')
+        self.aviso("Claude e Gemini ligados")
+        self.assertTrue(S.ler_config()["mcp"])
+        self.assertEqual(self.texto("#mcp .status"), "Escreva o endereço público no cartão Webhook.")
+        self.pg.fill("#f-endereco", "casa-exemplo.duckdns.org:8443")
+        self.pg.press("#f-endereco", "Tab")
+        self.aviso("Endereço salvo")
+        self.assertEqual(self.pg.input_value("#f-mcp"), "https://casa-exemplo.duckdns.org:8443/mcp")
+        self.assertIn("Adicionar conector personalizado", self.texto("#mcp .passos"))
+        cli, v, p = self.pedido()
+        self.pg.wait_for_selector(".pedido", timeout=8000)  # aparece sozinho (a tela confere a cada 4 segundos)
+        self.assertEqual(self.texto(".aviso-topo"), "Claude quer se conectar")
+        self.assertEqual(self.texto(".pedido .pedido-t"), f"Claude quer se conectar\nCódigo {p['codigo']} · claude.ai")
+        larg = self.pg.evaluate("[...document.querySelectorAll('.pedido .btns .btn')].map(b => Math.round(b.getBoundingClientRect().width))")
+        self.assertEqual(len(set(larg)), 1, "Recusar e Aprovar do mesmo tamanho")
+        self.pg.click('[data-a="mcp-aprovar"]')
+        self.aviso("Aprovado: volte para o Claude ou o Gemini")
+        self.assertEqual(S.AUT.situacao(p["id"])["estado"], "aprovado")
+        self.assertEqual(self.pg.locator(".pedido").count(), 0)
+        code = urllib.parse.parse_qs(urllib.parse.urlparse(S.AUT.situacao(p["id"])["ir"]).query)["code"][0]
+        S.AUT.trocar({"grant_type": "authorization_code", "code": code, "client_id": cli["client_id"], "code_verifier": v})
+        self.pg.reload()
+        self.pg.wait_for_selector(".conexao")
+        self.assertRegex(self.texto(".conexao-t"), r"^Claude\nVocê · usou hoje às \d\d:\d\d$")
+        self.assertEqual(self.pg.locator("#mcp .passos").count(), 0, "conectado, sem o passo a passo")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        self.pg.click('[data-a="mcp-desconectar"]')
+        self.aviso("Desconectado")
+        self.assertEqual(S.AUT.conexoes(), [])
+
+    def test_recusar_pelo_aviso_no_alto(self):
+        S.salvar_config({"mcp": True})
+        _, _, p = self.pedido()
+        self.abrir("light")
+        self.pg.click(".aviso-topo")
+        self.pg.click('[data-a="mcp-recusar"]')
+        self.aviso("Recusado")
+        self.assertEqual(S.AUT.situacao(p["id"])["estado"], "recusado")
+        self.assertEqual(self.pg.locator(".aviso-topo").count(), 0)
 
     # ---- Conversar com a IA
     def abrir_conversa(self):

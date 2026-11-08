@@ -1,9 +1,12 @@
 """server.py: a configuração (o token e a chave nunca voltam para a tela), quem pode conversar, o webhook da Meta (conferir
 o endereço, a assinatura, https com o certificado), responder pelo app da família e a tela. A Meta e o GerencIA são de
 mentira; pessoas e números inventados (Ana, Beto)."""
+import base64
 import hashlib
 import hmac
 import json
+import re
+import secrets
 import os
 import shutil
 import ssl
@@ -11,11 +14,12 @@ import threading
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
 
-from tests.base import importar_servidor, MetaFalsa, ServidorFalso, certificado, pasta_temp, ANA, ANA_WA, BETO
+from tests.base import importar_servidor, AppFalso, MetaFalsa, ServidorFalso, certificado, pasta_temp, ANA, ANA_WA, BETO
 S = importar_servidor()
 import apps  # noqa: E402
 import whatsapp as W  # noqa: E402
@@ -46,9 +50,12 @@ def pedir(url, metodo="GET", corpo=None, cab=None, contexto=None):
 
 class Base(unittest.TestCase):
     def setUp(self):
-        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ):
+        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ, S.MCP_ARQ):
             if os.path.exists(arq):
                 os.remove(arq)
+        S.AUT.pedidos.clear()
+        S.AUT.codigos.clear()
+        S.ESTADO["ia"] = None
         shutil.rmtree(S.SHARE_DIR, ignore_errors=True)
         os.makedirs(S.SHARE_DIR)
         S.ESTADO.update(ultimo_webhook=None, verificado_em=None, conta=None, conta_em=None)
@@ -376,6 +383,256 @@ class TestConversaTela(Base):
         S.registrar("recebida", "Ana", "outra")
         self.assertEqual(len(S.conversa_tela("u-ana")), 4, "gravar o registro do WhatsApp não apaga a conversa da tela")
         self.assertEqual(S.ler_conversas()["registro"][1]["texto"], "do WhatsApp")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+class IAFalsa:
+    """A IA do Home Assistant de mentira: devolve as respostas da fila (ou um erro) e guarda os pedidos."""
+
+    def __init__(self, *respostas):
+        self.fila, self.pedidos = list(respostas), []
+
+    def __call__(self, instrucoes):
+        self.pedidos.append(instrucoes)
+        r = self.fila.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+
+LANCAR = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 32.5}, "resumo": "Lançar R$ 32,50 de Feira hoje"}]}
+
+
+class TestComFerramentas(Base):
+    """Os apps com ferramentas: a IA do Home Assistant lê e propõe; a mudança só acontece com o sim."""
+
+    def setUp(self):
+        super().setUp()
+        self.configurar(app=False)
+        self.app = AppFalso("GerencIA")
+        self.addCleanup(self.app.fechar)
+        self.app.publicar(S.SHARE_DIR, "gerencia")
+
+    def ia(self, *respostas):
+        self.falsa = IAFalsa(*respostas)
+        p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log))
+        p.start()
+        self.addCleanup(p.stop)
+
+    def mandar(self, t, de=ANA_WA):
+        n = len(self.meta.textos())
+        S.receber(entrega(texto(t, de=de, mid="wamid." + secrets.token_hex(4))))
+        return self.meta.textos()[n:]
+
+    def test_le_e_responde(self):
+        self.ia({"chamar": [{"ferramenta": "gerencia_resumo", "argumentos": {}}]}, {"resposta": "Você tem **3 contas**."})
+        self.assertEqual(self.mandar("O que vence?"), [(ANA_WA, "Você tem *3 contas*.")])
+        self.assertIn("Quem está conversando: Ana", self.falsa.pedidos[0])
+        self.assertEqual(self.app.feitos[0]["cliente"], "WhatsApp")
+        self.assertEqual(self.registro()[-1], ("enviada", "Ana", "Você tem *3 contas*."))
+        self.assertEqual(S.ler_conversas()["registro"][0]["app"], "GerencIA")
+
+    def test_mudar_so_com_o_sim(self):
+        self.ia(LANCAR)
+        r = self.mandar("lança 32,50 de feira")
+        self.assertEqual(r[0][1], "Vou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nResponda *sim* para confirmar.")
+        self.assertEqual(self.app.feitos, [])
+        r = self.mandar("Sim!")
+        self.assertEqual(r[0][1], "Feito!\n- Lançado: Feira · R$ 32.5. id: l1")
+        f = self.app.feitos[-1]
+        self.assertEqual((f["nome"], f["argumentos"], f["pessoa"], f["cliente"]), ("lancar", {"descricao": "Feira", "valor": 32.5}, {"id": "person.ana", "nome": "Ana"}, "WhatsApp"))
+        self.assertEqual(S.ler_conversas()["pendentes"], {}, "vale uma vez só")
+        self.ia({"resposta": "Sim o quê?"})
+        self.assertEqual(self.mandar("sim")[0][1], "Sim o quê?", "sem nada esperando, sim é só uma mensagem")
+
+    def test_nao_e_outra_pergunta(self):
+        self.ia(LANCAR)
+        self.mandar("lança 32,50 de feira")
+        self.assertEqual(self.mandar("não, deixa")[0][1], "Tudo bem, não mudei nada.")
+        self.ia(LANCAR, {"chamar": [{"ferramenta": "gerencia_resumo"}]}, {"resposta": "Hoje: 3 contas."})
+        self.mandar("lança 32,50 de feira")
+        self.assertEqual(self.mandar("quanto tenho?")[0][1], "Hoje: 3 contas.", "outra pergunta desfaz o que esperava")
+        self.assertEqual([f["nome"] for f in self.app.feitos], ["resumo"])
+        self.assertIn("IA: Vou fazer isto:", self.falsa.pedidos[-1], "a IA vê o que foi proposto")
+
+    def test_o_sim_vence_em_30_minutos(self):
+        self.ia(LANCAR, {"resposta": "Sim o quê?"})
+        self.mandar("lança 32,50 de feira")
+        with S.TRAVA:
+            c = S.ler_conversas()
+            for p in c["pendentes"].values():
+                p["em"] = "2020-01-01T00:00:00"
+            S._gravar_conversas(c)
+        self.assertEqual(self.mandar("sim")[0][1], "Sim o quê?")
+        self.assertEqual(self.app.feitos, [])
+
+    def test_o_app_recusa_no_sim(self):
+        self.ia({"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira"}, "resumo": "Lançar Feira"}]})
+        self.mandar("lança feira")
+        self.assertEqual(self.mandar("ok")[0][1], "- Não deu: Falta o valor.")
+        self.assertEqual(self.registro()[-2][0], "erro")
+
+    def test_ia_fora_do_ar(self):
+        self.ia(S.ia.ErroIA("Nenhuma entidade de IA."))
+        self.assertEqual(self.mandar("oi")[0][1], "A IA do Home Assistant não respondeu agora (Nenhuma entidade de IA). Tente de novo daqui a pouco.")
+        # com um app que responde com a IA dele, vai por ele
+        self.ia(S.ia.ErroIA("Nenhuma entidade de IA."))
+        self.app.publicar(S.SHARE_DIR, "gerencia", rota="/api/integracao/conversa")
+        self.app.rotas["/api/integracao/conversa"] = (200, {"resposta": "Pela IA do GerencIA."})
+        self.assertEqual(self.mandar("oi")[0][1], "Pela IA do GerencIA.")
+
+    def test_conversa_da_tela(self):
+        self.ia(LANCAR)
+        r = S.conversar({"texto": "lança 32,50 de feira"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
+        self.assertEqual(r["mensagens"][-1]["app"], "GerencIA")
+        self.assertIn("Responda *sim*", r["mensagens"][-1]["texto"])
+        self.assertIn("na tela do app CorrerIA", self.falsa.pedidos[0])
+        r = S.conversar({"texto": "pode"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
+        self.assertTrue(r["mensagens"][-1]["texto"].startswith("Feito!"))
+        self.assertEqual(self.app.feitos[-1]["cliente"], "CorrerIA")
+
+    def test_chamar_a_ia_do_home_assistant(self):
+        ha = ServidorFalso({"/api/services/ai_task/generate_data": lambda h, c: (200, {"service_response": {"data": {"resposta": "ok"}}})})
+        self.addCleanup(ha.fechar)
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            self.assertEqual(S.chamar_ia("Pergunta"), {"resposta": "ok"})
+            m, p, h, c = ha.pedidos[-1]
+            self.assertEqual((p, h["Authorization"], c), ("/api/services/ai_task/generate_data?return_response", "Bearer t", {"task_name": "CorrerIA", "instructions": "Pergunta"}))
+            self.assertTrue(S.estado()["ia"]["ok"])
+            ha.rotas["/api/services/ai_task/generate_data"] = (400, {"message": "Nenhuma entidade de IA padrão."})
+            with self.assertRaisesRegex(S.ia.ErroIA, "Nenhuma entidade"):
+                S.chamar_ia("x")
+            self.assertEqual(S.estado()["ia"]["erro"], "Nenhuma entidade de IA padrão.")
+            ha.rotas["/api/services/ai_task/generate_data"] = (200, {"service_response": {}})
+            with self.assertRaisesRegex(S.ia.ErroIA, "não devolveu"):
+                S.chamar_ia("x")
+        with self.assertRaisesRegex(S.ia.ErroIA, "Sem o Home Assistant"):
+            S.chamar_ia("x")
+
+
+class TestMcpHttp(Base):
+    """O Claude e o Gemini pela porta pública: os metadados, o registro, a página do pedido, a aprovação no painel, o
+    token e o MCP com as ferramentas dos apps."""
+
+    def setUp(self):
+        super().setUp()
+        self.hook = S.ServidorWebhook(("127.0.0.1", 0), S.Webhook)
+        threading.Thread(target=self.hook.serve_forever, daemon=True).start()
+        self.addCleanup(self.hook.server_close)
+        self.addCleanup(self.hook.shutdown)
+        self.url = f"http://127.0.0.1:{self.hook.server_address[1]}"
+        self.tela = ThreadingHTTPServer(("127.0.0.1", 0), S.Tela)
+        threading.Thread(target=self.tela.serve_forever, daemon=True).start()
+        self.addCleanup(self.tela.server_close)
+        self.addCleanup(self.tela.shutdown)
+        self.url_tela = f"http://127.0.0.1:{self.tela.server_address[1]}"
+        self.app = AppFalso("GerencIA")
+        self.addCleanup(self.app.fechar)
+        self.app.publicar(S.SHARE_DIR, "gerencia")
+
+    def j(self, url, metodo="GET", corpo=None, cab=None):
+        st, r = pedir(url, metodo, corpo, cab)
+        return st, (json.loads(r) if r and r[:1] in (b"{", b"[") else r)
+
+    def conectar(self):
+        st, cli = self.j(self.url + "/registrar", "POST", {"client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+                                                             "token_endpoint_auth_method": "none"})
+        self.assertEqual(st, 201)
+        v = secrets.token_urlsafe(48)
+        d = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).rstrip(b"=").decode()
+        q = urllib.parse.urlencode({"response_type": "code", "client_id": cli["client_id"], "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+                                    "code_challenge": d, "code_challenge_method": "S256", "state": "s1", "resource": self.url + "/mcp"})
+        st, pagina = pedir(f"{self.url}/autorizar?{q}")
+        self.assertEqual(st, 200)
+        pid = re.search(rb'var id="([^"]+)"', pagina).group(1).decode()
+        est = self.j(self.url_tela + "/api/estado")[1]
+        pedido = est["mcp"]["pedidos"][0]
+        self.assertIn(pedido["codigo"].encode(), pagina, "o mesmo código na página e no painel")
+        self.assertEqual(self.j(f"{self.url}/autorizar/estado?p={pid}")[1], {"estado": "esperando"})
+        st, est = self.j(self.url_tela + "/api/mcp/decidir", "POST", {"id": pedido["id"], "aprovar": True}, {"X-Remote-User-Id": "u-ana"})
+        self.assertEqual((st, est["mcp"]["pedidos"]), (200, []))
+        ir = self.j(f"{self.url}/autorizar/estado?p={pid}")[1]["ir"]
+        code = urllib.parse.parse_qs(urllib.parse.urlparse(ir).query)["code"][0]
+        corpo = urllib.parse.urlencode({"grant_type": "authorization_code", "code": code, "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+                                        "client_id": cli["client_id"], "code_verifier": v}).encode()
+        st, tok = self.j(self.url + "/token", "POST", corpo, {"Content-Type": "application/x-www-form-urlencoded"})
+        self.assertEqual(st, 200, tok)
+        return tok
+
+    def mcp(self, tok, metodo, params=None, mid=1):
+        m = {"jsonrpc": "2.0", "method": metodo, **({"params": params} if params is not None else {}), **({"id": mid} if mid is not None else {})}
+        return self.j(self.url + "/mcp", "POST", m, {"Authorization": f"Bearer {tok['access_token']}", "Accept": "application/json, text/event-stream"})
+
+    def test_desligado_nada_aparece(self):
+        for c in ("/mcp", "/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server", "/autorizar"):
+            self.assertEqual(pedir(self.url + c)[0], 404, c)
+        self.assertEqual(pedir(self.url + "/registrar", "POST", {"redirect_uris": ["https://claude.ai/x"]})[0], 404)
+
+    def test_caminho_todo(self):
+        S.salvar_config({"mcp": True, "endereco": "casa-exemplo.duckdns.org:8443"})
+        st, meta = self.j(self.url + "/.well-known/oauth-protected-resource/mcp")
+        self.assertEqual((st, meta["resource"], meta["authorization_servers"]), (200, self.url + "/mcp", [self.url]), "o endereço como foi chamado")
+        st, srv = self.j(self.url + "/.well-known/oauth-authorization-server")
+        self.assertEqual(srv["token_endpoint"], self.url + "/token")
+        self.assertEqual(self.j(self.url + "/.well-known/openid-configuration")[1], srv)
+        st, r = self.j(self.url + "/mcp", "POST", {"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+        self.assertEqual(st, 401)
+        req = urllib.request.Request(self.url + "/mcp", data=b"{}", method="POST")
+        try:
+            urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.headers["WWW-Authenticate"], f'Bearer resource_metadata="{self.url}/.well-known/oauth-protected-resource/mcp"')
+        tok = self.conectar()
+        est = self.j(self.url_tela + "/api/estado")[1]
+        self.assertEqual(est["mcp"]["url"], "https://casa-exemplo.duckdns.org:8443/mcp")
+        self.assertEqual([(c["nome"], c["pessoa"]) for c in est["mcp"]["conexoes"]], [("Claude", "Ana")])
+        st, r = self.mcp(tok, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "claude"}})
+        self.assertEqual((st, r["result"]["serverInfo"]["name"]), (200, "correria"))
+        self.assertEqual(self.mcp(tok, "notifications/initialized", mid=None)[0], 202)
+        st, r = self.mcp(tok, "tools/list")
+        self.assertEqual([t["name"] for t in r["result"]["tools"]], ["gerencia_resumo", "gerencia_lancar", "gerencia_apagar"])
+        st, r = self.mcp(tok, "tools/call", {"name": "gerencia_lancar", "arguments": {"descricao": "Feira", "valor": 12}})
+        self.assertEqual(r["result"]["isError"], False)
+        self.assertEqual((self.app.feitos[-1]["pessoa"]["nome"], self.app.feitos[-1]["cliente"]), ("Ana", "Claude"))
+        self.assertEqual(self.registro()[-1], ("mcp", "Claude · Ana", "Lançado: Feira · R$ 12. id: l1"))
+        self.assertEqual(pedir(self.url + "/mcp")[0], 405)
+        self.assertEqual(pedir(self.url + "/mcp", "DELETE")[0], 405)
+        conid = est["mcp"]["conexoes"][0]["id"]
+        st, est = self.j(self.url_tela + "/api/mcp/desconectar", "POST", {"id": conid})
+        self.assertEqual(est["mcp"]["conexoes"], [])
+        self.assertEqual(self.mcp(tok, "tools/list")[0], 401, "desconectado, o token não vale mais")
+        S.salvar_config({"mcp": False})
+        self.assertEqual(pedir(self.url + "/mcp", "POST", b"{}")[0], 404)
+
+    def test_recusar_e_erros_da_pagina(self):
+        S.salvar_config({"mcp": True})
+        st, pagina = pedir(self.url + "/autorizar?client_id=c-nada&response_type=code")
+        self.assertEqual(st, 400)
+        self.assertIn("Não deu para conectar".encode(), pagina)
+        st, cli = self.j(self.url + "/registrar", "POST", {"redirect_uris": ["https://claude.ai/volta"]})
+        req = urllib.request.Request(f"{self.url}/autorizar?client_id={cli['client_id']}&response_type=code&state=a")
+        abridor = urllib.request.build_opener(type("SemSeguir", (urllib.request.HTTPRedirectHandler,), {"redirect_request": lambda *a: None}))
+        try:
+            abridor.open(req, timeout=5)
+            self.fail("devia voltar com o erro")
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.code, 302)
+            self.assertTrue(e.headers["Location"].startswith("https://claude.ai/volta?error=invalid_request"), "sem PKCE: volta com o erro")
+        st, r = self.j(self.url + "/token", "POST", b"grant_type=authorization_code&code=x", {"Content-Type": "application/x-www-form-urlencoded"})
+        self.assertEqual((st, r["error"]), (400, "invalid_grant"))
+        st, r = self.j(self.url + "/registrar", "POST", b"{x")
+        self.assertEqual((st, r["error"]), (400, "invalid_client_metadata"))
+        with mock.patch.object(S, "MAX_MCP", 10):
+            self.assertEqual(pedir(self.url + "/registrar", "POST", b"x" * 20)[0], 413)
+        st, r = self.j(self.url_tela + "/api/mcp/decidir", "POST", {"id": "x", "aprovar": True})
+        self.assertEqual(st, 400)
+        self.assertIn("não está mais esperando", r["erro"])
+
+    def test_estado_dos_apps(self):
+        est = S.estado()
+        a = est["apps"][0]
+        self.assertEqual((a["app"], a["ferramentas"], a["gravam"], a["conversa"], a["erro"]), ("gerencia", 3, 2, False, ""))
+        self.assertEqual(est["mcp"], {"ligado": False, "url": "", "pedidos": [], "conexoes": []})
 
 
 # ---------------------------------------------------------------------------------------------------------------

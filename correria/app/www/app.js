@@ -1,8 +1,8 @@
-/* CorrerIA · a tela (JavaScript puro, sem build): o WhatsApp da Meta, o webhook, quem conversa, os apps que respondem
-   e as últimas mensagens. Ações por data-a; tudo vem de /api/estado. */
+/* CorrerIA · a tela (JavaScript puro, sem build): o WhatsApp da Meta, o webhook, quem conversa, os apps da casa, o
+   Claude e o Gemini (MCP) e as últimas mensagens. Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.3.0';
+  const VERSAO = '0.4.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -31,6 +31,7 @@
     wallet: '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V7Z"/><path d="M4 7V6a2 2 0 0 1 2-2h10"/><circle cx="16" cy="13.5" r="1.3"/>',
     package: '<path d="M11 21.7a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7z"/><path d="M12 22V12M3.3 7 12 12l8.7-5"/>',
     receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    plug: '<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8Z"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
@@ -147,23 +148,51 @@
     </section>`;
   }
 
-  // o que cada app lê além de texto (fotos e PDF, pelo correria.json dele)
-  function leAnexos(a) {
+  // o que cada app faz pelo CorrerIA: ler e mudar (as ferramentas) e, além de texto, fotos e PDF (pelo correria.json dele)
+  function oQueFaz(a) {
     const t = a.anexos || [], foto = t.some(x => x.startsWith('image/')), pdf = t.includes('application/pdf');
-    return foto && pdf ? 'Também lê fotos e PDF.' : foto ? 'Também lê fotos.' : pdf ? 'Também lê PDF.' : '';
+    const le = foto && pdf ? 'fotos e PDF' : foto ? 'fotos' : pdf ? 'PDF' : '';
+    if (a.erro) return '';
+    const f = a.ferramentas ? (a.gravam ? 'Lê e muda' : 'Lê') : a.conversa ? 'Responde' : '';
+    return f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '';
   }
   function cardApps(e) {
-    const A = e.apps, f = e.fala || {};
-    const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${leAnexos(a) ? `<small class="le">${leAnexos(a)}</small>` : ''}</span></div>`).join('')
-      : '<div class="status manual">Nenhum app respondendo. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp.</div>';
+    const A = e.apps, f = e.fala || {}, i = e.ia || {};
+    const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
+      : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
     const audio = f.pronta ? `<div class="status">Áudio: ouve pela fala para texto ${esc(f.nome)}.</div>` : `<div class="status manual">Áudio: ${esc(f.motivo || 'sem fala para texto.')}</div>`;
-    return `<section class="card" id="apps">${cab('layers', 'Apps que respondem')}
-      ${lista}${A.length ? audio : ''}
+    const comFerr = A.some(a => a.ferramentas);
+    const ia = !comFerr ? '' : i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
+      : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
+    return `<section class="card" id="apps">${cab('layers', 'Apps da casa')}
+      ${lista}${ia}${A.length ? audio : ''}
       ${A.length ? `<button class="btn out larga" data-a="conversa">${ic('chat', 'ic-s')}Conversar com a IA</button>` : ''}
     </section>`;
   }
 
-  const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'] };
+  // o Claude e o Gemini: o endereço do conector, os pedidos esperando aprovação e quem está conectado
+  function cardMcp(e) {
+    const m = e.mcp || {};
+    const sw = `<div class="linha-sw"><div><b>Conectar o Claude e o Gemini</b><span>${m.ligado ? 'Ligado: leem e mudam os apps da casa, com a sua aprovação.' : 'Desligado.'}</span></div>
+        <button class="sw${m.ligado ? ' on' : ''}" data-a="mcp" role="switch" aria-checked="${!!m.ligado}" aria-label="Conectar o Claude e o Gemini"></button></div>`;
+    if (!m.ligado) return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
+      <p class="lead">Os apps da casa dentro do Claude e do Gemini, como um conector.</p>${sw}</section>`;
+    const pedidos = (m.pedidos || []).map(p => `<div class="pedido"><div class="pedido-t"><b>${esc(p.nome)} quer se conectar</b><span>Código <b class="cod">${esc(p.codigo)}</b> · ${esc(p.host)}</span></div>
+        <div class="btns"><button class="btn out" data-a="mcp-recusar" data-v="${esc(p.id)}">Recusar</button><button class="btn pri" data-a="mcp-aprovar" data-v="${esc(p.id)}">Aprovar</button></div></div>`).join('');
+    const conexoes = (m.conexoes || []).map(c => `<div class="conexao"><span class="av">${esc((c.nome || '?').slice(0, 1).toUpperCase())}</span>
+        <div class="conexao-t"><b>${esc(c.nome)}</b><span>${[c.pessoa, c.usado ? 'usou ' + quando(c.usado) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
+        <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">Desconectar</button></div>`).join('');
+    const endereco = m.url ? `<div class="campo"><label for="f-mcp">Endereço do conector</label><div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
+      ${conexoes ? '' : `<ol class="passos"><li>No Claude: Configurações › Conectores › <b>Adicionar conector personalizado</b>. No Gemini (no site): Configurações › Apps conectados › <b>Adicionar app personalizado</b>.</li><li>Cole o endereço e toque em Conectar.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
+      : '<div class="status manual">Escreva o endereço público no cartão Webhook.</div>';
+    return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
+      <p class="lead">Os apps da casa dentro do Claude e do Gemini, como um conector.</p>${sw}
+      ${pedidos}${endereco}
+      ${conexoes ? `<div class="lbl">Conectados</div>${conexoes}` : ''}
+    </section>`;
+  }
+
+  const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'], mcp: ['plug', 'Claude ou Gemini'] };
   function cardMensagens(e) {
     const R = e.registro;
     return `<section class="card" id="mensagens">${cab('inbox', 'Últimas mensagens', R.length ? '<button class="btn peq" data-a="limpar">Limpar</button>' : '')}
@@ -171,19 +200,24 @@
         const [icone, rot] = TIPO[r.tipo] || ['chat', r.tipo];
         return `<div class="msg ${esc(r.tipo)}"><span class="msg-ic" title="${rot}">${ic(icone, 'ic-s')}</span><div>
           <div class="msg-t"><b>${esc(r.quem)}${r.tipo === 'bloqueada' ? ' · sem cadastro' : ''}</b><time datetime="${esc(r.em)}">${horaCurta(r.em)}</time></div>
-          <p>${esc(r.texto)}</p></div></div>`;
+          <p>${esc(r.texto)}${r.app && r.tipo === 'mcp' ? ` <small>· ${esc(r.app)}</small>` : ''}</p></div></div>`;
       }).join('')}</div>` : '<p class="vazio">Nenhuma mensagem ainda.</p>'}
     </section>`;
   }
 
+  // um pedido do Claude ou do Gemini esperando: aparece no alto também, para quem abriu o app só para aprovar
+  function pendentes(e) {
+    const n = ((e.mcp || {}).pedidos || []).length;
+    return n ? `<button class="aviso-topo" data-a="ir-mcp">${ic('plug', 'ic-s')}<span>${n === 1 ? esc(e.mcp.pedidos[0].nome) + ' quer se conectar' : n + ' pedidos para conectar'}</span>${ic('chev', 'ic-s')}</button>` : '';
+  }
   function casa(e) {
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
     return `
-      <header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · WhatsApp</p>
+      <header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · os apps da casa</p>
         <h1>Contato da CorrerIA Code</h1></div>
         ${e.apps.length ? `<button class="bt-topo" data-a="conversa" aria-label="Conversar com a IA" title="Conversar com a IA">${ic('chat')}</button>` : ''}</header>
       <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração'}</div>
-      ${cardWhatsApp(e)}${cardWebhook(e)}${cardPessoas(e)}${cardApps(e)}${cardMensagens(e)}
+      ${pendentes(e)}${cardWhatsApp(e)}${cardWebhook(e)}${cardPessoas(e)}${cardApps(e)}${cardMcp(e)}${cardMensagens(e)}
       <section class="card linha-card"><button class="linha" data-a="sobre"><span class="rot-ic">${ic('info')}</span><span class="linha-t"><b>Sobre</b><small>CorrerIA Code, os apps e o GitHub.</small></span>${ic('chev', 'ic-s chev')}</button></section>`;
   }
 
@@ -224,7 +258,8 @@
       return `<p>${ls.map(linha).join('<br>')}</p>`;
     }).join('');
   }
-  const SUGESTOES = { gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?'] };
+  const SUGESTOES = { gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?'], cronologia: ['O que tem na agenda amanhã?'],
+    resolvia: ['Quais tarefas vencem hoje?'], inventario: ['Quanto valem os itens da sala?'], memoria: ['O que eu anotei esta semana?'] };
   function conversa(e) {
     const c = S.ch, M = c.msgs;
     let corpo;
@@ -336,6 +371,14 @@
       if (r && r.conta) toast('Conferido com a Meta');
     } else if (a === 'ligado') {
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
+    } else if (a === 'mcp') {
+      await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Claude e Gemini desligados' : 'Claude e Gemini ligados');
+    } else if (a === 'mcp-aprovar' || a === 'mcp-recusar') {
+      await acao('mcp/decidir', { id: el.dataset.v, aprovar: a === 'mcp-aprovar' }, a === 'mcp-aprovar' ? 'Aprovado: volte para o Claude ou o Gemini' : 'Recusado');
+    } else if (a === 'mcp-desconectar') {
+      await acao('mcp/desconectar', { id: el.dataset.v }, 'Desconectado');
+    } else if (a === 'ir-mcp') {
+      const c = $('#mcp'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (a === 'copiar') {
       const inp = document.getElementById(el.dataset.v);
       inp.select();
@@ -396,12 +439,16 @@
 
   if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na casa
   carregar();
-  // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando)
+  // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando); com o Claude e o Gemini ligados, a cada
+  // 4 segundos, para o pedido de conexão aparecer logo
+  let ultimaCarga = Date.now();
   setInterval(() => {
     if (document.hidden || S.tela) return;
     const a = document.activeElement;
-    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && !a.readOnly) return;
+    if (!(S.e && S.e.mcp && S.e.mcp.ligado) && Date.now() - ultimaCarga < 9500) return;
+    ultimaCarga = Date.now();
     carregar();
-  }, 10000);
+  }, 4000);
   window.CORRERIA_TESTE = { S, render, carregar };
 })();

@@ -2,9 +2,7 @@
 
 ![CorrerIA](correria/logo.png)
 
-Um App do Home Assistant: o **contato da CorrerIA Code no WhatsApp**. As pessoas da casa mandam uma pergunta pelo WhatsApp e o app da família que cuida daquele assunto responde com a **IA** e os seus dados. Começa pelo [GerencIA](https://github.com/diegozapella63/gerencia-ha) (finanças): "quanto gastei com mercado este mês?", "o que vence esta semana?".
-
-Usa a **API oficial do WhatsApp Business** (Meta).
+Um App do Home Assistant que junta os apps da casa no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), no **Claude** e no **Gemini** (como um conector MCP). Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
 
 ## Instalação
 
@@ -22,7 +20,7 @@ Usa a **API oficial do WhatsApp Business** (Meta).
 
 | App | O que é |
 |---|---|
-| [GerencIA](https://github.com/diegozapella63/gerencia-ha) | finanças: caixa, cartões, investimentos (responde pelo CorrerIA) |
+| [GerencIA](https://github.com/diegozapella63/gerencia-ha) | finanças: caixa, cartões, investimentos |
 | [CronologIA](https://github.com/diegozapella63/cronologia-ha) | agenda da família, remédios, rotinas e placar |
 | [ResolvIA](https://github.com/diegozapella63/resolvia-ha) | listas de tarefas com prazos, pontos e repetição |
 | [InventarIA](https://github.com/diegozapella63/inventario-ha) | inventário da casa: cômodos, itens e valores |

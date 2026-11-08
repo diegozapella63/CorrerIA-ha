@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 
-from tests.base import ServidorFalso, pasta_temp, porta_livre
+from tests.base import AppFalso, ServidorFalso, pasta_temp, porta_livre
 import apps as A
 
 
@@ -31,7 +31,8 @@ class TestLista(unittest.TestCase):
         lista = self.a.lista()
         self.assertEqual([(x["app"], x["nome"], x["url"], x["ip_url"]) for x in lista], [("gerencia", "GerencIA", "http://gerencia:8099", "http://172.30.33.5:8099")])
         self.assertEqual(len(self.reg), 1, "o estragado vai para o registro")
-        self.assertEqual(self.a.publicos(), [{"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa", "versao": "1.37.0", "anexos": []}], "sem a chave")
+        self.assertEqual(self.a.publicos(), [{"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa", "versao": "1.37.0", "anexos": [],
+                                              "conversa": True}], "sem a chave")
 
     def test_guarda_por_um_tempo(self):
         a = A.Apps(self.share, print, cache=60)
@@ -108,6 +109,55 @@ class TestPerguntar(unittest.TestCase):
         self.assertEqual(self.a.perguntar(app, "oi", [], {}), "Não entendi. Pode dizer de outro jeito?")
         with self.assertRaisesRegex(A.ErroApp, "Não consegui falar com o GerencIA"):
             self.a.perguntar(dict(app, url=f"http://127.0.0.1:{porta_livre()}", ip_url=""), "oi", [], {}, timeout=2)
+
+
+class TestFerramentas(unittest.TestCase):
+    def setUp(self):
+        self.share = pasta_temp()
+        self.a = A.Apps(self.share, print, cache=0)
+        self.app = AppFalso("CronologIA")
+        self.addCleanup(self.app.fechar)
+        self.app.publicar(self.share, "cronologia")
+
+    def test_so_ferramentas_nao_responde_perguntas(self):
+        app = self.a.lista()[0]
+        self.assertEqual((app["rota"], app["ferramentas"], app["anexos"]), ("", "/api/integracao/ferramentas", []))
+        self.assertIsNone(self.a.escolher("a agenda de amanhã"), "sem rota, não entra no caminho antigo")
+        self.assertEqual(self.a.publicos()[0]["conversa"], False)
+        with self.assertRaisesRegex(A.ErroApp, "não responde perguntas"):
+            self.a.perguntar(app, "oi", [], {})
+
+    def test_lista_so_as_bem_formadas_e_guarda(self):
+        ruins = [{"nome": "Com Espaço", "entrada": {"type": "object"}}, {"nome": "ok_1", "entrada": "x", "grava": "sim"}, {"nome": "ok_1"}, "x"]
+        self.app.rotas["/api/integracao/ferramentas"] = lambda h, c: (200, {"instrucoes": "i" * 3000, "ferramentas": ruins})
+        r = self.a.ferramentas(self.a.lista()[0])
+        self.assertEqual([f["nome"] for f in r["ferramentas"]], ["ok_1"], "nome inválido e repetido ficam de fora")
+        self.assertEqual((r["ferramentas"][0]["entrada"], r["ferramentas"][0]["grava"]), ({"type": "object", "properties": {}}, False))
+        self.assertEqual(len(r["instrucoes"]), 1500)
+        n = len(self.app.pedidos)
+        self.a.ferramentas(self.a.lista()[0])
+        self.assertEqual(len(self.app.pedidos), n, "guardada por um tempo")
+        self.assertEqual(len(self.a.ferramentas(self.a.lista()[0], cache=0)), 2)
+        self.assertEqual(len(self.app.pedidos), n + 1)
+
+    def test_usar(self):
+        app = self.a.lista()[0]
+        t = self.a.usar(app, "lancar", {"descricao": "Feira", "valor": 10}, {"id": "person.ana", "nome": "Ana"}, "Claude")
+        self.assertTrue(t.startswith("Lançado: Feira"))
+        m, p, h, c = self.app.pedidos[-1]
+        self.assertEqual((m, h["X-App"], c), ("POST", "CorrerIA", {"nome": "lancar", "argumentos": {"descricao": "Feira", "valor": 10},
+                                                                  "pessoa": {"id": "person.ana", "nome": "Ana"}, "cliente": "Claude"}))
+        with self.assertRaisesRegex(A.ErroFerramenta, "^Falta o valor.$"):
+            self.a.usar(app, "lancar", {"descricao": "Feira"}, {}, "Claude")
+        with self.assertRaisesRegex(A.ErroFerramenta, "desconhecida"):
+            self.a.usar(app, "sacar", {}, {}, "Claude")
+        self.app.chave = "outra"
+        with self.assertRaisesRegex(A.ErroApp, "recusou a chave"):
+            self.a.usar(app, "resumo", {}, {}, "Claude")
+
+    def test_nome_do_app_invalido(self):
+        publicar(self.share, "Outro App", "http://x")
+        self.assertEqual([a["app"] for a in self.a.lista()], ["cronologia"])
 
 
 if __name__ == "__main__":

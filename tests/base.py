@@ -113,3 +113,46 @@ def importar_servidor(**env):
     os.environ.pop("SUPERVISOR_TOKEN", None)
     os.environ.update(env)
     return importlib.import_module("server")
+
+
+FERRAMENTAS_FALSAS = [
+    {"nome": "resumo", "titulo": "Resumo", "descricao": "O que tem hoje.", "entrada": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+     "grava": False, "apaga": False},
+    {"nome": "lancar", "titulo": "Lançar gasto", "descricao": "Lança um gasto.",
+     "entrada": {"type": "object", "properties": {"descricao": {"type": "string"}, "valor": {"type": "number"}}, "required": ["descricao", "valor"],
+                 "additionalProperties": False}, "grava": True, "apaga": False},
+    {"nome": "apagar", "titulo": "Apagar", "descricao": "Apaga um gasto.", "entrada": {"type": "object", "properties": {"id": {"type": "string"}}},
+     "grava": True, "apaga": True},
+]
+
+
+class AppFalso(ServidorFalso):
+    """Um app da família com o contrato das ferramentas (GET lista, POST chama). .feitos guarda os POST."""
+
+    def __init__(self, nome="GerencIA", ferramentas=None, chave="chave-de-teste-" + "x" * 20):
+        super().__init__()
+        self.nome, self.chave, self.feitos = nome, chave, []
+        lista = FERRAMENTAS_FALSAS if ferramentas is None else ferramentas
+
+        def rota(h, c):
+            if h.headers.get("Authorization") != f"Bearer {self.chave}":
+                return 401, {"erro": "Chave inválida."}
+            if h.command == "GET":
+                return 200, {"instrucoes": f"{nome}: dicas.", "ferramentas": lista}
+            self.feitos.append(c)
+            if c["nome"] == "resumo":
+                return 200, {"texto": f"Hoje no {nome}: 3 contas, R$ 120,00."}
+            if c["nome"] == "lancar":
+                if not c["argumentos"].get("valor"):
+                    return 400, {"erro": "Falta o valor."}
+                return 200, {"texto": f"Lançado: {c['argumentos'].get('descricao')} · R$ {c['argumentos']['valor']}. id: l1\nmais uma linha"}
+            if c["nome"] == "apagar":
+                return 200, {"texto": "Apagado."}
+            return 404, {"erro": f"Ferramenta desconhecida: {c['nome']}."}
+        self.rotas["/api/integracao/ferramentas"] = rota
+
+    def publicar(self, share, app="gerencia", rota=None):
+        os.makedirs(os.path.join(share, app), exist_ok=True)
+        with open(os.path.join(share, app, "correria.json"), "w", encoding="utf-8") as f:
+            json.dump({"app": app, "nome": self.nome, "assunto": "um assunto", "url": self.url, "chave": self.chave, "versao": "9.9.9",
+                       "ferramentas": "/api/integracao/ferramentas", **({"rota": rota} if rota else {})}, f)

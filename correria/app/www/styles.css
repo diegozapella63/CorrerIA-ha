@@ -122,6 +122,25 @@ textarea.inp { resize: vertical; min-height: 84px; }
 .app-l b { display: block; font: 600 19px/1.1 var(--font-d); }
 .app-l small { display: block; color: var(--muted); font-size: 13px; }
 .app-l small.le { color: var(--text-2); margin-top: 2px; }
+.app-l small.le.erro { color: var(--danger); }
+
+/* ---------- Claude e Gemini */
+.lbl { color: var(--text-2); font: 500 14px/1.3 var(--font); margin: 18px 0 4px; }
+.pedido { border: 1.5px solid var(--accent); border-radius: var(--r-ctl); padding: 14px; margin: 0 0 16px; background: var(--accent-soft); }
+.pedido-t { margin-bottom: 12px; }
+.pedido-t b { display: block; font-weight: 600; }
+.pedido-t span { color: var(--text-2); font-size: 14px; }
+.pedido .cod { display: inline; font: 700 18px/1 var(--font-d); letter-spacing: .08em; color: var(--accent-text); }
+.conexao { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.conexao:first-of-type { border-top: 0; }
+.conexao .av { background: var(--accent-soft); color: var(--accent-text); }
+.conexao-t { flex: 1; min-width: 0; }
+.conexao-t b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conexao-t span { display: block; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aviso-topo { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 18px; padding: 12px 14px; border-radius: var(--r-ctl);
+  border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-text); font: 600 15px/1.3 var(--font); text-align: left; }
+.aviso-topo span { flex: 1; min-width: 0; }
+.msg p small { color: var(--muted); }
 .bolha { margin-top: 12px; padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--bolha); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
 .bolha small { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
 
