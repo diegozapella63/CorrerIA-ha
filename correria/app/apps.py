@@ -53,18 +53,19 @@ class Apps:
             pasta = os.path.basename(os.path.dirname(arq))
             out.append({"app": str(a.get("app") or pasta), "nome": str(a.get("nome") or pasta), "assunto": str(a.get("assunto") or ""),
                         "rota": str(a.get("rota") or "/api/integracao/conversa"), "url": str(a["url"]).rstrip("/"),
-                        "ip_url": str(a.get("ip_url") or "").rstrip("/"), "chave": str(a["chave"]), "versao": str(a.get("versao") or "")})
+                        "ip_url": str(a.get("ip_url") or "").rstrip("/"), "chave": str(a["chave"]), "versao": str(a.get("versao") or ""),
+                        "anexos": [str(t).lower() for t in a.get("anexos") or [] if isinstance(t, str)]})
         self._lista, self._quando = out, time.time()
         return out
 
     def publicos(self):
         """O que a tela vê (sem a chave)."""
-        return [{k: a[k] for k in ("app", "nome", "assunto", "versao")} for a in self.lista(forcar=True)]
+        return [{k: a[k] for k in ("app", "nome", "assunto", "versao", "anexos")} for a in self.lista(forcar=True)]
 
-    def escolher(self, texto, ultimo=None):
+    def escolher(self, texto, ultimo=None, tipo=None):
         """O app da pergunta: um só, ele; mais de um, o que tiver mais palavras do assunto dele na pergunta; empate ou
-        nenhuma, o da última pergunta dessa pessoa; senão, o primeiro."""
-        apps = self.lista()
+        nenhuma, o da última pergunta dessa pessoa; senão, o primeiro. Com um anexo (tipo), só os apps que leem esse tipo."""
+        apps = [a for a in self.lista() if not tipo or tipo in a["anexos"]]
         if not apps:
             return None
         if len(apps) == 1:
@@ -79,9 +80,10 @@ class Apps:
             return notas[0][1]
         return next((a for a in apps if a["app"] == ultimo), apps[0])
 
-    def perguntar(self, app, texto, historico, pessoa, timeout=150):
-        """Pergunta ao app e devolve o texto da resposta. Tenta o nome do app na rede interna e depois o IP."""
-        corpo = json.dumps({"texto": texto, "historico": historico, "pessoa": pessoa}).encode()
+    def perguntar(self, app, texto, historico, pessoa, timeout=150, anexo=None):
+        """Pergunta ao app e devolve o texto da resposta. Tenta o nome do app na rede interna e depois o IP. anexo:
+        {tipo, nome, b64} (uma foto ou um PDF, em data URL), para os apps que leem esse tipo."""
+        corpo = json.dumps({"texto": texto, "historico": historico, "pessoa": pessoa, **({"anexo": anexo} if anexo else {})}).encode()
         ultimo_erro = None
         for base in [app["url"]] + ([app["ip_url"]] if app.get("ip_url") else []):
             req = urllib.request.Request(base + app["rota"], data=corpo, method="POST",

@@ -39,7 +39,9 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 
 - Recebeu, o CorrerIA marca como lida, mostra "digitando…" e pergunta ao app do assunto. A resposta volta no jeito do WhatsApp (negrito com *asterisco*), em partes se for longa.
 - A conversa de cada pessoa vai junto com a pergunta (as últimas mensagens de até 12 horas atrás), para a IA lembrar do que se falou. Depois disso, recomeça.
-- Por enquanto lê só texto: áudio, foto e figurinha recebem "Por enquanto eu só leio mensagens de texto".
+- **Fotos e PDFs**: mande a foto de uma nota, um print ou a fatura em PDF (com ou sem uma pergunta na legenda). O CorrerIA passa para o app do assunto que lê aquele tipo (em **Apps que respondem** aparece o que cada um lê). No GerencIA, a IA lê como no Ler com IA: o que ela achar fica para conferir nos **Avisos do Início** ("Enviado por Ana · Pelo WhatsApp · 4 lançamentos") e a resposta lista o que foi lido; nada é lançado sozinho. A fatura em PDF com senha abre com as **Senhas dos PDFs** do GerencIA; se nenhuma abrir, a resposta pede para cadastrar e mandar de novo. Com uma pergunta junto ("quanto deu essa nota?"), a resposta vem com o que foi lido. Até 20 MB.
+- **Áudio**: o CorrerIA ouve pela fala para texto do Home Assistant (Configurações › Assistentes de voz; a do Home Assistant Cloud primeiro) e manda o texto para o app, como se a pessoa tivesse escrito. O WhatsApp grava em OGG: em **Apps que respondem**, a linha **Áudio** diz se a fala para texto aceita esse formato. Se não aceitar, a resposta pede para escrever.
+- Vídeo, figurinha e localização recebem "Por enquanto eu entendo texto, áudio, foto e PDF".
 - Pelo WhatsApp a IA só responde: lançar, pagar ou mudar um saldo continua no app. E fala só dos apps da casa: é a regra do WhatsApp para contatos de empresas (assistente para qualquer assunto não é permitido).
 - **Responder pelo WhatsApp**, no cartão WhatsApp, pausa as respostas sem desligar nada.
 - **Últimas mensagens** mostra o que chegou, o que foi respondido, os números sem cadastro e os erros (como "Passaram mais de 24 horas": o WhatsApp só deixa responder até 24 horas depois da última mensagem da pessoa).

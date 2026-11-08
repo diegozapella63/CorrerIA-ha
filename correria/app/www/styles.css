@@ -111,7 +111,8 @@ textarea.inp { resize: vertical; min-height: 84px; }
 .app-l { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
 .app-l .app-t { flex: 1; min-width: 0; }
 .app-l b { display: block; font: 600 19px/1.1 var(--font-d); }
-.app-l small { color: var(--muted); font-size: 13px; }
+.app-l small { display: block; color: var(--muted); font-size: 13px; }
+.app-l small.le { color: var(--text-2); margin-top: 2px; }
 .bolha { margin-top: 12px; padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--bolha); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
 .bolha small { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
 

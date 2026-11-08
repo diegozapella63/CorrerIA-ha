@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import unittest
+import unittest.mock
 
 from tests.base import MetaFalsa, ServidorFalso, porta_livre, ANA, ANA_WA
 import whatsapp as W
@@ -130,6 +131,25 @@ class TestCliente(unittest.TestCase):
         self.meta.rotas[f"/{MetaFalsa.NUMERO_ID}/messages"] = (500, "não é json")
         with self.assertRaisesRegex(W.ErroWhatsApp, "A Meta respondeu 500."):
             self.wa.texto(ANA_WA, "oi")
+
+    def test_midia(self):
+        self.meta.rotas["/MIDIA1"] = (200, {"url": self.meta.url + "/arquivo/MIDIA1", "mime_type": "audio/ogg; codecs=opus", "file_size": 4})
+        self.meta.rotas["/arquivo/MIDIA1"] = (200, b"OggS")
+        self.assertEqual(self.wa.midia("MIDIA1"), (b"OggS", "audio/ogg"))
+        self.assertEqual(self.meta.pedidos[1][2]["Authorization"], "Bearer token-teste-123", "o arquivo só abre com o token")
+        self.meta.rotas["/MIDIA2"] = (200, {"url": self.meta.url + "/x", "file_size": W.MAX_MIDIA + 1})
+        with self.assertRaisesRegex(W.ErroWhatsApp, "grande demais"):
+            self.wa.midia("MIDIA2")
+        self.meta.rotas["/MIDIA3"] = (200, {"mime_type": "image/jpeg"})
+        with self.assertRaisesRegex(W.ErroWhatsApp, "A Meta não deu o arquivo."):
+            self.wa.midia("MIDIA3")
+        self.meta.rotas["/MIDIA4"] = (200, {"url": f"http://127.0.0.1:{porta_livre()}/x"})
+        with self.assertRaisesRegex(W.ErroWhatsApp, "Não consegui baixar o arquivo"):
+            self.wa.midia("MIDIA4")
+        with unittest.mock.patch.object(W, "MAX_MIDIA", 2):
+            self.meta.rotas["/MIDIA5"] = (200, {"url": self.meta.url + "/arquivo/MIDIA1"})
+            with self.assertRaisesRegex(W.ErroWhatsApp, "grande demais"):
+                self.wa.midia("MIDIA5")
 
     def test_sem_configurar_e_sem_rede(self):
         with self.assertRaisesRegex(W.ErroWhatsApp, "Falta configurar"):

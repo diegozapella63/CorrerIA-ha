@@ -74,7 +74,7 @@ class Tela(unittest.TestCase):
         os.makedirs(os.path.join(S.SHARE_DIR, "gerencia"), exist_ok=True)
         with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), "w") as f:
             json.dump({"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa", "rota": "/api/integracao/conversa",
-                       "url": self.app.url, "chave": "chave-" + "x" * 30, "versao": "1.37.0"}, f)
+                       "url": self.app.url, "chave": "chave-" + "x" * 30, "versao": "1.37.0", "anexos": ["application/pdf", "image/jpeg", "image/png"]}, f)
 
     # ------------------------------------------------------------------------------------------------
     def test_comeca_pedindo_a_configuracao(self):
@@ -154,6 +154,13 @@ class Tela(unittest.TestCase):
         self.aviso("Número tirado")
         self.assertEqual(S.ler_config()["pessoas"], {})
 
+    def test_audio_sem_fala_para_texto(self):
+        self.publicar_app()
+        with mock.patch.object(S.FALA, "status", return_value={"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}):
+            self.abrir()
+            self.assertEqual(self.texto("#apps .status"), "Áudio: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
+            self.assertTrue(self.pg.evaluate("document.querySelector('#apps .status').classList.contains('manual')"))
+
     def test_sem_app_explica(self):
         self.abrir()
         self.assertIn("Nenhum app respondendo. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp.", self.texto("#apps"))
@@ -164,6 +171,8 @@ class Tela(unittest.TestCase):
         S.salvar_pessoa("person.ana", ANA)
         self.abrir()
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
+        self.assertEqual(self.texto("#apps .app-l .le"), "Também lê fotos e PDF.")
+        self.assertEqual(self.texto("#apps .status"), "Áudio: ouve pela fala para texto Fala simulada (teste).")
         self.pg.click('[data-a="testar"]')  # vazio: nada
         self.assertEqual(self.pg.locator(".bolha").count(), 0)
         self.pg.fill("#f-teste", "Quanto gastei?")

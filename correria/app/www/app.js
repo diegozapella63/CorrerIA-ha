@@ -2,7 +2,7 @@
    e as últimas mensagens. Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.1.0';
+  const VERSAO = '0.2.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -132,13 +132,19 @@
     </section>`;
   }
 
+  // o que cada app lê além de texto (fotos e PDF, pelo correria.json dele)
+  function leAnexos(a) {
+    const t = a.anexos || [], foto = t.some(x => x.startsWith('image/')), pdf = t.includes('application/pdf');
+    return foto && pdf ? 'Também lê fotos e PDF.' : foto ? 'Também lê fotos.' : pdf ? 'Também lê PDF.' : '';
+  }
   function cardApps(e) {
-    const A = e.apps;
-    const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small></span></div>`).join('')
+    const A = e.apps, f = e.fala || {};
+    const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${leAnexos(a) ? `<small class="le">${leAnexos(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app respondendo. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp.</div>';
+    const audio = f.pronta ? `<div class="status">Áudio: ouve pela fala para texto ${esc(f.nome)}.</div>` : `<div class="status manual">Áudio: ${esc(f.motivo || 'sem fala para texto.')}</div>`;
     const t = S.teste;
     return `<section class="card" id="apps">${cab('layers', 'Apps que respondem')}
-      ${lista}
+      ${lista}${A.length ? audio : ''}
       <div class="sep"></div>
       <div class="campo"><label for="f-teste">Testar uma pergunta</label>
         <textarea id="f-teste" class="inp" rows="2" placeholder="Ex.: Quanto gastei com mercado este mês?">${esc(S.form.teste || '')}</textarea>

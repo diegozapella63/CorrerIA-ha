@@ -7,11 +7,11 @@ from tests.base import ServidorFalso, pasta_temp, porta_livre
 import apps as A
 
 
-def publicar(share, app, url, nome=None, assunto="", ip_url=None, chave="chave-de-teste-" + "x" * 20):
+def publicar(share, app, url, nome=None, assunto="", ip_url=None, chave="chave-de-teste-" + "x" * 20, anexos=None):
     os.makedirs(os.path.join(share, app), exist_ok=True)
     with open(os.path.join(share, app, "correria.json"), "w", encoding="utf-8") as f:
         json.dump({"app": app, "nome": nome or app.title(), "assunto": assunto, "rota": "/api/integracao/conversa",
-                   "url": url, "ip_url": ip_url, "chave": chave, "versao": "1.37.0"}, f)
+                   "url": url, "ip_url": ip_url, "chave": chave, "versao": "1.37.0", **({"anexos": anexos} if anexos is not None else {})}, f)
 
 
 class TestLista(unittest.TestCase):
@@ -31,7 +31,7 @@ class TestLista(unittest.TestCase):
         lista = self.a.lista()
         self.assertEqual([(x["app"], x["nome"], x["url"], x["ip_url"]) for x in lista], [("gerencia", "GerencIA", "http://gerencia:8099", "http://172.30.33.5:8099")])
         self.assertEqual(len(self.reg), 1, "o estragado vai para o registro")
-        self.assertEqual(self.a.publicos(), [{"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa", "versao": "1.37.0"}], "sem a chave")
+        self.assertEqual(self.a.publicos(), [{"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa", "versao": "1.37.0", "anexos": []}], "sem a chave")
 
     def test_guarda_por_um_tempo(self):
         a = A.Apps(self.share, print, cache=60)
@@ -51,6 +51,19 @@ class TestLista(unittest.TestCase):
         self.assertEqual(self.a.escolher("oi")["app"], "cronologia", "sem pista nem última: o primeiro (em ordem)")
 
 
+class TestAnexos(unittest.TestCase):
+    def test_so_os_apps_que_leem_o_tipo(self):
+        share = pasta_temp()
+        a = A.Apps(share, print, cache=0)
+        publicar(share, "gerencia", "http://g", "GerencIA", "finanças", anexos=["image/jpeg", "application/pdf", 3])
+        publicar(share, "cronologia", "http://c", "CronologIA", "agenda")
+        self.assertEqual(a.lista()[1]["anexos"], ["image/jpeg", "application/pdf"], "só textos")
+        self.assertEqual(a.escolher("", tipo="image/jpeg")["app"], "gerencia")
+        self.assertEqual(a.escolher("a agenda de amanhã", tipo="application/pdf")["app"], "gerencia", "a agenda não lê PDF")
+        self.assertIsNone(a.escolher("", tipo="video/mp4"))
+        self.assertEqual(a.escolher("a agenda de amanhã")["app"], "cronologia", "sem anexo, como antes")
+
+
 class TestPerguntar(unittest.TestCase):
     def setUp(self):
         self.share = pasta_temp()
@@ -66,6 +79,14 @@ class TestPerguntar(unittest.TestCase):
         m, p, h, c = self.app.pedidos[0]
         self.assertEqual((m, p, h["Authorization"], h["X-App"]), ("POST", "/api/integracao/conversa", "Bearer " + app["chave"], "CorrerIA"))
         self.assertEqual(c, {"texto": "Quanto gastei?", "historico": [{"papel": "eu", "texto": "oi"}], "pessoa": {"id": "person.ana", "nome": "Ana"}})
+
+    def test_com_anexo(self):
+        publicar(self.share, "gerencia", self.app.url, "GerencIA")
+        anexo = {"tipo": "image/jpeg", "nome": "", "b64": "data:image/jpeg;base64,/9j/"}
+        self.a.perguntar(self.a.lista()[0], "quanto deu?", [], {"nome": "Ana"}, anexo=anexo)
+        self.assertEqual(self.app.pedidos[0][3]["anexo"], anexo)
+        self.a.perguntar(self.a.lista()[0], "oi", [], {})
+        self.assertNotIn("anexo", self.app.pedidos[1][3], "sem anexo, nem o campo")
 
     def test_tenta_o_ip_quando_o_nome_nao_responde(self):
         publicar(self.share, "gerencia", f"http://127.0.0.1:{porta_livre()}", "GerencIA", ip_url=self.app.url)

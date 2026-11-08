@@ -12,6 +12,7 @@ import urllib.request
 
 GRAPH = "https://graph.facebook.com/v26.0"
 LIMITE = 4000  # o WhatsApp aceita até 4096 caracteres por mensagem
+MAX_MIDIA = 20 * 1024 * 1024  # foto, PDF ou áudio que a pessoa manda (o WhatsApp deixa documento até 100 MB)
 
 
 class ErroWhatsApp(Exception):
@@ -168,6 +169,25 @@ class WhatsApp:
         if digitando:
             corpo["typing_indicator"] = {"type": "text"}
         return self._pedir("POST", f"{self.numero_id}/messages", corpo)
+
+    def midia(self, media_id):
+        """O arquivo que a pessoa mandou (foto, PDF, áudio): a Meta dá um endereço que vale 5 minutos e só abre com o
+        token. Devolve (bytes, tipo)."""
+        info = self._pedir("GET", str(media_id))
+        url, tipo = info.get("url"), str(info.get("mime_type") or "").split(";")[0].strip().lower()
+        if not url:
+            raise ErroWhatsApp("A Meta não deu o arquivo.")
+        if int(info.get("file_size") or 0) > MAX_MIDIA:
+            raise ErroWhatsApp("O arquivo é grande demais (até 20 MB).")
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.token}"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                dados = r.read(MAX_MIDIA + 1)
+        except (urllib.error.URLError, OSError) as e:
+            raise ErroWhatsApp(f"Não consegui baixar o arquivo da Meta ({getattr(e, 'reason', e)}).") from None
+        if len(dados) > MAX_MIDIA:
+            raise ErroWhatsApp("O arquivo é grande demais (até 20 MB).")
+        return dados, tipo
 
     def conferir(self):
         """O número e o nome que aparecem no WhatsApp (confere o ID e o token)."""

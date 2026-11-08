@@ -7,6 +7,7 @@ Dois servidores (só biblioteca padrão do Python):
 - o webhook da Meta (porta 8443, https com o certificado do Duck DNS em /ssl): só GET e POST em /webhook, com a
   assinatura conferida; o resto responde 404.
 """
+import base64
 import json
 import mimetypes
 import os
@@ -23,9 +24,10 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import apps
+import fala
 import whatsapp
 
-VERSAO = "0.1.0"
+VERSAO = "0.2.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -274,7 +276,10 @@ def mascarar(numero):
 # ---------------------------------------------------------------- mensagens
 
 APPS = apps.Apps(SHARE_DIR, log)
-SO_TEXTO = "Por enquanto eu só leio mensagens de texto. Escreva a sua pergunta."
+FALA = fala.Fala(HA_API, TOKEN, log, simulada=DEV and not TOKEN)
+SO_TEXTO = "Por enquanto eu entendo texto, áudio, foto e PDF."
+NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
+ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app respondendo por aqui. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp."
 
 
@@ -320,17 +325,63 @@ def tratar(m, nome_perfil, c):
             wa.lida(m["id"])
         except whatsapp.ErroWhatsApp:
             pass  # sem os tracinhos azuis: a resposta vai do mesmo jeito
+        tipo = m.get("type")
+        if tipo in ("image", "document"):
+            return tratar_anexo(wa, m, de, pessoa)
+        if tipo == "audio":
+            try:
+                bruto, _ = wa.midia((m.get("audio") or {}).get("id"))
+                texto = FALA.texto(bruto)
+            except (whatsapp.ErroWhatsApp, fala.ErroFala) as e:
+                registrar("recebida", pessoa["nome"], "[áudio]")
+                return enviar(wa, de, pessoa, f"Não consegui ouvir o áudio: {str(e).rstrip('.')}. Escreva a pergunta, por favor.")
+            registrar("recebida", pessoa["nome"], f"[áudio] {texto}")
+            return responder_texto(wa, de, pessoa, texto, ja_registrada=True)
         if texto is None:
-            registrar("recebida", pessoa["nome"], f"[{m.get('type')}]")
+            registrar("recebida", pessoa["nome"], f"[{tipo}]")
             return enviar(wa, de, pessoa, SO_TEXTO)
-        texto = texto.strip()[:2000]
-        if not texto:
-            return
+        return responder_texto(wa, de, pessoa, texto)
+
+
+def responder_texto(wa, de, pessoa, texto, ja_registrada=False):
+    """Uma pergunta em texto (ou o que a pessoa disse no áudio): vai para o app do assunto e a resposta volta."""
+    texto = texto.strip()[:2000]
+    if not texto:
+        return
+    if not ja_registrada:
         registrar("recebida", pessoa["nome"], texto)
-        resposta, app = responder_pergunta(texto, pessoa, de)
-        if app:
-            guardar_conversa(de, texto, resposta, app)
-        enviar(wa, de, pessoa, resposta, app)
+    resposta, app = responder_pergunta(texto, pessoa, de)
+    if app:
+        guardar_conversa(de, texto, resposta, app)
+    enviar(wa, de, pessoa, resposta, app)
+
+
+def tratar_anexo(wa, m, de, pessoa):
+    """Uma foto ou um documento (PDF): vai para o app do assunto que lê esse tipo (pela legenda, pela última conversa
+    ou o primeiro), junto com a legenda; o app lê com a IA e responde."""
+    tipo = m.get("type")
+    info = m.get(tipo) or {}
+    legenda = str(info.get("caption") or "").strip()[:2000]
+    mime = str(info.get("mime_type") or "").split(";")[0].strip().lower()
+    nome = str(info.get("filename") or "")[:120]
+    rot = ROTULO.get(tipo, tipo)
+    registrar("recebida", pessoa["nome"], f"[{rot}] {legenda}".strip())
+    app = APPS.escolher(legenda, ultimo_app(de), tipo=mime)
+    if not app:
+        return enviar(wa, de, pessoa, NAO_LE if APPS.lista() else SEM_APP)
+    try:
+        bruto, tipo_meta = wa.midia(info.get("id"))
+    except whatsapp.ErroWhatsApp as e:
+        registrar("erro", "WhatsApp", str(e))
+        return enviar(wa, de, pessoa, f"Não consegui pegar o arquivo: {str(e).rstrip('.')}. Mande de novo, por favor.")
+    anexo = {"tipo": tipo_meta or mime, "nome": nome, "b64": f"data:{tipo_meta or mime};base64," + base64.b64encode(bruto).decode()}
+    try:
+        resposta = APPS.perguntar(app, legenda, historico(de), pessoa, timeout=300, anexo=anexo)
+    except apps.ErroApp as e:
+        registrar("erro", app["nome"], str(e))
+        resposta = f"Não consegui falar com o {app['nome']} agora. Tente de novo daqui a pouco."
+    guardar_conversa(de, f"[{rot}] {legenda}".strip(), resposta, app)
+    enviar(wa, de, pessoa, resposta, app)
 
 
 def receber(corpo):
@@ -470,6 +521,7 @@ def estado():
                     "verificado_em": ESTADO["verificado_em"], "ultimo": ESTADO["ultimo_webhook"]},
         "pessoas": pessoas,
         "apps": APPS.publicos(),
+        "fala": FALA.status(),
         "registro": ler_conversas()["registro"][:30],
     }
 

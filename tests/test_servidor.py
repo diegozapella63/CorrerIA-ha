@@ -61,7 +61,7 @@ class Base(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def configurar(self, pessoas=True, app=True):
+    def configurar(self, pessoas=True, app=True, anexos=("image/jpeg", "application/pdf")):
         S.salvar_config({"numero_id": MetaFalsa.NUMERO_ID, "token": TOKEN, "segredo": SEGREDO, "endereco": "casa-exemplo.duckdns.org:8443"})
         if pessoas:
             S.salvar_pessoa("person.ana", ANA)
@@ -70,7 +70,7 @@ class Base(unittest.TestCase):
             os.makedirs(os.path.join(S.SHARE_DIR, "gerencia"), exist_ok=True)
             with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), "w") as f:
                 json.dump({"app": "gerencia", "nome": "GerencIA", "assunto": "finanças", "rota": "/api/integracao/conversa",
-                           "url": self.gerencia.url, "chave": "chave-gerencia-" + "x" * 20}, f)
+                           "url": self.gerencia.url, "chave": "chave-gerencia-" + "x" * 20, "anexos": list(anexos)}, f)
 
     def registro(self):
         return [(r["tipo"], r["quem"], r["texto"]) for r in S.ler_conversas()["registro"]][::-1]
@@ -189,12 +189,79 @@ class TestResponder(Base):
         self.mandar(texto("Quanto gastei?"))
         self.assertEqual(len(self.meta.textos()), 1, "a Meta manda de novo quando não recebe o 200 a tempo")
 
-    def test_audio_foto_e_figurinha(self):
+    def test_figurinha_e_video(self):
         self.configurar()
-        self.mandar({"from": ANA_WA, "id": "wamid.a", "type": "audio", "audio": {"id": "1"}})
+        self.mandar({"from": ANA_WA, "id": "wamid.a", "type": "sticker", "sticker": {"id": "1"}})
         self.assertEqual(self.meta.textos(), [(ANA_WA, S.SO_TEXTO)])
         self.assertEqual(self.gerencia.pedidos, [])
-        self.assertEqual(self.registro()[0], ("recebida", "Ana", "[audio]"))
+        self.assertEqual(self.registro()[0], ("recebida", "Ana", "[sticker]"))
+
+    # ---- fotos, PDFs e áudio
+    def midia(self, mid, dados, tipo):
+        self.meta.rotas[f"/{mid}"] = (200, {"url": f"{self.meta.url}/arquivo/{mid}", "mime_type": tipo, "file_size": len(dados)})
+        self.meta.rotas[f"/arquivo/{mid}"] = (200, dados)
+
+    def test_foto_vai_para_o_app_com_a_legenda(self):
+        self.configurar()
+        self.midia("FOTO1", b"\xff\xd8\xff-foto", "image/jpeg")
+        self.gerencia.rotas["/api/integracao/conversa"] = (200, {"resposta": "Li 2 lançamentos na foto."})
+        self.mandar({"from": ANA_WA, "id": "wamid.f", "type": "image", "image": {"id": "FOTO1", "mime_type": "image/jpeg", "caption": "Quanto deu?"}})
+        c = self.gerencia.pedidos[0][3]
+        self.assertEqual((c["texto"], c["anexo"]["tipo"], c["anexo"]["b64"]), ("Quanto deu?", "image/jpeg", "data:image/jpeg;base64,/9j/LWZvdG8="))
+        self.assertEqual(self.meta.textos(), [(ANA_WA, "Li 2 lançamentos na foto.")])
+        self.assertEqual(self.registro()[0], ("recebida", "Ana", "[foto] Quanto deu?"))
+        self.assertEqual(S.historico(ANA_WA)[0]["texto"], "[foto] Quanto deu?", "a conversa lembra da foto")
+
+    def test_pdf(self):
+        self.configurar()
+        self.midia("DOC1", b"%PDF-1.7 fatura", "application/pdf")
+        self.mandar({"from": ANA_WA, "id": "wamid.d", "type": "document", "document": {"id": "DOC1", "mime_type": "application/pdf", "filename": "fatura-nov.pdf"}})
+        c = self.gerencia.pedidos[0][3]
+        self.assertEqual((c["texto"], c["anexo"]["nome"], c["anexo"]["tipo"]), ("", "fatura-nov.pdf", "application/pdf"))
+        self.assertEqual(self.registro()[0], ("recebida", "Ana", "[arquivo]"))
+
+    def test_arquivo_que_nenhum_app_le(self):
+        self.configurar(anexos=())
+        self.mandar({"from": ANA_WA, "id": "wamid.d", "type": "document", "document": {"id": "DOC1", "mime_type": "application/zip", "filename": "x.zip"}})
+        self.assertEqual(self.meta.textos(), [(ANA_WA, S.NAO_LE)])
+        self.assertEqual(self.gerencia.pedidos, [])
+
+    def test_arquivo_sem_app_nenhum(self):
+        self.configurar(app=False)
+        self.mandar({"from": ANA_WA, "id": "wamid.d", "type": "image", "image": {"id": "F", "mime_type": "image/jpeg"}})
+        self.assertEqual(self.meta.textos(), [(ANA_WA, S.SEM_APP)])
+
+    def test_arquivo_que_a_meta_nao_entrega(self):
+        self.configurar()
+        self.mandar({"from": ANA_WA, "id": "wamid.f", "type": "image", "image": {"id": "SUMIU", "mime_type": "image/jpeg"}})
+        self.assertTrue(self.meta.textos()[0][1].startswith("Não consegui pegar o arquivo: "))
+        self.assertEqual(self.gerencia.pedidos, [])
+
+    def test_app_com_erro_no_anexo(self):
+        self.configurar()
+        self.midia("FOTO1", b"\xff\xd8", "image/jpeg")
+        self.gerencia.rotas["/api/integracao/conversa"] = (500, "pane")
+        self.mandar({"from": ANA_WA, "id": "wamid.f", "type": "image", "image": {"id": "FOTO1", "mime_type": "image/jpeg"}})
+        self.assertEqual(self.meta.textos(), [(ANA_WA, "Não consegui falar com o GerencIA agora. Tente de novo daqui a pouco.")])
+
+    def test_audio_vira_texto_para_o_app(self):
+        self.configurar()
+        self.midia("AUD1", b"OggS-audio", "audio/ogg; codecs=opus")
+        ouvidos = []
+        fala_falsa = mock.Mock(texto=lambda b: ouvidos.append(b) or "Quanto gastei com mercado?", status=lambda: {"pronta": True, "nome": "Teste"})
+        with mock.patch.object(S, "FALA", fala_falsa):
+            self.mandar({"from": ANA_WA, "id": "wamid.a", "type": "audio", "audio": {"id": "AUD1", "mime_type": "audio/ogg; codecs=opus", "voice": True}})
+        self.assertEqual(ouvidos, [b"OggS-audio"])
+        self.assertEqual(self.gerencia.pedidos[0][3]["texto"], "Quanto gastei com mercado?", "o app recebe o texto")
+        self.assertEqual(self.registro()[:2], [("recebida", "Ana", "[áudio] Quanto gastei com mercado?"), ("enviada", "Ana", "Resposta para *Ana*: Quanto gastei com mercado?")])
+
+    def test_audio_sem_fala_para_texto(self):
+        self.configurar()
+        self.midia("AUD1", b"OggS", "audio/ogg")
+        with mock.patch.object(S.FALA, "texto", side_effect=S.fala.ErroFala("A fala para texto não aceitou o áudio.")):
+            self.mandar({"from": ANA_WA, "id": "wamid.a", "type": "audio", "audio": {"id": "AUD1"}})
+        self.assertEqual(self.meta.textos(), [(ANA_WA, "Não consegui ouvir o áudio: A fala para texto não aceitou o áudio. Escreva a pergunta, por favor.")])
+        self.assertEqual(self.gerencia.pedidos, [])
 
     def test_pausado_nao_responde(self):
         self.configurar()
@@ -244,6 +311,7 @@ class TestResponder(Base):
             S.testar({"texto": " "})
         shutil.rmtree(os.path.join(S.SHARE_DIR, "gerencia"))
         self.assertEqual(S.testar({"texto": "oi"}), {"resposta": S.SEM_APP, "app": ""})
+        self.assertEqual(S.estado()["fala"], {"pronta": True, "nome": "Fala simulada (teste)"}, "no computador, a fala simulada")
 
     def test_registro_guarda_so_as_ultimas(self):
         for n in range(S.MAX_REGISTRO + 5):
