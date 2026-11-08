@@ -1,6 +1,6 @@
 """A tela do CorrerIA num Chromium (Playwright), com o servidor de verdade e a Meta e o GerencIA de mentira: configurar
-o WhatsApp (o token nunca volta para a tela), o webhook, quem conversa, testar uma pergunta, as últimas mensagens, o tema
-e o celular (390 px). Pessoas e números inventados (Ana, Beto)."""
+o WhatsApp (o token nunca volta para a tela), o webhook, quem conversa, os apps, Conversar com a IA, as últimas mensagens,
+o Sobre, o tema e o celular (390 px). Pessoas e números inventados (Ana, Beto)."""
 import json
 import os
 import shutil
@@ -22,7 +22,7 @@ class Tela(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.meta = MetaFalsa()
-        cls.app = ServidorFalso({"/api/integracao/conversa": lambda h, c: (200, {"resposta": f"Você gastou **R$ 123,45**, {c['pessoa']['nome']}."})})
+        cls.app = ServidorFalso({"/api/integracao/conversa": lambda h, c: (200, {"resposta": f"Você gastou **R$ 123,45**, {c['pessoa']['nome']}.\n\n- Mercado: R$ 100,00\n- Farmácia: R$ 23,45"})})
         cls.patches = [mock.patch.object(S, "GRAPH", cls.meta.url), mock.patch.object(S, "APPS", apps.Apps(S.SHARE_DIR, S.log, cache=0))]
         for p in cls.patches:
             p.start()
@@ -54,6 +54,7 @@ class Tela(unittest.TestCase):
         self.meta.pedidos.clear()
         self.app.pedidos.clear()
         self.erros = []
+        S._gravar_tela("_", [])
 
     def abrir(self, tema="dark"):
         self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme=tema)
@@ -161,26 +162,96 @@ class Tela(unittest.TestCase):
             self.assertEqual(self.texto("#apps .status"), "Áudio: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
             self.assertTrue(self.pg.evaluate("document.querySelector('#apps .status').classList.contains('manual')"))
 
-    def test_sem_app_explica(self):
+    def test_sem_app_explica_e_sem_conversa(self):
         self.abrir()
         self.assertIn("Nenhum app respondendo. No GerencIA, ligue Mais › Configurações › Integrações › CorrerIA no WhatsApp.", self.texto("#apps"))
-        self.assertTrue(self.pg.is_disabled('[data-a="testar"]'))
+        self.assertEqual(self.pg.locator('[data-a="conversa"]').count(), 0, "sem app, nada para conversar")
 
-    def test_testar_uma_pergunta(self):
+    def test_apps_que_respondem(self):
         self.publicar_app()
-        S.salvar_pessoa("person.ana", ANA)
         self.abrir()
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
         self.assertEqual(self.texto("#apps .app-l .le"), "Também lê fotos e PDF.")
         self.assertEqual(self.texto("#apps .status"), "Áudio: ouve pela fala para texto Fala simulada (teste).")
-        self.pg.click('[data-a="testar"]')  # vazio: nada
-        self.assertEqual(self.pg.locator(".bolha").count(), 0)
-        self.pg.fill("#f-teste", "Quanto gastei?")
-        self.pg.click('[data-a="testar"]')
-        self.pg.wait_for_selector(".bolha")
-        self.assertEqual(self.texto(".bolha"), "Você gastou *R$ 123,45*, Ana.\nGerencIA", "como chega no WhatsApp")
-        self.assertEqual(self.app.pedidos[0][3]["pessoa"], {"id": "person.ana", "nome": "Ana"})
-        self.assertEqual(self.meta.pedidos, [], "o teste não passa pela Meta")
+
+    # ---- Conversar com a IA
+    def abrir_conversa(self):
+        self.publicar_app()
+        self.abrir()
+        self.pg.click('.bt-topo[data-a="conversa"]')
+        self.pg.wait_for_selector("#ch-txt")
+
+    def test_conversar_com_a_ia(self):
+        self.abrir_conversa()
+        self.assertEqual(self.texto(".cab-tela h1"), "Conversa")
+        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
+        self.pg.click('[data-a="ch-enviar"]')  # vazio: nada
+        self.assertEqual(self.app.pedidos, [])
+        self.pg.fill("#ch-txt", "Quanto gastei?")
+        self.pg.click('[data-a="ch-enviar"]')
+        self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
+        self.assertEqual(self.texto(".ch-msg.eu .ch-bolha"), "Quanto gastei?")
+        self.assertEqual(self.pg.inner_html(".ch-msg.ia .ch-bolha"), "<p>Você gastou <b>R$ 123,45</b>, Você.</p><ul><li>Mercado: R$ 100,00</li><li>Farmácia: R$ 23,45</li></ul>",
+                         "negrito e lista do jeito do WhatsApp")
+        self.assertEqual(self.texto(".ch-app"), "GerencIA")
+        self.assertEqual(self.pg.input_value("#ch-txt"), "")
+        self.assertEqual(self.app.pedidos[0][3]["canal"], "correria")
+        self.assertEqual(self.meta.pedidos, [], "não passa pela Meta")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
+    def test_sugestao_e_conversa_guardada(self):
+        self.abrir_conversa()
+        self.pg.click('[data-a="ch-sug"] >> nth=1')
+        self.pg.wait_for_selector(".ch-msg.ia")
+        self.assertEqual(self.app.pedidos[0][3]["texto"], "O que vence esta semana?")
+        self.pg.reload()
+        self.pg.wait_for_selector(".bt-topo")
+        self.pg.click('.bt-topo')
+        self.pg.wait_for_selector(".ch-msg.ia")
+        self.assertEqual(self.pg.locator(".ch-msg").count(), 2, "fechou, abre de onde parou")
+        self.pg.click('[data-a="ch-limpar"]')
+        self.aviso("Conversa apagada")
+        self.pg.wait_for_selector(".ch-vazio")
+
+    def test_mandar_uma_foto(self):
+        self.abrir_conversa()
+        with self.pg.expect_file_chooser() as fc:
+            self.pg.click('[data-a="ch-anexar"]')
+        fc.value.set_files(files=[{"name": "nota.jpg", "mimeType": "image/jpeg", "buffer": b"\xff\xd8\xff\xe0foto"}])
+        self.pg.wait_for_selector(".ch-prev")
+        self.assertEqual(self.texto(".ch-prev span"), "nota.jpg")
+        self.pg.fill("#ch-txt", "Quanto deu?")
+        self.pg.click('[data-a="ch-enviar"]')
+        self.pg.wait_for_selector(".ch-msg.ia")
+        c = self.app.pedidos[0][3]
+        self.assertEqual((c["texto"], c["anexo"]["tipo"], c["anexo"]["nome"]), ("Quanto deu?", "image/jpeg", "nota.jpg"))
+        self.assertEqual(self.texto(".ch-msg.eu .ch-anexo"), "nota.jpg")
+        self.assertEqual(self.pg.locator(".ch-prev").count(), 0)
+
+    def test_voltar_do_celular_volta_para_a_casa(self):
+        self.abrir_conversa()
+        self.pg.go_back()
+        self.pg.wait_for_selector("#whatsapp")
+        self.pg.click('[data-a="conversa"] >> nth=0')
+        self.pg.wait_for_selector("#ch-txt")
+        self.pg.click('[data-a="voltar"]')
+        self.pg.wait_for_selector("#whatsapp")
+        self.assertEqual(self.pg.evaluate("history.state"), None)
+
+    # ---- Sobre
+    def test_sobre(self):
+        self.abrir()
+        self.pg.click('[data-a="sobre"]')
+        self.pg.wait_for_selector(".sobre-topo")
+        self.assertEqual(self.texto(".sb-nome"), "CorrerIA Code")
+        apps = self.pg.locator(".sb-app b").all_inner_texts()
+        self.assertEqual([a.split("\n")[0].replace("Este app · v" + S.VERSAO, "").strip() for a in apps],
+                         ["CronologIA", "ResolvIA", "GerencIA", "InventarIA", "EconomIA", "MemorIA", "CorrerIA"])
+        self.assertEqual(self.texto(".sb-app.aqui .sb-aqui"), "Este app · v" + S.VERSAO)
+        self.assertEqual(self.pg.get_attribute(".sb-app.aqui", "href"), "https://github.com/diegozapella63/CorrerIA-ha")
+        self.assertEqual(self.pg.get_attribute(".sb-github", "target"), "_blank")
+        self.pg.go_back()
+        self.pg.wait_for_selector("#whatsapp")
 
     def test_ultimas_mensagens(self):
         self.abrir()
@@ -217,10 +288,10 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_function("document.documentElement.dataset.theme === 'dark'")
         self.assertNotEqual(self.pg.evaluate("getComputedStyle(document.body).backgroundColor"), fundo_claro, "troca na hora")
 
-    def test_marca_da_correria_code_no_fim(self):
+    def test_sobre_no_fim(self):
         self.abrir()
-        self.assertEqual(self.pg.locator("footer.marca .wm").inner_text(), "CorrerIA Code")
-        self.assertIn("v" + S.VERSAO, self.texto("footer.marca"))
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app > section')].pop().innerText.trim().replace(/\\s+/g, ' ')"),
+                         "Sobre CorrerIA Code, os apps e o GitHub.")
 
 
 if __name__ == "__main__":

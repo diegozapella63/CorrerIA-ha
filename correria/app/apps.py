@@ -80,10 +80,11 @@ class Apps:
             return notas[0][1]
         return next((a for a in apps if a["app"] == ultimo), apps[0])
 
-    def perguntar(self, app, texto, historico, pessoa, timeout=150, anexo=None):
+    def perguntar(self, app, texto, historico, pessoa, timeout=150, anexo=None, canal="whatsapp"):
         """Pergunta ao app e devolve o texto da resposta. Tenta o nome do app na rede interna e depois o IP. anexo:
-        {tipo, nome, b64} (uma foto ou um PDF, em data URL), para os apps que leem esse tipo."""
-        corpo = json.dumps({"texto": texto, "historico": historico, "pessoa": pessoa, **({"anexo": anexo} if anexo else {})}).encode()
+        {tipo, nome, b64} (uma foto ou um PDF, em data URL), para os apps que leem esse tipo. canal: de onde veio a
+        pergunta (whatsapp, ou correria: a conversa na tela do CorrerIA)."""
+        corpo = json.dumps({"texto": texto, "historico": historico, "pessoa": pessoa, "canal": canal, **({"anexo": anexo} if anexo else {})}).encode()
         ultimo_erro = None
         for base in [app["url"]] + ([app["ip_url"]] if app.get("ip_url") else []):
             req = urllib.request.Request(base + app["rota"], data=corpo, method="POST",

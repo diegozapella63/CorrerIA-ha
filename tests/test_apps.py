@@ -78,7 +78,7 @@ class TestPerguntar(unittest.TestCase):
         self.assertEqual(r, "Você gastou R$ 123,45.")
         m, p, h, c = self.app.pedidos[0]
         self.assertEqual((m, p, h["Authorization"], h["X-App"]), ("POST", "/api/integracao/conversa", "Bearer " + app["chave"], "CorrerIA"))
-        self.assertEqual(c, {"texto": "Quanto gastei?", "historico": [{"papel": "eu", "texto": "oi"}], "pessoa": {"id": "person.ana", "nome": "Ana"}})
+        self.assertEqual(c, {"texto": "Quanto gastei?", "historico": [{"papel": "eu", "texto": "oi"}], "pessoa": {"id": "person.ana", "nome": "Ana"}, "canal": "whatsapp"})
 
     def test_com_anexo(self):
         publicar(self.share, "gerencia", self.app.url, "GerencIA")

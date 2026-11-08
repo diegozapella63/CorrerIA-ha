@@ -12,6 +12,6 @@ Só biblioteca padrão, mais o **playwright** com o Chromium para a tela (`pip i
 | `test_fala.py` | o áudio do WhatsApp em texto: o motor que aceita OGG/Opus, o cabeçalho, o idioma, os erros |
 | `test_apps.py` | achar os apps (`share/*/correria.json`), escolher o app da pergunta, perguntar (chave, IP de reserva, erros) |
 | `test_servidor.py` | a configuração (o token nunca volta), quem conversa, responder (conversa, número sem cadastro, repetida, áudio, pausado, sem app, erros), o webhook (token de verificação, assinatura, só /webhook, https com certificado e renovação) e a tela (rotas, só pelo painel) |
-| `test_tela.py` | a tela num Chromium a 390 px: configurar e conferir, pausar, webhook e copiar, quem conversa, testar uma pergunta, últimas mensagens, tudo pronto, tema claro e escuro |
+| `test_tela.py` | a tela num Chromium a 390 px: configurar e conferir, pausar, webhook e copiar, quem conversa, os apps, Conversar com a IA (texto, sugestão, foto, conversa guardada, Voltar do celular), últimas mensagens, Sobre, tudo pronto, tema claro e escuro |
 
 Ajuda em `base.py`: `importar_servidor()` (o `server.py` com pastas temporárias), `ServidorFalso` (um servidor HTTP que guarda os pedidos), `MetaFalsa` (a Graph API) e `certificado()` (um certificado próprio, como o do Duck DNS). Pessoas e números inventados (Ana, Beto).

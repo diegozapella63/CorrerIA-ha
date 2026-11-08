@@ -27,7 +27,7 @@ import apps
 import fala
 import whatsapp
 
-VERSAO = "0.2.0"
+VERSAO = "0.3.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -185,14 +185,16 @@ def ha_get(caminho, timeout=10):
 
 
 def pessoas_ha():
-    """As pessoas do Home Assistant: [{id, nome}]. Fora dele (no computador), Ana e Beto de exemplo."""
+    """As pessoas do Home Assistant: [{id, nome, usuario}] (usuario: o login dela no Home Assistant, para a conversa da
+    tela). Fora dele (no computador), Ana e Beto de exemplo."""
     if not TOKEN:
-        return [{"id": "person.ana", "nome": "Ana"}, {"id": "person.beto", "nome": "Beto"}] if DEV else []
+        return [{"id": "person.ana", "nome": "Ana", "usuario": "u-ana"}, {"id": "person.beto", "nome": "Beto", "usuario": "u-beto"}] if DEV else []
     if _pessoas_cache["v"] is not None and time.time() - _pessoas_cache["t"] < 60:
         return _pessoas_cache["v"]
     try:
         estados = ha_get("/states")
-        v = sorted(({"id": s["entity_id"], "nome": (s.get("attributes") or {}).get("friendly_name") or s["entity_id"][7:]}
+        v = sorted(({"id": s["entity_id"], "nome": (s.get("attributes") or {}).get("friendly_name") or s["entity_id"][7:],
+                     "usuario": str((s.get("attributes") or {}).get("user_id") or "")}
                     for s in estados if isinstance(s, dict) and str(s.get("entity_id", "")).startswith("person.")), key=lambda p: p["nome"].lower())
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("Não consegui ver as pessoas do Home Assistant:", e)
@@ -218,7 +220,8 @@ def ler_conversas():
     return {"conversas": c.get("conversas") if isinstance(c.get("conversas"), dict) else {},
             "ultimo_app": c.get("ultimo_app") if isinstance(c.get("ultimo_app"), dict) else {},
             "vistos": [x for x in c.get("vistos") or [] if isinstance(x, str)][-500:],
-            "registro": [x for x in c.get("registro") or [] if isinstance(x, dict)][:MAX_REGISTRO]}
+            "registro": [x for x in c.get("registro") or [] if isinstance(x, dict)][:MAX_REGISTRO],
+            "tela": c.get("tela") if isinstance(c.get("tela"), dict) else {}}  # a conversa da tela, de cada login
 
 
 def _gravar_conversas(c):
@@ -508,7 +511,7 @@ class Webhook(BaseHTTPRequestHandler):
 def estado():
     c = ler_config()
     nums = c["pessoas"]
-    pessoas = [dict(p, numero=nums.get(p["id"], "")) for p in pessoas_ha()]
+    pessoas = [{"id": p["id"], "nome": p["nome"], "numero": nums.get(p["id"], "")} for p in pessoas_ha()]
     pessoas += [{"id": k, "nome": k[7:].replace("_", " ").title(), "numero": v, "fora": True} for k, v in nums.items() if k not in {p["id"] for p in pessoas}]
     cc = certificado()
     return {
@@ -526,15 +529,71 @@ def estado():
     }
 
 
-def testar(corpo):
-    """Testar uma pergunta pela tela, sem o WhatsApp: vai para o app como se viesse da pessoa escolhida."""
+# ---------------------------------------------------------------- a conversa na tela (Conversar com a IA)
+# A mesma ponte do WhatsApp, pela tela do CorrerIA: a pergunta (ou a foto, o PDF) vai para o app do assunto, com a
+# conversa de quem está usando a tela (o login do Home Assistant). Fica guardada (as últimas 40 mensagens).
+MAX_TELA = 40
+MAX_ANEXO = 15 * 1024 * 1024
+
+
+def pessoa_da_tela(cab):
+    """Quem está na tela, pelo login do Home Assistant (o painel manda X-Remote-User-*): a pessoa ligada a ele."""
+    uid = str(cab.get("X-Remote-User-Id") or "")
+    nome = str(cab.get("X-Remote-User-Display-Name") or cab.get("X-Remote-User-Name") or "")
+    p = next((x for x in pessoas_ha() if uid and x.get("usuario") == uid), None)
+    return ({"id": p["id"], "nome": p["nome"]} if p else {"id": "", "nome": nome or "Você"}), uid or "_"
+
+
+def conversa_tela(chave):
+    return [m for m in ler_conversas().get("tela", {}).get(chave, []) if isinstance(m, dict)]
+
+
+def _gravar_tela(chave, lista):
+    with TRAVA:
+        c = ler_json(CONVERSAS_ARQ)
+        tela = c.get("tela") if isinstance(c.get("tela"), dict) else {}
+        if lista:
+            tela[chave] = lista[-MAX_TELA:]
+        else:
+            tela.pop(chave, None)
+        c["tela"] = tela
+        _gravar_conversas(c)
+
+
+def conversar(corpo, pessoa, chave):
+    """Uma mensagem da conversa da tela: texto e/ou um anexo ({nome, b64} em data URL). Devolve a conversa toda."""
     texto = str(corpo.get("texto") or "").strip()[:2000]
-    if not texto:
-        raise ValueError("Escreva uma pergunta.")
-    pid = str(corpo.get("pessoa") or "")
-    nome = next((p["nome"] for p in pessoas_ha() if p["id"] == pid), "") or "Teste"
-    resposta, app = responder_pergunta(texto, {"id": pid, "nome": nome})
-    return {"resposta": whatsapp.para_whatsapp(resposta), "app": app["nome"] if app else ""}
+    anexo = corpo.get("anexo") if isinstance(corpo.get("anexo"), dict) and corpo["anexo"].get("b64") else None
+    if not texto and not anexo:
+        raise ValueError("Escreva uma mensagem.")
+    lista = conversa_tela(chave)
+    hist = [{"papel": m.get("papel"), "texto": m.get("texto") or (f"[{m['anexo']}]" if m.get("anexo") else "")} for m in lista][-MAX_HISTORICO:]
+    ultimo = next((m.get("app_id") for m in reversed(lista) if m.get("app_id")), None)
+    eu = {"papel": "eu", "texto": texto, "em": agora_iso()}
+    tipo = None
+    if anexo:
+        b64 = str(anexo["b64"])
+        m = re.match(r"^data:([\w.+-]+/[\w.+-]+);base64,", b64)
+        tipo = (m.group(1) if m else str(anexo.get("tipo") or "")).lower()
+        if len(b64) * 3 // 4 > MAX_ANEXO:
+            raise ValueError("O arquivo é grande demais (até 15 MB).")
+        eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
+        anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
+    app = APPS.escolher(texto, ultimo, tipo=tipo)
+    if not app:
+        resposta = NAO_LE if (tipo and APPS.lista()) else SEM_APP
+    else:
+        try:
+            resposta = APPS.perguntar(app, texto, hist, pessoa, timeout=300 if anexo else 150, anexo=anexo, canal="correria")
+        except apps.ErroApp as e:
+            log("CorrerIA:", e)
+            resposta = f"Não consegui falar com o {app['nome']} agora. {e}"
+    ia = {"papel": "ia", "texto": whatsapp.para_whatsapp(resposta), "em": agora_iso()}
+    if app:
+        ia.update(app=app["nome"], app_id=app["app"])
+    lista += [eu, ia]
+    _gravar_tela(chave, lista)
+    return {"mensagens": lista[-MAX_TELA:]}
 
 
 class Tela(BaseHTTPRequestHandler):
@@ -565,7 +624,13 @@ class Tela(BaseHTTPRequestHandler):
 
     def corpo_json(self):
         n = int(self.headers.get("Content-Length") or 0)
-        if n > 1024 * 1024:
+        if n > (22 * 1024 * 1024 if self.caminho() == "/api/conversa" else 1024 * 1024):  # a conversa leva foto ou PDF
+            resto = min(n, 64 * 1024 * 1024)
+            while resto > 0:  # lê e joga fora, para a resposta chegar (sem cortar a conexão no meio do envio)
+                pedaco = self.rfile.read(min(resto, 1024 * 1024))
+                if not pedaco:
+                    break
+                resto -= len(pedaco)
             raise ValueError("Pedido grande demais.")
         try:
             v = json.loads(self.rfile.read(n) or b"{}")
@@ -579,6 +644,9 @@ class Tela(BaseHTTPRequestHandler):
         p = self.caminho()
         if p == "/api/estado":
             return self.enviar(200, estado())
+        if p == "/api/conversa":
+            pessoa, chave = pessoa_da_tela(self.headers)
+            return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"]})
         nome = "index.html" if p in ("/", "") else p.lstrip("/")
         arq = os.path.realpath(os.path.join(WWW, nome))
         if not arq.startswith(os.path.realpath(WWW) + os.sep) or not os.path.isfile(arq):
@@ -605,8 +673,12 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/conferir":
                 conferir_conta()
                 return self.enviar(200, estado())
-            if p == "/api/testar":
-                return self.enviar(200, testar(c))
+            if p == "/api/conversa":
+                pessoa, chave = pessoa_da_tela(self.headers)
+                return self.enviar(200, conversar(c, pessoa, chave))
+            if p == "/api/conversa/limpar":
+                _gravar_tela(pessoa_da_tela(self.headers)[1], [])
+                return self.enviar(200, {"mensagens": []})
             if p == "/api/registro/limpar":
                 with TRAVA:
                     cv = ler_conversas()

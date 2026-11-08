@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.3.0
+
+- **Conversar com a IA** pela tela do CorrerIA (o balão no alto): a mesma conversa do WhatsApp, sem passar por ele. Pergunte sobre os apps da casa ou mande uma foto ou um PDF; a pergunta vai para o app do assunto e a resposta mostra qual app respondeu. A conversa fica guardada para cada pessoa (as últimas 40 mensagens); a lixeira no alto apaga. Substitui o Testar uma pergunta.
+- **Sobre**, o mesmo dos outros apps: CorrerIA Code, os apps da família e o GitHub.
+- O Voltar do celular volta da conversa e do Sobre para a tela principal.
+
 ## 0.2.0
 
 - **Fotos e PDFs**: mande a foto de uma nota, um print ou a fatura em PDF e o app do assunto lê com a IA. No GerencIA, o que ele achar fica para conferir nos Avisos do Início (nada é lançado sozinho), e a fatura com senha abre com as Senhas dos PDFs. Com uma pergunta junto ("quanto deu essa nota?"), a resposta vem com o que foi lido.

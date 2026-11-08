@@ -31,7 +31,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 2. **Webhook na Meta**: escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`). Na Meta, em **WhatsApp › Configuração › Webhook**, toque em Editar, cole a **URL de retorno** e o **Token de verificação** que o CorrerIA mostra e toque em **Verificar e salvar**. Depois, em Campos do webhook, assine **messages**. O cartão mostra quando a Meta confirmou o endereço e a última mensagem que chegou.
 3. **Quem conversa**: escreva o WhatsApp de cada pessoa da casa (as pessoas do Home Assistant). Só esses números recebem resposta; os outros aparecem em Últimas mensagens como "sem cadastro", sem resposta.
 4. No **GerencIA**, ligue **Mais › Configurações › Integrações › CorrerIA no WhatsApp**. Ele aparece em **Apps que respondem**.
-5. **Testar uma pergunta** manda uma pergunta para o app como se viesse do WhatsApp, sem passar pela Meta: bom para conferir antes de terminar a parte da Meta.
+5. O balão no alto (**Conversar com a IA**) conversa com os apps pela tela, sem passar pela Meta: bom para conferir antes de terminar a parte da Meta.
 
 Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 
@@ -45,6 +45,16 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 - Pelo WhatsApp a IA só responde: lançar, pagar ou mudar um saldo continua no app. E fala só dos apps da casa: é a regra do WhatsApp para contatos de empresas (assistente para qualquer assunto não é permitido).
 - **Responder pelo WhatsApp**, no cartão WhatsApp, pausa as respostas sem desligar nada.
 - **Últimas mensagens** mostra o que chegou, o que foi respondido, os números sem cadastro e os erros (como "Passaram mais de 24 horas": o WhatsApp só deixa responder até 24 horas depois da última mensagem da pessoa).
+
+## Conversar com a IA
+
+O balão no alto da tela (ou **Conversar com a IA**, em Apps que respondem) abre uma conversa com os apps da casa pela tela do CorrerIA, do mesmo jeito que pelo WhatsApp, mas sem passar por ele. Pergunte ("quanto gastei este mês?") ou mande uma **foto** ou um **PDF** pelo clipe; a pergunta vai para o app do assunto e, embaixo de cada resposta, aparece qual app respondeu. Com a conversa vazia, aparecem sugestões: é só tocar.
+
+A conversa é de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e fica guardada, as últimas 40 mensagens: fechou, abre de onde parou. A lixeira no alto apaga. O Voltar do celular volta para a tela principal.
+
+## Sobre
+
+No fim da tela principal, **Sobre**: a CorrerIA Code, os apps da família (com o link de cada um no GitHub) e o meu GitHub. É o mesmo Sobre dos outros apps.
 
 ## Custo e privacidade
 

@@ -123,13 +123,13 @@ class TestConfig(Base):
         self.assertEqual(S.ler_config()["pessoas"], {})
 
     def test_pessoas_do_home_assistant(self):
-        ha = ServidorFalso({"/api/states": (200, [{"entity_id": "person.beto", "attributes": {"friendly_name": "Beto"}},
+        ha = ServidorFalso({"/api/states": (200, [{"entity_id": "person.beto", "attributes": {"friendly_name": "Beto", "user_id": "u-beto"}},
                                                   {"entity_id": "person.ana", "attributes": {"friendly_name": "Ana"}},
                                                   {"entity_id": "sensor.x", "attributes": {}}])})
         self.addCleanup(ha.fechar)
         S._pessoas_cache.update(t=0, v=None)
         with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
-            self.assertEqual(S.pessoas_ha(), [{"id": "person.ana", "nome": "Ana"}, {"id": "person.beto", "nome": "Beto"}])
+            self.assertEqual(S.pessoas_ha(), [{"id": "person.ana", "nome": "Ana", "usuario": ""}, {"id": "person.beto", "nome": "Beto", "usuario": "u-beto"}])
             S.pessoas_ha()
             self.assertEqual(len(ha.pedidos), 1, "guardado por 1 minuto")
             self.assertEqual(ha.pedidos[0][2]["Authorization"], "Bearer t")
@@ -302,16 +302,8 @@ class TestResponder(Base):
         self.assertEqual([t for _, t in self.meta.textos()], ["Resposta para *Beto*: dois"])
         self.assertTrue(any(t == "erro" and q == "CorrerIA" for t, q, _ in self.registro()))
 
-    def test_testar_pela_tela(self):
-        self.configurar()
-        r = S.testar({"texto": "Quanto gastei?", "pessoa": "person.beto"})
-        self.assertEqual(r, {"resposta": "Resposta para *Beto*: Quanto gastei?", "app": "GerencIA"})
-        self.assertEqual(self.meta.pedidos, [], "o teste não passa pelo WhatsApp")
-        with self.assertRaisesRegex(ValueError, "Escreva uma pergunta."):
-            S.testar({"texto": " "})
-        shutil.rmtree(os.path.join(S.SHARE_DIR, "gerencia"))
-        self.assertEqual(S.testar({"texto": "oi"}), {"resposta": S.SEM_APP, "app": ""})
-        self.assertEqual(S.estado()["fala"], {"pronta": True, "nome": "Fala simulada (teste)"}, "no computador, a fala simulada")
+    def test_fala_simulada_no_computador(self):
+        self.assertEqual(S.estado()["fala"], {"pronta": True, "nome": "Fala simulada (teste)"})
 
     def test_registro_guarda_so_as_ultimas(self):
         for n in range(S.MAX_REGISTRO + 5):
@@ -321,6 +313,69 @@ class TestResponder(Base):
 
     def test_mascarar(self):
         self.assertEqual(S.mascarar("5531999990000"), "+5531•••0000")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+class TestConversaTela(Base):
+    """Conversar com a IA pela tela do CorrerIA: a mesma ponte, com a conversa de quem está na tela (o login do HA)."""
+    ANA = {"X-Remote-User-Id": "u-ana", "X-Remote-User-Display-Name": "Ana Exemplo"}
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(S._gravar_tela, "u-ana", [])
+        self.addCleanup(S._gravar_tela, "_", [])
+
+    def test_quem_esta_na_tela(self):
+        self.assertEqual(S.pessoa_da_tela(self.ANA), ({"id": "person.ana", "nome": "Ana"}, "u-ana"), "a pessoa ligada ao login")
+        self.assertEqual(S.pessoa_da_tela({"X-Remote-User-Id": "u-x", "X-Remote-User-Name": "visita"}), ({"id": "", "nome": "visita"}, "u-x"))
+        self.assertEqual(S.pessoa_da_tela({}), ({"id": "", "nome": "Você"}, "_"))
+
+    def test_pergunta_e_resposta_ficam_guardadas(self):
+        self.configurar()
+        pessoa, chave = S.pessoa_da_tela(self.ANA)
+        r = S.conversar({"texto": "Quanto gastei?"}, pessoa, chave)
+        self.assertEqual([(m["papel"], m["texto"], m.get("app")) for m in r["mensagens"]],
+                         [("eu", "Quanto gastei?", None), ("ia", "Resposta para *Ana*: Quanto gastei?", "GerencIA")])
+        c = self.gerencia.pedidos[0][3]
+        self.assertEqual((c["canal"], c["pessoa"], c["historico"]), ("correria", {"id": "person.ana", "nome": "Ana"}, []))
+        S.conversar({"texto": "e ontem?"}, pessoa, chave)
+        self.assertEqual([m["texto"] for m in self.gerencia.pedidos[1][3]["historico"]], ["Quanto gastei?", "Resposta para *Ana*: Quanto gastei?"])
+        self.assertEqual(len(S.conversa_tela("u-ana")), 4)
+        self.assertEqual(S.conversa_tela("_"), [], "cada login a sua")
+        self.assertEqual(self.meta.pedidos, [], "a conversa da tela não passa pela Meta")
+
+    def test_foto_ou_pdf(self):
+        self.configurar()
+        pessoa, chave = S.pessoa_da_tela(self.ANA)
+        r = S.conversar({"texto": "", "anexo": {"nome": "nota.jpg", "b64": "data:image/jpeg;base64,/9j/"}}, pessoa, chave)
+        c = self.gerencia.pedidos[0][3]
+        self.assertEqual(c["anexo"], {"tipo": "image/jpeg", "nome": "nota.jpg", "b64": "data:image/jpeg;base64,/9j/"})
+        self.assertEqual(r["mensagens"][0]["anexo"], "nota.jpg")
+        r = S.conversar({"anexo": {"nome": "x.zip", "b64": "data:application/zip;base64,UEs="}}, pessoa, chave)
+        self.assertEqual(r["mensagens"][-1]["texto"], S.NAO_LE)
+        with mock.patch.object(S, "MAX_ANEXO", 2):
+            with self.assertRaisesRegex(ValueError, "grande demais"):
+                S.conversar({"anexo": {"b64": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="}}, pessoa, chave)
+
+    def test_sem_app_e_erros(self):
+        pessoa, chave = S.pessoa_da_tela({})
+        self.assertEqual(S.conversar({"texto": "oi"}, pessoa, chave)["mensagens"][-1]["texto"], S.SEM_APP)
+        with self.assertRaisesRegex(ValueError, "Escreva uma mensagem."):
+            S.conversar({"texto": " "}, pessoa, chave)
+        self.configurar(pessoas=False)
+        self.gerencia.rotas["/api/integracao/conversa"] = (400, {"erro": "A IA está desligada."})
+        self.assertEqual(S.conversar({"texto": "oi"}, pessoa, chave)["mensagens"][-1]["texto"], "Não consegui falar com o GerencIA agora. A IA está desligada.")
+
+    def test_guarda_so_as_ultimas_e_nao_atrapalha_o_resto(self):
+        self.configurar()
+        S.registrar("recebida", "Ana", "do WhatsApp")
+        with mock.patch.object(S, "MAX_TELA", 4):
+            for n in range(3):
+                S.conversar({"texto": f"pergunta {n}"}, {"id": "", "nome": "Ana"}, "u-ana")
+        self.assertEqual([m["texto"] for m in S.conversa_tela("u-ana") if m["papel"] == "eu"], ["pergunta 1", "pergunta 2"])
+        S.registrar("recebida", "Ana", "outra")
+        self.assertEqual(len(S.conversa_tela("u-ana")), 4, "gravar o registro do WhatsApp não apaga a conversa da tela")
+        self.assertEqual(S.ler_conversas()["registro"][1]["texto"], "do WhatsApp")
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -446,15 +501,33 @@ class TestTela(Base):
         st, e = self.json("/api/conferir", {})
         self.assertEqual((st, e["erro"]), (400, W.ERROS[190]))
 
-    def test_testar_e_limpar(self):
-        self.configurar()
-        st, r = self.json("/api/testar", {"texto": "Quanto gastei?", "pessoa": "person.ana"})
-        self.assertEqual((st, r["app"]), (200, "GerencIA"))
+    def test_limpar_e_rotas(self):
         S.registrar("recebida", "Ana", "oi")
         st, e = self.json("/api/registro/limpar", {})
         self.assertEqual(e["registro"], [])
         self.assertEqual(self.json("/api/nada", {})[0], 404)
         self.assertEqual(self.json("/api/config", [1])[0], 200, "um corpo que não é objeto vale como vazio")
+
+    def test_conversa_pela_tela(self):
+        self.configurar()
+        cab = {"X-Remote-User-Id": "u-beto", "X-Remote-User-Display-Name": "Beto"}
+        self.addCleanup(S._gravar_tela, "u-beto", [])
+        st, r = pedir(self.url + "/api/conversa", cab=cab)
+        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto"})
+        st, r = pedir(self.url + "/api/conversa", "POST", {"texto": "Quanto gastei?"}, cab)
+        self.assertEqual((st, json.loads(r)["mensagens"][-1]["app"]), (200, "GerencIA"))
+        st, r = pedir(self.url + "/api/conversa/limpar", "POST", {}, cab)
+        self.assertEqual(json.loads(r), {"mensagens": []})
+        self.assertEqual(S.conversa_tela("u-beto"), [])
+        st, r = pedir(self.url + "/api/conversa", "POST", {"texto": ""}, cab)
+        self.assertEqual((st, json.loads(r)["erro"]), (400, "Escreva uma mensagem."))
+
+    def test_corpo_grande_so_na_conversa(self):
+        grande = b'{"texto": "' + b"x" * (1024 * 1024 + 10) + b'"}'
+        self.assertEqual(pedir(self.url + "/api/config", "POST", grande)[0], 400)
+        self.configurar()
+        self.addCleanup(S._gravar_tela, "_", [])
+        self.assertEqual(pedir(self.url + "/api/conversa", "POST", grande)[0], 200, "a conversa leva foto e PDF")
 
     def test_arquivos_da_tela(self):
         st, html = pedir(self.url + "/")

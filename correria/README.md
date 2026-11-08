@@ -7,5 +7,6 @@ O contato da CorrerIA Code no WhatsApp, pela API oficial da Meta: as pessoas da 
 - Áudio pela fala para texto do Home Assistant
 - Só os números das pessoas da casa recebem resposta
 - Webhook em https com o certificado do Duck DNS; a tela fica só no painel do Home Assistant
-- Testar uma pergunta sem passar pelo WhatsApp e as últimas mensagens na tela
+- Conversar com a IA pela tela também (texto, foto ou PDF), com a conversa guardada
+- As últimas mensagens na tela e o Sobre da família
 - Tema claro e escuro

@@ -23,9 +23,12 @@ correria/app/server.py      os dois servidores (só biblioteca padrão): a tela 
 correria/app/whatsapp.py    a Cloud API: assinatura do webhook, mensagens, mandar, lida/digitando, conferir; números do Brasil
 correria/app/apps.py        os apps da família: acha share/*/correria.json, escolhe o app da pergunta (e do tipo do anexo) e pergunta
 correria/app/fala.py        áudio do WhatsApp (OGG/Opus) para texto pela fala para texto do Home Assistant (POST /api/stt/<motor>)
-correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build), styles.css, fontes, icon.svg
+correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; a casa, Conversar com a IA e Sobre, cada uma com
+                            uma entrada no histórico para o Voltar do celular), styles.css, fontes, icon.svg
 tests/                      testes (ver tests/README.md)
 ```
+
+A conversa da tela (`/api/conversa`) é de quem está no painel: o Home Assistant manda `X-Remote-User-Id` e o CorrerIA acha a pessoa pelo `user_id` dela; guardada em `conversas.json` (`tela`, as últimas 40 de cada login).
 
 Os dados ficam em `/data/config.json` (ID do número, token, chave secreta, token de verificação, endereço, número de cada pessoa) e `/data/conversas.json` (a conversa de cada número, as mensagens já vistas e o registro da tela), os dois com permissão só do dono e no backup do Home Assistant.
 
@@ -49,7 +52,7 @@ Abra `http://localhost:8099` (Ana e Beto aparecem como pessoas de exemplo). O we
 
 ## Como os apps conversam
 
-- **Os apps → CorrerIA** (o contrato, igual para todos os apps): cada app que responde pelo WhatsApp grava, com a opção ligada nele, `share/<app>/correria.json` (`app`, `nome`, `assunto`, `rota`, `url`, `ip_url`, `chave` e, se lê arquivos, `anexos`: os tipos que lê, como `["application/pdf", "image/jpeg", "image/png", "image/webp"]`) e responde em `POST <url><rota>` com `Authorization: Bearer <chave>` e `X-App: CorrerIA`: `{texto, historico: [{papel: eu|ia, texto}], pessoa: {id, nome}, anexo?: {tipo, nome, b64}}` → `{resposta}`. `texto` é a pergunta ou a legenda (pode vir vazio com anexo); `b64` é um data URL. O áudio chega como texto: o CorrerIA ouve antes (`fala.py`), então nenhum app precisa tratar áudio. Um anexo só vai para os apps que declaram aquele tipo. Desligado, o arquivo some e a chave deixa de valer. Hoje: o GerencIA (`/api/integracao/conversa`; fotos e PDF ficam para conferir no Início dele). Para pôr outro app: o arquivo, a rota e as palavras do assunto em `apps.PALAVRAS`.
+- **Os apps → CorrerIA** (o contrato, igual para todos os apps): cada app que responde pelo WhatsApp grava, com a opção ligada nele, `share/<app>/correria.json` (`app`, `nome`, `assunto`, `rota`, `url`, `ip_url`, `chave` e, se lê arquivos, `anexos`: os tipos que lê, como `["application/pdf", "image/jpeg", "image/png", "image/webp"]`) e responde em `POST <url><rota>` com `Authorization: Bearer <chave>` e `X-App: CorrerIA`: `{texto, historico: [{papel: eu|ia, texto}], pessoa: {id, nome}, canal: whatsapp|correria, anexo?: {tipo, nome, b64}}` → `{resposta}` (`canal` correria: a conversa na tela do CorrerIA, onde a regra da Meta sobre outros assuntos não vale). `texto` é a pergunta ou a legenda (pode vir vazio com anexo); `b64` é um data URL. O áudio chega como texto: o CorrerIA ouve antes (`fala.py`), então nenhum app precisa tratar áudio. Um anexo só vai para os apps que declaram aquele tipo. Desligado, o arquivo some e a chave deixa de valer. Hoje: o GerencIA (`/api/integracao/conversa`; fotos e PDF ficam para conferir no Início dele). Para pôr outro app: o arquivo, a rota e as palavras do assunto em `apps.PALAVRAS`.
 - **Meta**: o webhook (`GET /webhook` confere o token de verificação e devolve o `hub.challenge`; `POST /webhook` só com `X-Hub-Signature-256` certo, responde 200 na hora e trata depois) e a Graph API (`/<id do número>/messages` para mandar, marcar como lida e mostrar digitando; `/<id>?fields=display_phone_number,verified_name` para conferir). A mesma mensagem (pelo `id`) é tratada uma vez só.
 - **Home Assistant**: as pessoas (`person.*`) pela API (`/api/states`); a fala para texto (`stt.*`: `GET /api/stt/<motor>` diz se aceita OGG/Opus, `POST` com o cabeçalho `X-Speech-Content`, escrito assim por causa do proxy do Supervisor); o certificado do Duck DNS em `/ssl` (fullchain.pem e privkey.pem), relido quando muda.
 - **Mídia do WhatsApp**: foto, documento e áudio chegam com um id; `GET /<id>` dá um endereço que vale 5 minutos e só abre com o token (`whatsapp.midia`, até 20 MB).
