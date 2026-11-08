@@ -34,7 +34,7 @@ import mcp
 import oauth
 import whatsapp
 
-VERSAO = "0.7.0"
+VERSAO = "0.7.1"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -829,6 +829,13 @@ def pessoa_da_tela(cab):
     return ({"id": p["id"], "nome": p["nome"]} if p else {"id": "", "nome": nome or "Você"}), uid or "_"
 
 
+def ola_da_tela(cab):
+    """O primeiro nome de quem está na tela, para o "Olá" do alto, como nos outros apps; "" sem o login (fica só o CorrerIA)."""
+    p = pessoa_da_tela(cab)[0]
+    nome = p["nome"] if p["id"] else str(cab.get("X-Remote-User-Display-Name") or cab.get("X-Remote-User-Name") or "")
+    return (nome.split() or [""])[0]
+
+
 MAX_CONVERSAS = 30  # as conversas guardadas de cada login (as mais velhas saem)
 
 
@@ -1037,7 +1044,8 @@ class Tela(BaseHTTPRequestHandler):
             return self.enviar(200, estado())
         if p == "/api/conversa":
             pessoa, chave = pessoa_da_tela(self.headers)
-            return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "conversa": conversa_aberta(chave)})
+            return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "ola": ola_da_tela(self.headers),
+                                     "conversa": conversa_aberta(chave)})
         if p == "/api/conversas":
             return self.enviar(200, {"conversas": conversas_tela(pessoa_da_tela(self.headers)[1])})
         nome = "index.html" if p in ("/", "") else p.lstrip("/")

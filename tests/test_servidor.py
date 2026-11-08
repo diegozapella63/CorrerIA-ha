@@ -337,6 +337,12 @@ class TestConversaTela(Base):
         self.assertEqual(S.pessoa_da_tela({"X-Remote-User-Id": "u-x", "X-Remote-User-Name": "visita"}), ({"id": "", "nome": "visita"}, "u-x"))
         self.assertEqual(S.pessoa_da_tela({}), ({"id": "", "nome": "Você"}, "_"))
 
+    def test_ola_com_o_primeiro_nome(self):
+        self.assertEqual(S.ola_da_tela(self.ANA), "Ana", "a pessoa ligada ao login")
+        self.assertEqual(S.ola_da_tela({"X-Remote-User-Id": "u-x", "X-Remote-User-Display-Name": "Carla  Souza"}), "Carla", "sem pessoa: o nome do login")
+        self.assertEqual(S.ola_da_tela({"X-Remote-User-Id": "u-x", "X-Remote-User-Name": "visita"}), "visita")
+        self.assertEqual(S.ola_da_tela({}), "", "sem login: sem o Olá (nunca \"Olá, Você\")")
+
     def test_pergunta_e_resposta_ficam_guardadas(self):
         self.configurar()
         pessoa, chave = S.pessoa_da_tela(self.ANA)
@@ -828,7 +834,7 @@ class TestTela(Base):
         cab = {"X-Remote-User-Id": "u-beto", "X-Remote-User-Display-Name": "Beto"}
         self.addCleanup(S._gravar_tela, "u-beto", [])
         st, r = pedir(self.url + "/api/conversa", cab=cab)
-        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto", "conversa": None})
+        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto", "ola": "Beto", "conversa": None})
         st, r = pedir(self.url + "/api/conversa", "POST", {"texto": "Quanto gastei?"}, cab)
         self.assertEqual((st, json.loads(r)["mensagens"][-1]["app"]), (200, "GerencIA"))
         st, r = pedir(self.url + "/api/conversa/limpar", "POST", {}, cab)

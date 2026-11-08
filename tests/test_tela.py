@@ -289,6 +289,19 @@ class Tela(unittest.TestCase):
         self.publicar_app()
         self.abrir()
 
+    def test_ola_no_alto(self):
+        self.publicar_app()
+        self.abrir()
+        self.pg.wait_for_selector(".ch-sug .chip")
+        self.assertEqual(self.texto(".cab .eyebrow"), "CorrerIA", "sem o login, só o nome do app (sem \"Olá, Você\")")
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, extra_http_headers={"X-Remote-User-Id": "u-ana", "X-Remote-User-Display-Name": "Ana Exemplo"})
+        self.addCleanup(self.pg.close)
+        self.pg.on("pageerror", lambda e: self.erros.append(str(e)))
+        self.pg.goto(self.url)
+        self.pg.wait_for_function("() => /Olá/.test(document.querySelector('.cab .eyebrow').textContent)")
+        self.assertEqual(self.pg.text_content(".cab .eyebrow"), "CorrerIA · Olá, Ana", "como nos outros apps: o primeiro nome da pessoa")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-ola.png"))
+
     def test_conversar_com_a_ia(self):
         self.abrir_conversa()
         self.assertEqual(self.texto(".cab h1"), "Conversa")

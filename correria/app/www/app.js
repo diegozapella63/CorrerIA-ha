@@ -3,7 +3,7 @@
    Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.7.0';
+  const VERSAO = '0.7.1';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -47,7 +47,7 @@
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
-    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', conversa: null, lista: undefined } };
+    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined } };
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
@@ -289,7 +289,7 @@
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length);
-    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · os apps da casa</p><h1>Conversa</h1></div>
+    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>Conversa</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
           <button class="bt-icone" data-a="opcoes" aria-label="Opções" title="Opções">${ic('gear')}</button></div></header>
@@ -421,7 +421,7 @@
     render();
   });
   function carregarConversa() {
-    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.conversa = r.conversa || null; render(); })
+    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; render(); })
       .catch(err => { S.ch.msgs = []; toast(err.message); render(); });
   }
   async function enviarConversa(texto) {

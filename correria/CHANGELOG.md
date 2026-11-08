@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.7.1
+
+- No alto da **Conversa**, **Olá** e o nome de quem está usando, como nos outros apps (CorrerIA · Olá, Ana), no lugar de "os apps da casa".
+
 ## 0.7.0
 
 - Na **Conversa**, arrastar o dedo para o lado passa pelas conversas já guardadas, como nos outros apps: para a esquerda, a anterior (mais antiga); para a direita, a mais nova. Da conversa nova, ainda vazia, para a esquerda abre a mais recente. No fim da lista, a tela só balança de leve.
