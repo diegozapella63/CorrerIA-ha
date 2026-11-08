@@ -20,6 +20,7 @@ S = importar_servidor()
 import apps  # noqa: E402
 
 TOKEN = "EAAtoken-de-teste-0000-1234"
+RESPOSTA = ".ch-msg.ia .ch-bolha:not(.ch-pensando)"  # a resposta (o "pensando" também é uma bolha da IA)
 
 
 class Tela(unittest.TestCase):
@@ -257,6 +258,7 @@ class Tela(unittest.TestCase):
     def test_conversar_com_a_ia(self):
         self.abrir_conversa()
         self.assertEqual(self.texto(".cab-tela h1"), "Conversa")
+        self.pg.wait_for_selector(".ch-sug .chip")  # as sugestões aparecem quando a conversa guardada chega
         self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
         self.pg.click('[data-a="ch-enviar"]')  # vazio: nada
         self.assertEqual(self.app.pedidos, [])
@@ -275,12 +277,12 @@ class Tela(unittest.TestCase):
     def test_sugestao_e_conversa_guardada(self):
         self.abrir_conversa()
         self.pg.click('[data-a="ch-sug"] >> nth=1')
-        self.pg.wait_for_selector(".ch-msg.ia")
+        self.pg.wait_for_selector(RESPOSTA)
         self.assertEqual(self.app.pedidos[0][3]["texto"], "O que vence esta semana?")
         self.pg.reload()
         self.pg.wait_for_selector(".bt-topo")
         self.pg.click('.bt-topo')
-        self.pg.wait_for_selector(".ch-msg.ia")
+        self.pg.wait_for_selector(RESPOSTA)
         self.assertEqual(self.pg.locator(".ch-msg").count(), 2, "fechou, abre de onde parou")
         self.pg.click('[data-a="ch-limpar"]')
         self.aviso("Conversa apagada")
@@ -295,7 +297,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto(".ch-prev span"), "nota.jpg")
         self.pg.fill("#ch-txt", "Quanto deu?")
         self.pg.click('[data-a="ch-enviar"]')
-        self.pg.wait_for_selector(".ch-msg.ia")
+        self.pg.wait_for_selector(RESPOSTA)
         c = self.app.pedidos[0][3]
         self.assertEqual((c["texto"], c["anexo"]["tipo"], c["anexo"]["nome"]), ("Quanto deu?", "image/jpeg", "nota.jpg"))
         self.assertEqual(self.texto(".ch-msg.eu .ch-anexo"), "nota.jpg")
