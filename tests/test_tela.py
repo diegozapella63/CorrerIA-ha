@@ -324,8 +324,8 @@ class Tela(unittest.TestCase):
     def test_lista_de_conversas(self):
         self.abrir_conversa()
         self.pg.click('.cab-bts [data-a="conversas"]')
-        self.pg.wait_for_selector(".vazio")
-        self.assertEqual((self.texto(".cab-tela h1"), self.texto(".vazio")), ("Conversas", "Nenhuma conversa ainda."))
+        self.pg.wait_for_function("() => (document.querySelector('.vazio') || {}).textContent === 'Nenhuma conversa ainda.'")  # depois do Carregando…
+        self.assertEqual(self.texto(".cab-tela h1"), "Conversas")
         self.pg.go_back()
         self.pg.wait_for_selector("#ch-txt")
         for pergunta in ("Quanto gastei no mercado?", "O que vence esta semana?"):
