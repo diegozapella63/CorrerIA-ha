@@ -1,5 +1,5 @@
-"""O login do Claude e do Gemini no CorrerIA: OAuth 2.1 com PKCE (S256) e registro dinâmico de cliente (RFC 7591), o
-que o Claude e o Gemini pedem para um conector MCP. Sem senha: ao conectar, a página do CorrerIA mostra um código e
+"""O login das IAs (Claude, ChatGPT, Gemini…) no conector MCP do CorrerIA: OAuth 2.1 com PKCE (S256) e registro dinâmico
+de cliente (RFC 7591), o que elas pedem para um conector MCP. Sem senha: ao conectar, a página do CorrerIA mostra um código e
 alguém da casa aprova o pedido no painel do Home Assistant (onde já está logado). A conexão fica com a pessoa que aprovou.
 
 Em /data/mcp.json ficam os clientes registrados e as conexões (os tokens só como hash, SHA-256). Os pedidos e os
@@ -186,7 +186,7 @@ class Autorizacao:
                  "redirect_uri": uri, "state": estado, "desafio": desafio, "codigo": str(1000 + secrets.randbelow(9000)),
                  "criado": self.agora(), "estado": "esperando", "ir": None}
             self.pedidos[p["id"]] = p
-        self.log("Claude e Gemini:", p["nome"], "pediu para conectar (código", p["codigo"] + ")")
+        self.log("Conector MCP:", p["nome"], "pediu para conectar (código", p["codigo"] + ")")
         if self.ao_pedir:
             try:
                 self.ao_pedir(p)
@@ -203,11 +203,11 @@ class Autorizacao:
                     for p in sorted(self.pedidos.values(), key=lambda x: x["criado"]) if p["estado"] == "esperando" and t - p["criado"] <= PEDIDO_VALE]
 
     def decidir(self, pid, aprovar, pessoa):
-        """Aprovar (ou recusar) no painel. A página do pedido vê na próxima consulta e volta para o Claude ou o Gemini."""
+        """Aprovar (ou recusar) no painel. A página do pedido vê na próxima consulta e volta para a IA."""
         with self.trava:
             p = self.pedidos.get(str(pid or ""))
             if not p or p["estado"] != "esperando" or self.agora() - p["criado"] > PEDIDO_VALE:
-                raise LookupError("Esse pedido não está mais esperando. Conecte de novo pelo Claude ou pelo Gemini.")
+                raise LookupError("Esse pedido não está mais esperando. Conecte de novo pela IA.")
             if aprovar:
                 code = secrets.token_urlsafe(32)
                 self.codigos[_hash(code)] = {"cliente": p["cliente"], "nome": p["nome"], "redirect_uri": p["redirect_uri"], "desafio": p["desafio"],
@@ -216,7 +216,7 @@ class Autorizacao:
             else:
                 p.update(estado="recusado", ir=_com_params(p["redirect_uri"], error="access_denied", error_description="Recusado no CorrerIA.",
                                                           state=p["state"] or None))
-        self.log("Claude e Gemini:", p["nome"], "aprovado" if aprovar else "recusado", f"por {(pessoa or {}).get('nome') or 'alguém'}")
+        self.log("Conector MCP:", p["nome"], "aprovado" if aprovar else "recusado", f"por {(pessoa or {}).get('nome') or 'alguém'}")
         return p
 
     def situacao(self, pid):
@@ -264,7 +264,7 @@ class Autorizacao:
                 if len(d["conexoes"]) > MAX_CONEXOES:
                     for velho in sorted(d["conexoes"], key=lambda k: d["conexoes"][k].get("usado", 0))[:len(d["conexoes"]) - MAX_CONEXOES]:
                         d["conexoes"].pop(velho)
-                self.log("Claude e Gemini:", c["nome"], "conectado", f"({(c['pessoa'] or {}).get('nome') or 'sem pessoa'})")
+                self.log("Conector MCP:", c["nome"], "conectado", f"({(c['pessoa'] or {}).get('nome') or 'sem pessoa'})")
             elif tipo == "refresh_token":
                 h = _hash(g("refresh_token"))
                 conid = next((k for k, x in d["conexoes"].items() if x.get("renovar") and secrets.compare_digest(x["renovar"], h)), None)
@@ -313,7 +313,7 @@ class Autorizacao:
             if not c:
                 raise LookupError("Essa conexão não existe mais.")
             self._salvar(d)
-        self.log("Claude e Gemini:", c.get("nome"), "desconectado")
+        self.log("Conector MCP:", c.get("nome"), "desconectado")
         return c
 
     def esquecer_tudo(self):

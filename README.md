@@ -2,13 +2,13 @@
 
 ![CorrerIA](correria/logo.png)
 
-Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), no **Claude** e no **Gemini** (como um conector MCP). Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
+Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), e em outras IAs, como um **conector MCP**. Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
 
 <p align="center">
   <img src="docs/conversa.png" width="24%" alt="A conversa com a IA: perguntar e lançar com o sim">
   <img src="docs/apps.png" width="24%" alt="Opções › Apps: os apps e o que cada um faz">
   <img src="docs/whatsapp.png" width="24%" alt="Opções › WhatsApp: a conta da Meta">
-  <img src="docs/claude-gemini.png" width="24%" alt="Opções › Claude e Gemini: o pedido de conexão com o código">
+  <img src="docs/claude-gemini.png" width="24%" alt="Opções › MCP: o pedido de conexão com o código">
 </p>
 
 ## Instalação
@@ -19,7 +19,7 @@ Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da Correr
    https://github.com/diegozapella63/CorrerIA-ha
    ```
 3. Procure **CorrerIA** na loja, toque em **Instalar** e depois em **Iniciar**.
-4. Ative **Mostrar na barra lateral** e siga a aba **Documentação** (a conta na Meta, o Duck DNS, a porta 8443 no roteador e o conector do Claude e do Gemini).
+4. Ative **Mostrar na barra lateral** e siga a aba **Documentação** (a conta na Meta, o Duck DNS, a porta 8443 no roteador e o conector MCP).
 5. Em cada app da família, ligue **Mais › Configurações › Integrações › CorrerIA**.
 
 [![Adicionar o repositório ao Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdiegozapella63%2FCorrerIA-ha)

@@ -3,7 +3,7 @@
 Os apps da CorrerIA Code em três lugares:
 
 - no **WhatsApp**, num contato da CorrerIA Code: as pessoas da casa perguntam ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e pedem ("lança 45 de mercado", "marca a tarefa do lixo como feita");
-- no **Claude** e no **Gemini**, como um conector;
+- em outras IAs, como um **conector MCP**;
 - na conversa da própria tela do CorrerIA.
 
 Cada app, com a opção **CorrerIA** ligada nele (Mais › Configurações › Integrações), publica as suas ferramentas: o que dá para ler e mudar nele. O CorrerIA junta as ferramentas de todos e a IA usa as que precisa.
@@ -34,7 +34,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 
 ### 3. No CorrerIA
 
-O CorrerIA abre na **Conversa**. A engrenagem no alto abre as **Opções**, em três abas: **Apps** (os apps ligados, a IA, o áudio e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa) e **Claude e Gemini**. A aba escolhida fica guardada.
+O CorrerIA abre na **Conversa**. A engrenagem no alto abre as **Opções**, em três abas: **Apps** (os apps ligados, a IA, o áudio e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa) e **MCP**. A aba escolhida fica guardada.
 
 1. **WhatsApp** (aba WhatsApp): cole o ID do número, o token e a chave secreta e toque em **Salvar**. O app confere com a Meta e mostra o número e o nome. O token e a chave não aparecem mais (só o fim, como ••••1234); para trocar, cole outro.
 2. **Webhook na Meta**: escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`). Na Meta, em **WhatsApp › Configuração › Webhook**, toque em Editar, cole a **URL de retorno** e o **Token de verificação** que o CorrerIA mostra e toque em **Verificar e salvar**. Depois, em Campos do webhook, assine **messages**. O cartão mostra quando a Meta confirmou o endereço e a última mensagem que chegou.
@@ -58,19 +58,18 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 - Fotos e PDFs vão para o app que lê aquele tipo (hoje, o GerencIA); áudio vira texto antes.
 - **Últimas mensagens** (aba Apps) mostra o que chegou, o que foi respondido, os números sem cadastro e os erros (como "Passaram mais de 24 horas": o WhatsApp só deixa responder até 24 horas depois da última mensagem da pessoa).
 
-## Claude e Gemini
+## Conector MCP
 
-A aba **Claude e Gemini** (nas Opções) liga os apps no Claude e no Gemini, como um conector (o padrão MCP). Eles veem as ferramentas de todos os apps ligados e leem e mudam os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, eles mostram o que vão fazer.
+A aba **MCP** (nas Opções) liga os apps em outras IAs, como um conector: o padrão MCP, com login. Serve para qualquer IA que aceite um conector personalizado remoto (como Claude, ChatGPT e Gemini). A IA vê as ferramentas de todos os apps ligados e lê e muda os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, ela mostra o que vai fazer.
 
-1. Ligue **Conectar o Claude e o Gemini** e confira o **Endereço público** (na aba WhatsApp, cartão Webhook). Ele usa a mesma porta (8443) e o mesmo certificado do WhatsApp; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
+1. Ligue **Ligar o conector** e confira o **Endereço público** (na aba WhatsApp, cartão Webhook). Ele usa a mesma porta (8443) e o mesmo certificado do WhatsApp; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
 2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org:8443/mcp`).
-3. **No Claude** (planos Pro, Max, Team ou Enterprise): **Configurações › Conectores › Adicionar conector personalizado**, dê um nome (CorrerIA), cole o endereço e toque em **Conectar**. Feito uma vez no site, vale também no app do celular.
-   **No Gemini** (no site gemini.google.com; hoje só no plano Google AI Ultra): **Configurações › Apps conectados › Adicionar app personalizado**, cole o endereço e toque em **Próximo**.
-4. Abre uma página do CorrerIA com um **código**. Abra o CorrerIA no Home Assistant: o pedido aparece no alto da Conversa (e no sino do Home Assistant), com o mesmo código: toque nele e em **Aprovar**. A página volta sozinha para o Claude ou o Gemini.
+3. Na IA, nas configurações de conectores (ou apps conectados), adicione um **conector personalizado**: dê um nome (CorrerIA), cole o endereço e conecte. Em geral isso é feito no site da IA e passa a valer também no app do celular; algumas pedem um plano pago ou um modo de desenvolvedor ligado.
+4. Abre uma página do CorrerIA com um **código**. Abra o CorrerIA no Home Assistant: o pedido aparece no alto da Conversa (e no sino do Home Assistant), com o mesmo código: toque nele e em **Aprovar**. A página volta sozinha para a IA.
 
-A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem os conectados e quando usaram; **Desconectar** tira na hora. O que eles mudam aparece em **Últimas mensagens**. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
+A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mensagens**. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
 
-O que eles leem vai para a Anthropic (Claude) ou para o Google (Gemini), como qualquer conversa com eles.
+O que a IA lê vai para a empresa dela, como qualquer conversa com ela.
 
 ## Conversar com a IA
 
@@ -86,5 +85,5 @@ No fim das Opções, **Sobre**: a CorrerIA Code, os apps da família (com o link
 
 - A Meta não cobra as mensagens que as pessoas mandam. As respostas do CorrerIA são grátis até 1.000 por mês por número (regra da Meta desde outubro de 2026); depois disso, alguns centavos cada.
 - As perguntas e as respostas do WhatsApp passam pelos servidores da Meta. A IA é a do Home Assistant.
-- O login do Claude e do Gemini fica em `/data/mcp.json` (os tokens só como hash), também no backup.
+- O login das IAs conectadas fica em `/data/mcp.json` (os tokens só como hash), também no backup.
 - A configuração e as conversas ficam em `/data` (config.json e conversas.json, só para o app) e entram no backup do Home Assistant.

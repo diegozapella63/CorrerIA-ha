@@ -1,9 +1,9 @@
 /* CorrerIA · a tela (JavaScript puro, sem build). Abre na conversa com a IA (os apps); a engrenagem leva às
-   Opções, em abas: Apps (os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e Claude e
-   Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
+   Opções, em abas: Apps (os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e MCP (o
+   conector para outras IAs). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.7.2';
+  const VERSAO = '0.8.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -43,7 +43,7 @@
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
 
   // tela: '' (a conversa, onde o app abre), 'opcoes' ou 'sobre'; aba: a das Opções (fica guardada neste aparelho)
-  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'Claude e Gemini']];
+  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP']];
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
@@ -181,29 +181,29 @@
     </section>`;
   }
 
-  // o Claude e o Gemini: o endereço do conector, os pedidos esperando aprovação e quem está conectado
+  // o conector MCP (para qualquer IA que aceite um, sem nome de marca na tela): o endereço, os pedidos esperando aprovação e quem está conectado
   function cardMcp(e) {
     const m = e.mcp || {};
-    const sw = `<div class="linha-sw"><div><b>Conectar o Claude e o Gemini</b><span>${m.ligado ? 'Ligado: leem e mudam os apps, com a sua aprovação.' : 'Desligado.'}</span></div>
-        <button class="sw${m.ligado ? ' on' : ''}" data-a="mcp" role="switch" aria-checked="${!!m.ligado}" aria-label="Conectar o Claude e o Gemini"></button></div>`;
-    if (!m.ligado) return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
-      <p class="lead">Os apps dentro do Claude e do Gemini, como um conector.</p>${sw}</section>`;
+    const sw = `<div class="linha-sw"><div><b>Ligar o conector</b><span>${m.ligado ? 'Ligado: as IAs conectadas leem e mudam os apps, com a sua aprovação.' : 'Desligado.'}</span></div>
+        <button class="sw${m.ligado ? ' on' : ''}" data-a="mcp" role="switch" aria-checked="${!!m.ligado}" aria-label="Ligar o conector"></button></div>`;
+    if (!m.ligado) return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
+      <p class="lead">Os apps dentro de outras IAs, como um conector.</p>${sw}</section>`;
     const pedidos = (m.pedidos || []).map(p => `<div class="pedido"><div class="pedido-t"><b>${esc(p.nome)} quer se conectar</b><span>Código <b class="cod">${esc(p.codigo)}</b> · ${esc(p.host)}</span></div>
         <div class="btns"><button class="btn out" data-a="mcp-recusar" data-v="${esc(p.id)}">Recusar</button><button class="btn pri" data-a="mcp-aprovar" data-v="${esc(p.id)}">Aprovar</button></div></div>`).join('');
     const conexoes = (m.conexoes || []).map(c => `<div class="conexao"><span class="av">${esc((c.nome || '?').slice(0, 1).toUpperCase())}</span>
         <div class="conexao-t"><b>${esc(c.nome)}</b><span>${[c.pessoa, c.usado ? 'usou ' + quando(c.usado) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
         <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">Desconectar</button></div>`).join('');
     const endereco = m.url ? `<div class="campo"><label for="f-mcp">Endereço do conector</label><div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
-      ${conexoes ? '' : `<ol class="passos"><li>No Claude: Configurações › Conectores › <b>Adicionar conector personalizado</b>. No Gemini (no site): Configurações › Apps conectados › <b>Adicionar app personalizado</b>.</li><li>Cole o endereço e toque em Conectar.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
+      ${conexoes ? '' : `<ol class="passos"><li>Na IA, adicione um <b>conector personalizado</b> com este endereço.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
       : '<div class="status manual">Escreva o endereço público na aba WhatsApp.</div>';
-    return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
-      <p class="lead">Os apps dentro do Claude e do Gemini, como um conector.</p>${sw}
+    return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
+      <p class="lead">Os apps dentro de outras IAs, como um conector.</p>${sw}
       ${pedidos}${endereco}
       ${conexoes ? `<div class="lbl">Conectados</div>${conexoes}` : ''}
     </section>`;
   }
 
-  const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'], mcp: ['plug', 'Claude ou Gemini'] };
+  const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'], mcp: ['plug', 'Conector MCP'] };
   function cardMensagens(e) {
     const R = e.registro;
     return `<section class="card" id="mensagens">${cab('inbox', 'Últimas mensagens', R.length ? '<button class="btn peq" data-a="limpar">Limpar</button>' : '')}
@@ -216,7 +216,7 @@
     </section>`;
   }
 
-  // um pedido do Claude ou do Gemini esperando: aparece no alto da conversa e das Opções (quem abriu o app só para aprovar)
+  // um pedido de uma IA para conectar esperando: aparece no alto da conversa e das Opções (quem abriu o app só para aprovar)
   function pendentes(e) {
     const n = ((e.mcp || {}).pedidos || []).length;
     if (!n || (S.tela === 'opcoes' && S.aba === 'mcp')) return '';
@@ -489,9 +489,9 @@
     } else if (a === 'ligado') {
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
     } else if (a === 'mcp') {
-      await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Claude e Gemini desligados' : 'Claude e Gemini ligados');
+      await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
     } else if (a === 'mcp-aprovar' || a === 'mcp-recusar') {
-      await acao('mcp/decidir', { id: el.dataset.v, aprovar: a === 'mcp-aprovar' }, a === 'mcp-aprovar' ? 'Aprovado: volte para o Claude ou o Gemini' : 'Recusado');
+      await acao('mcp/decidir', { id: el.dataset.v, aprovar: a === 'mcp-aprovar' }, a === 'mcp-aprovar' ? 'Aprovado: volte para a IA' : 'Recusado');
     } else if (a === 'mcp-desconectar') {
       await acao('mcp/desconectar', { id: el.dataset.v }, 'Desconectado');
     } else if (a === 'ir-mcp') {
@@ -638,7 +638,7 @@
 
   if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na conversa
   carregar().then(carregarConversa);
-  // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando); com o Claude e o Gemini ligados, a cada
+  // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando); com o conector ligado, a cada
   // 4 segundos, para o pedido de conexão aparecer logo
   let ultimaCarga = Date.now();
   setInterval(() => {

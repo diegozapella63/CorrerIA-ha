@@ -34,7 +34,7 @@ import mcp
 import oauth
 import whatsapp
 
-VERSAO = "0.7.2"
+VERSAO = "0.8.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -568,7 +568,7 @@ class ServidorWebhook(ThreadingHTTPServer):
         pass  # robôs da internet batendo na porta: sem barulho no registro
 
 
-# ---------------------------------------------------------------- o Claude e o Gemini (MCP, na porta pública)
+# ---------------------------------------------------------------- o conector MCP para outras IAs (na porta pública)
 
 INSTRUCOES_MCP = ("CorrerIA: os apps da CorrerIA Code num lugar só. Cada ferramenta tem o app na frente do nome "
                   "(gerencia_..., cronologia_...). Leia antes de gravar: os ids vêm das ferramentas de leitura. Antes de uma "
@@ -576,7 +576,7 @@ INSTRUCOES_MCP = ("CorrerIA: os apps da CorrerIA Code num lugar só. Cada ferram
 
 
 def registrar_mcp(quem, f, args, texto, erro):
-    """Uma mudança feita pelo Claude ou pelo Gemini vai para Últimas mensagens."""
+    """Uma mudança feita por uma IA conectada (MCP) vai para Últimas mensagens."""
     nome = (quem.get("pessoa") or {}).get("nome")
     registrar("erro" if erro else "mcp", quem.get("cliente") + (f" · {nome}" if nome else ""),
               (texto.splitlines()[0] if texto else f["titulo"]), f["app"]["nome"])

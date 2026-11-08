@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.8.0
+
+- A aba **Claude e Gemini** passa a se chamar **MCP**, com textos que valem para qualquer IA que aceite um conector personalizado (como o ChatGPT), e não só o Claude e o Gemini. O passo a passo ficou: na IA, adicione um **conector personalizado** com o endereço e aprove aqui o pedido com o código.
+
 ## 0.7.2
 
 - Sem o "da casa" nos textos: **Apps** (nas Opções), "Os apps dentro do Claude e do Gemini", "Pergunte ou peça algo aos apps" e a descrição na loja de aplicativos.
