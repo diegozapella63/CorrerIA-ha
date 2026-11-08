@@ -1,0 +1,26 @@
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: Servidor e tela
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # os testes da tela (tests/test_tela.py) abrem a tela num Chromium; o openssl faz o certificado do teste do https
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - name: Testes (falha também se algum for pulado)
+        env:
+          TZ: America/Sao_Paulo
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -t . -v 2>&1 | tee saida.txt
+          ! tail -3 saida.txt | grep -q "skipped"

@@ -1,0 +1,146 @@
+/* CorrerIA · a tipografia da família (Barlow + Barlow Condensed, embutidas) */
+@font-face { font-family: "Barlow"; src: url("fonts/barlow-400.woff2") format("woff2"), url("fonts/barlow-400.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("fonts/barlow-500.woff2") format("woff2"), url("fonts/barlow-500.woff") format("woff"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("fonts/barlow-600.woff2") format("woff2"), url("fonts/barlow-600.woff") format("woff"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("fonts/barlow-condensed-600.woff2") format("woff2"), url("fonts/barlow-condensed-600.woff") format("woff"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("fonts/barlow-condensed-700.woff2") format("woff2"), url("fonts/barlow-condensed-700.woff") format("woff"); font-weight: 700; font-display: swap; }
+
+:root {
+  --accent: #FFB547;
+  --on-accent: #1a1206;
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-d: "Barlow Condensed", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-card: 20px;
+  --r-ctl: 12px;
+  color-scheme: dark;
+  --bg: #0f1318; --card: #151a21; --card-2: #1c222b; --line: #242b35; --line-2: #2f3743;
+  --text: #eef2f6; --text-2: #b6bfcb; --muted: #8a94a2;
+  --terc: #F5B14C; --danger: #FF7A6B; --good: #4CD3A5;
+  --accent-text: var(--accent);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --bolha: #1f2c25;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f4f7; --card: #ffffff; --card-2: #eef1f5; --line: #e3e7ec; --line-2: #d3d9e1;
+  --text: #121820; --text-2: #3d4754; --muted: #667180;
+  --terc: #a85f00; --danger: #c63d2f; --good: #0f8a5f;
+  --accent-text: color-mix(in srgb, var(--accent) 50%, #000);
+  --bolha: #e3f3e6;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--text); font: 400 16px/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { opacity: .45; cursor: default; }
+a { color: var(--accent-text); }
+svg { display: block; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.ic { width: 22px; height: 22px; flex: none; }
+.ic-s { width: 17px; height: 17px; flex: none; }
+
+#app {
+  max-width: 640px; margin: 0 auto;
+  padding: 22px max(16px, env(safe-area-inset-right, 0px)) calc(40px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* ---------- cabeçalho */
+.cab { margin-bottom: 18px; }
+.eyebrow { margin: 0; font: 600 12px/1.3 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.brand { font: 600 21px/1 var(--font-d); letter-spacing: 0; text-transform: none; color: var(--text); }
+.brand span, .wm span { color: var(--accent-text); }
+.cab h1 { margin: 6px 0 0; font: 700 clamp(34px, 9vw, 46px)/1.02 var(--font-d); }
+.sync { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.sync .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); flex: none; }
+.sync.manual .dot { background: var(--terc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--terc) 25%, transparent); }
+
+/* ---------- cartões */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 18px; margin-bottom: 18px; }
+.rot { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+.rot h2 { flex: 1; min-width: 0; margin: 0; font: 600 25px/1.1 var(--font-d); }
+.rot-ic { width: 44px; height: 44px; border-radius: 14px; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
+.lead { color: var(--muted); margin: -4px 0 16px; font-size: 15px; }
+.status { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-size: 15px; overflow-wrap: anywhere; }
+.status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--good); margin-top: 7px; flex: none; }
+.status.manual::before { background: var(--terc); }
+.status.erro::before { background: var(--danger); }
+.sep { height: 1px; background: var(--line); margin: 18px 0; }
+
+/* ---------- campos e botões */
+.campo { margin-bottom: 16px; }
+.campo > label { display: block; color: var(--text-2); font: 500 14px/1.3 var(--font); margin-bottom: 7px; }
+.ajuda { color: var(--muted); font-size: 13px; margin-top: 7px; }
+.inp { width: 100%; min-width: 0; border: 1.5px solid var(--line-2); background: var(--bg); border-radius: var(--r-ctl); padding: 12px 14px; font: 400 16px/1.4 var(--font); outline: none; min-height: 50px; }
+.inp:focus { border-color: var(--accent); }
+.inp[readonly] { color: var(--text-2); font-size: 14px; }
+textarea.inp { resize: vertical; min-height: 84px; }
+.copiar { display: flex; gap: 10px; }
+.copiar .inp { flex: 1; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 12px 18px; border-radius: var(--r-ctl); font: 500 15px/1.2 var(--font); border: 1px solid var(--line-2); background: var(--card-2); color: var(--text); min-height: 48px; }
+.btn.pri { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
+.btn.out { background: transparent; border: 1.5px solid var(--accent); color: var(--accent-text); }
+.btn.peq { padding: 8px 13px; font-size: 14px; min-height: 40px; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
+.sw { position: relative; width: 58px; height: 34px; border-radius: 999px; flex: none; background: var(--line-2); transition: background .15s; }
+.sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.sw.on { background: var(--accent); }
+.sw.on::after { transform: translateX(24px); }
+.linha-sw { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.linha-sw > div { flex: 1; min-width: 0; }
+.linha-sw b { display: block; font-size: 16px; font-weight: 600; }
+.linha-sw span { color: var(--muted); font-size: 14px; }
+
+/* ---------- passos da Meta */
+.passos { margin: 0 0 16px; padding-left: 22px; color: var(--text-2); font-size: 15px; }
+.passos li { margin-bottom: 6px; }
+.passos b { color: var(--text); font-weight: 600; }
+
+/* ---------- quem conversa */
+.pessoa { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.pessoa:first-of-type { border-top: 0; }
+.av { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--card-2); color: var(--text-2); font: 600 17px var(--font-d); }
+.pessoa.com .av { background: var(--accent-soft); color: var(--accent-text); }
+.pessoa b { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pessoa small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.pessoa .inp { flex: 0 1 190px; min-height: 44px; padding: 9px 12px; }
+
+/* ---------- apps */
+.app-l { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.app-l .app-t { flex: 1; min-width: 0; }
+.app-l b { display: block; font: 600 19px/1.1 var(--font-d); }
+.app-l small { color: var(--muted); font-size: 13px; }
+.bolha { margin-top: 12px; padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--bolha); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
+.bolha small { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+/* ---------- últimas mensagens */
+.msgs { display: flex; flex-direction: column; }
+.msg { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.msg:first-child { border-top: 0; }
+.msg-ic { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--card-2); color: var(--text-2); }
+.msg.enviada .msg-ic { background: var(--accent-soft); color: var(--accent-text); }
+.msg.bloqueada .msg-ic, .msg.erro .msg-ic { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.msg > div { flex: 1; min-width: 0; }
+.msg-t { display: flex; gap: 8px; align-items: baseline; }
+.msg-t b { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-t time { color: var(--muted); font-size: 12px; flex: none; }
+.msg p { margin: 2px 0 0; color: var(--text-2); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.vazio { color: var(--muted); font-size: 15px; margin: 4px 0; }
+.rot .btn.peq { flex: none; }
+
+/* ---------- a marca da CorrerIA Code (como no Sobre dos apps) */
+.marca { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 30px 0 10px; text-align: center; }
+.raio { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); transform: rotate(-8deg); }
+.marca .wm { font: 700 22px/1 var(--font-d); }
+.marca small { color: var(--muted); font: 600 11px/1.2 var(--font); letter-spacing: .14em; text-transform: uppercase; }
+.marca .v { letter-spacing: 0; text-transform: none; font-weight: 400; font-size: 12px; }
+
+#toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0;
+  background: var(--text); color: var(--bg); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100vw - 32px);
+  pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; text-align: center;
+}
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+.boot { color: var(--muted); padding: 40px 0; text-align: center; }

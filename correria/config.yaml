@@ -1,0 +1,25 @@
+name: CorrerIA
+version: "0.1.0"
+slug: correria
+description: O contato da CorrerIA Code no WhatsApp (API oficial da Meta). As pessoas da casa perguntam e os apps da família respondem com a IA.
+url: https://github.com/diegozapella63/correria-ha
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:message-flash
+panel_title: CorrerIA
+homeassistant_api: true
+ports:
+  8443/tcp: 8443
+ports_description:
+  8443/tcp: Webhook do WhatsApp (https; encaminhe no roteador)
+map:
+  - type: share
+    read_only: true
+  - type: ssl
+    read_only: true
+watchdog: "tcp://[HOST]:[PORT:8099]"
