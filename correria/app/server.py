@@ -1,4 +1,4 @@
-"""CorrerIA: junta os apps da casa (da CorrerIA Code) no WhatsApp (a API oficial da Meta), no Claude e no Gemini (MCP).
+"""CorrerIA: junta os apps da CorrerIA Code no WhatsApp (a API oficial da Meta), no Claude e no Gemini (MCP).
 Cada app publica as suas ferramentas (share/<app>/correria.json); no WhatsApp e na conversa da tela, a IA do Home
 Assistant usa essas ferramentas (ia.py) e as mudanças só acontecem depois do "sim" da pessoa; o Claude e o Gemini
 chamam as mesmas ferramentas pelo MCP (mcp.py), com o login aprovado no painel (oauth.py).
@@ -34,7 +34,7 @@ import mcp
 import oauth
 import whatsapp
 
-VERSAO = "0.7.1"
+VERSAO = "0.7.2"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -570,7 +570,7 @@ class ServidorWebhook(ThreadingHTTPServer):
 
 # ---------------------------------------------------------------- o Claude e o Gemini (MCP, na porta pública)
 
-INSTRUCOES_MCP = ("CorrerIA: os apps da casa (da CorrerIA Code) num lugar só. Cada ferramenta tem o app na frente do nome "
+INSTRUCOES_MCP = ("CorrerIA: os apps da CorrerIA Code num lugar só. Cada ferramenta tem o app na frente do nome "
                   "(gerencia_..., cronologia_...). Leia antes de gravar: os ids vêm das ferramentas de leitura. Antes de uma "
                   "ferramenta que grava ou apaga, diga à pessoa o que vai ser feito. Datas no formato AAAA-MM-DD; valores em reais.")
 
@@ -587,7 +587,7 @@ def avisar_pedido(p):
     if not TOKEN:
         return
     corpo = {"notification_id": "correria_conectar", "title": "CorrerIA",
-             "message": f"{p['nome']} quer se conectar aos apps da casa. Código {p['codigo']}. Abra o CorrerIA para aprovar ou recusar."}
+             "message": f"{p['nome']} quer se conectar aos apps. Código {p['codigo']}. Abra o CorrerIA para aprovar ou recusar."}
     threading.Thread(target=lambda: _tentar(ha_post, "/services/persistent_notification/create", corpo), daemon=True).start()
 
 

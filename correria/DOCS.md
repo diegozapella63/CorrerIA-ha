@@ -1,6 +1,6 @@
 # CorrerIA
 
-Os apps da casa (da CorrerIA Code) em três lugares:
+Os apps da CorrerIA Code em três lugares:
 
 - no **WhatsApp**, num contato da CorrerIA Code: as pessoas da casa perguntam ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e pedem ("lança 45 de mercado", "marca a tarefa do lixo como feita");
 - no **Claude** e no **Gemini**, como um conector;
@@ -52,7 +52,7 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 - **Fotos e PDFs**: mande a foto de uma nota, um print ou a fatura em PDF (com ou sem uma pergunta na legenda). O CorrerIA passa para o app do assunto que lê aquele tipo (na aba **Apps** aparece o que cada um lê). No GerencIA, a IA lê como no Ler com IA: o que ela achar fica para conferir nos **Avisos do Início** ("Enviado por Ana · Pelo WhatsApp · 4 lançamentos") e a resposta lista o que foi lido; nada é lançado sozinho. A fatura em PDF com senha abre com as **Senhas dos PDFs** do GerencIA; se nenhuma abrir, a resposta pede para cadastrar e mandar de novo. Com uma pergunta junto ("quanto deu essa nota?"), a resposta vem com o que foi lido. Até 20 MB.
 - **Áudio**: o CorrerIA ouve pela fala para texto do Home Assistant (Configurações › Assistentes de voz; a do Home Assistant Cloud primeiro) e manda o texto para o app, como se a pessoa tivesse escrito. O WhatsApp grava em OGG: na aba **Apps**, a linha **Áudio** diz se a fala para texto aceita esse formato. Se não aceitar, a resposta pede para escrever.
 - Vídeo, figurinha e localização recebem "Por enquanto eu entendo texto, áudio, foto e PDF".
-- Pelo WhatsApp, a IA fala só dos apps da casa: é a regra do WhatsApp para contatos de empresas (assistente para qualquer assunto não é permitido).
+- Pelo WhatsApp, a IA fala só dos apps: é a regra do WhatsApp para contatos de empresas (assistente para qualquer assunto não é permitido).
 - Sem nenhuma IA no Home Assistant, as perguntas vão para o GerencIA, que responde com a IA dele (só responde).
 - **Responder pelo WhatsApp**, no cartão WhatsApp, pausa as respostas sem desligar nada.
 - Fotos e PDFs vão para o app que lê aquele tipo (hoje, o GerencIA); áudio vira texto antes.
@@ -60,7 +60,7 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 
 ## Claude e Gemini
 
-A aba **Claude e Gemini** (nas Opções) liga os apps da casa no Claude e no Gemini, como um conector (o padrão MCP). Eles veem as ferramentas de todos os apps ligados e leem e mudam os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, eles mostram o que vão fazer.
+A aba **Claude e Gemini** (nas Opções) liga os apps no Claude e no Gemini, como um conector (o padrão MCP). Eles veem as ferramentas de todos os apps ligados e leem e mudam os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, eles mostram o que vão fazer.
 
 1. Ligue **Conectar o Claude e o Gemini** e confira o **Endereço público** (na aba WhatsApp, cartão Webhook). Ele usa a mesma porta (8443) e o mesmo certificado do WhatsApp; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
 2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org:8443/mcp`).
@@ -74,7 +74,7 @@ O que eles leem vai para a Anthropic (Claude) ou para o Google (Gemini), como qu
 
 ## Conversar com a IA
 
-O CorrerIA abre na **Conversa** com os apps da casa, do mesmo jeito que pelo WhatsApp, mas sem passar por ele (e sem a regra de só falar dos apps). Pergunte ("quanto gastei este mês?"), peça uma mudança (com o **sim**, como no WhatsApp), **tire uma foto** pela câmera (a câmera abre aqui dentro; em http, sem https, dá para tirar ou escolher a foto pelo celular) ou mande uma **foto** ou um **PDF** pelo clipe; embaixo de cada resposta aparece qual app foi usado. Com a conversa vazia, aparecem sugestões: é só tocar.
+O CorrerIA abre na **Conversa** com os apps, do mesmo jeito que pelo WhatsApp, mas sem passar por ele (e sem a regra de só falar dos apps). Pergunte ("quanto gastei este mês?"), peça uma mudança (com o **sim**, como no WhatsApp), **tire uma foto** pela câmera (a câmera abre aqui dentro; em http, sem https, dá para tirar ou escolher a foto pelo celular) ou mande uma **foto** ou um **PDF** pelo clipe; embaixo de cada resposta aparece qual app foi usado. Com a conversa vazia, aparecem sugestões: é só tocar.
 
 As conversas são de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e ficam guardadas: fechou, abre de onde parou. No alto, **Nova conversa** começa outra (a de antes fica guardada) e **Conversas** abre a lista, como nos chats de sempre: a mais recente primeiro, com o nome tirado da primeira pergunta; toque para abrir ou na lixeira para apagar. Na conversa, arrastar o dedo para o lado passa para as outras: para a esquerda, a anterior (mais antiga); para a direita, a mais nova. Ficam as últimas 30 conversas, cada uma com as últimas 40 mensagens. Nas Opções e no Sobre, o Voltar do celular volta um passo.
 

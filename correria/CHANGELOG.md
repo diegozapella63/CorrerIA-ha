@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.7.2
+
+- Sem o "da casa" nos textos: **Apps** (nas Opções), "Os apps dentro do Claude e do Gemini", "Pergunte ou peça algo aos apps" e a descrição na loja de aplicativos.
+- **Sobre**: a linha da CorrerIA agora diz o que ela é: "Pergunte e peça a qualquer app, no chat ou no WhatsApp."
+
 ## 0.7.1
 
 - No alto da **Conversa**, **Olá** e o nome de quem está usando, como nos outros apps (CorrerIA · Olá, Ana), no lugar de "os apps da casa".

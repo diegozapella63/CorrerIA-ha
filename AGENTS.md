@@ -1,6 +1,6 @@
 # Instruções para quem for mexer neste repositório (pessoas ou IAs)
 
-CorrerIA é um app (add-on) do Home Assistant que junta os apps da casa em três lugares: o **WhatsApp** (o contato da CorrerIA Code, pela API oficial da Meta: WhatsApp Business, Cloud API), o **Claude** e o **Gemini** (como servidor MCP, com login OAuth aprovado no painel) e a conversa da própria tela. Cada app publica as suas ferramentas (ler e mudar); no WhatsApp e na tela, a IA do Home Assistant usa essas ferramentas (as mudanças só depois do "sim" da pessoa); o Claude e o Gemini chamam as mesmas ferramentas pelo MCP. Faz parte de uma família de apps do mesmo dono, que conversam entre si pelo Home Assistant:
+CorrerIA é um app (add-on) do Home Assistant que junta os apps em três lugares: o **WhatsApp** (o contato da CorrerIA Code, pela API oficial da Meta: WhatsApp Business, Cloud API), o **Claude** e o **Gemini** (como servidor MCP, com login OAuth aprovado no painel) e a conversa da própria tela. Cada app publica as suas ferramentas (ler e mudar); no WhatsApp e na tela, a IA do Home Assistant usa essas ferramentas (as mudanças só depois do "sim" da pessoa); o Claude e o Gemini chamam as mesmas ferramentas pelo MCP. Faz parte de uma família de apps do mesmo dono, que conversam entre si pelo Home Assistant:
 
 | App | Repositório | O que é |
 |---|---|---|

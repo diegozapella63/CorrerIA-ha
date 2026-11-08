@@ -1,4 +1,4 @@
-"""As ferramentas de todos os apps da casa, juntas: cada app publica as suas (apps.Apps.ferramentas) e aqui elas ganham
+"""As ferramentas de todos os apps, juntas: cada app publica as suas (apps.Apps.ferramentas) e aqui elas ganham
 o nome com o app na frente (gerencia_lancar), para o MCP (Claude e Gemini) e para a IA do WhatsApp. Um app que só
 responde com a IA dele (rota, sem ferramentas) vira uma ferramenta <app>_perguntar."""
 import re
@@ -32,7 +32,7 @@ class Ferramentas:
                 out += [dict(f, id=f"{app['app']}_{f['nome']}", app=app) for f in lista]
             elif app["rota"]:
                 out.append({"id": f"{app['app']}_perguntar", "app": app, "nome": PERGUNTAR, "titulo": f"Perguntar ao {app['nome']}",
-                            "descricao": f"Faz uma pergunta ao {app['nome']} ({app['assunto'] or 'um app da casa'}); ele responde com a IA dele, com os dados dele.",
+                            "descricao": f"Faz uma pergunta ao {app['nome']} ({app['assunto'] or 'um app da CorrerIA Code'}); ele responde com a IA dele, com os dados dele.",
                             "entrada": {"type": "object", "properties": {"pergunta": {"type": "string"}}, "required": ["pergunta"], "additionalProperties": False},
                             "grava": False, "apaga": False})
         return out

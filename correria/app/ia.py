@@ -15,14 +15,14 @@ MAX_CHAMADAS = 4          # de leitura, por rodada
 MAX_RESULTADO = 8000      # o texto de cada resultado que volta para a IA
 DIAS = ("segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo")
 
-BASE = """Você é o CorrerIA, o assistente dos apps da casa da CorrerIA Code, {onde}. Quem está conversando: {nome}. Agora: {agora}.
+BASE = """Você é o CorrerIA, o assistente dos apps da CorrerIA Code, {onde}. Quem está conversando: {nome}. Agora: {agora}.
 Converse em português do Brasil, curto e direto, como no WhatsApp: frases simples, no máximo uns 4 parágrafos curtos. Formatação do WhatsApp: *negrito* com um asterisco de cada lado e listas com "- "; nada de tabelas, títulos nem links. Valores como R$ 1.234,56 e datas como 20/11.
 {assunto}
 Use as ferramentas para ver os dados de verdade antes de responder: não invente números, nomes nem itens. Se faltar o dado, diga o que falta. Contas de cabeça podem errar: some e compare com cuidado.
 Para mudar algo (ferramentas marcadas "grava"), não peça confirmação no texto: ponha a ação em "chamar", com um "resumo" curto e claro do que vai ser feito (ex.: "Lançar R$ 45,90 de Mercado hoje, no cartão do Banco Azul"); o CorrerIA mostra para a pessoa e só faz depois do sim dela. Faça só o que ela pediu. Se faltar um dado essencial (o valor, a data, qual item), pergunte antes. Para achar os ids, leia primeiro."""
 
-ASSUNTO_WHATSAPP = "Por aqui você só ajuda com os apps da casa: para qualquer outro assunto, diga numa frase, com gentileza, que pelo WhatsApp você ajuda só com os apps da CorrerIA Code."
-ASSUNTO_TELA = "Ajude com os apps da casa; também pode conversar sobre outros assuntos."
+ASSUNTO_WHATSAPP = "Por aqui você só ajuda com os apps: para qualquer outro assunto, diga numa frase, com gentileza, que pelo WhatsApp você ajuda só com os apps da CorrerIA Code."
+ASSUNTO_TELA = "Ajude com os apps; também pode conversar sobre outros assuntos."
 
 FORMATO = """Responda somente com JSON válido, sem markdown e sem texto antes ou depois, neste formato:
 {"chamar":[{"ferramenta":"","argumentos":{},"resumo":""}],"resposta":""}
@@ -156,4 +156,4 @@ def simulado(texto, lista, resultados):
     resumo = next((f["id"] for f in lista if f["id"].endswith("_resumo")), None)
     if resumo and re.search(r"\?|quanto|qual|quais|tem |o que", t):
         return {"chamar": [{"ferramenta": resumo, "argumentos": {}}], "resposta": ""}
-    return {"resposta": "Oi! Sou o CorrerIA (IA simulada). Pergunte sobre os apps da casa."}
+    return {"resposta": "Oi! Sou o CorrerIA (IA simulada). Pergunte sobre os apps."}

@@ -2,11 +2,11 @@
 
 ![CorrerIA](correria/logo.png)
 
-Um App do Home Assistant que junta os apps da casa no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), no **Claude** e no **Gemini** (como um conector MCP). Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
+Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), no **Claude** e no **Gemini** (como um conector MCP). Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
 
 <p align="center">
   <img src="docs/conversa.png" width="24%" alt="A conversa com a IA: perguntar e lançar com o sim">
-  <img src="docs/apps.png" width="24%" alt="Opções › Apps: os apps da casa e o que cada um faz">
+  <img src="docs/apps.png" width="24%" alt="Opções › Apps: os apps e o que cada um faz">
   <img src="docs/whatsapp.png" width="24%" alt="Opções › WhatsApp: a conta da Meta">
   <img src="docs/claude-gemini.png" width="24%" alt="Opções › Claude e Gemini: o pedido de conexão com o código">
 </p>

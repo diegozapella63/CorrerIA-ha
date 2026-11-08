@@ -1,9 +1,9 @@
-/* CorrerIA · a tela (JavaScript puro, sem build). Abre na conversa com a IA (os apps da casa); a engrenagem leva às
+/* CorrerIA · a tela (JavaScript puro, sem build). Abre na conversa com a IA (os apps); a engrenagem leva às
    Opções, em abas: Apps (os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e Claude e
    Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.7.1';
+  const VERSAO = '0.7.2';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -176,7 +176,7 @@
     const comFerr = A.some(a => a.ferramentas);
     const ia = !comFerr ? '' : i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
       : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
-    return `<section class="card" id="apps">${cab('layers', 'Apps da casa')}
+    return `<section class="card" id="apps">${cab('layers', 'Apps')}
       ${lista}${ia}${A.length ? audio : ''}
     </section>`;
   }
@@ -184,10 +184,10 @@
   // o Claude e o Gemini: o endereço do conector, os pedidos esperando aprovação e quem está conectado
   function cardMcp(e) {
     const m = e.mcp || {};
-    const sw = `<div class="linha-sw"><div><b>Conectar o Claude e o Gemini</b><span>${m.ligado ? 'Ligado: leem e mudam os apps da casa, com a sua aprovação.' : 'Desligado.'}</span></div>
+    const sw = `<div class="linha-sw"><div><b>Conectar o Claude e o Gemini</b><span>${m.ligado ? 'Ligado: leem e mudam os apps, com a sua aprovação.' : 'Desligado.'}</span></div>
         <button class="sw${m.ligado ? ' on' : ''}" data-a="mcp" role="switch" aria-checked="${!!m.ligado}" aria-label="Conectar o Claude e o Gemini"></button></div>`;
     if (!m.ligado) return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
-      <p class="lead">Os apps da casa dentro do Claude e do Gemini, como um conector.</p>${sw}</section>`;
+      <p class="lead">Os apps dentro do Claude e do Gemini, como um conector.</p>${sw}</section>`;
     const pedidos = (m.pedidos || []).map(p => `<div class="pedido"><div class="pedido-t"><b>${esc(p.nome)} quer se conectar</b><span>Código <b class="cod">${esc(p.codigo)}</b> · ${esc(p.host)}</span></div>
         <div class="btns"><button class="btn out" data-a="mcp-recusar" data-v="${esc(p.id)}">Recusar</button><button class="btn pri" data-a="mcp-aprovar" data-v="${esc(p.id)}">Aprovar</button></div></div>`).join('');
     const conexoes = (m.conexoes || []).map(c => `<div class="conexao"><span class="av">${esc((c.nome || '?').slice(0, 1).toUpperCase())}</span>
@@ -197,7 +197,7 @@
       ${conexoes ? '' : `<ol class="passos"><li>No Claude: Configurações › Conectores › <b>Adicionar conector personalizado</b>. No Gemini (no site): Configurações › Apps conectados › <b>Adicionar app personalizado</b>.</li><li>Cole o endereço e toque em Conectar.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
       : '<div class="status manual">Escreva o endereço público na aba WhatsApp.</div>';
     return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
-      <p class="lead">Os apps da casa dentro do Claude e do Gemini, como um conector.</p>${sw}
+      <p class="lead">Os apps dentro do Claude e do Gemini, como um conector.</p>${sw}
       ${pedidos}${endereco}
       ${conexoes ? `<div class="lbl">Conectados</div>${conexoes}` : ''}
     </section>`;
@@ -243,7 +243,7 @@
     ['InventarIA', 'inventario-ha', 'package', 'Inventário da casa: cômodos, itens e valores.'],
     ['EconomIA', 'economia-ha', 'receipt', 'Lista de compras com o melhor preço perto de casa.'],
     ['MemorIA', 'memoria-ha', 'book-open', 'Cadernos de anotação que abrem na hora certa.'],
-    ['CorrerIA', 'CorrerIA-ha', 'chat', 'O contato no WhatsApp: os apps respondem por lá.'],
+    ['CorrerIA', 'CorrerIA-ha', 'chat', 'Pergunte e peça a qualquer app, no chat ou no WhatsApp.'],
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
@@ -281,7 +281,7 @@
       if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Opções</button></div>`;
       else {
         const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
-        corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps da casa${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
+        corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
           ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
       }
     } else {

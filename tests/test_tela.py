@@ -201,7 +201,7 @@ class Tela(unittest.TestCase):
         self.abrir()
         self.opcoes("apps")
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
-        self.assertEqual(self.texto("#apps h2"), "Apps da casa")
+        self.assertEqual(self.texto("#apps h2"), "Apps")
         self.assertEqual(self.texto("#apps .app-l .le"), "Responde; também lê fotos e PDF.")
         self.assertEqual(self.texto("#apps .status"), "Áudio: ouve pela fala para texto Fala simulada (teste).")
 
@@ -512,6 +512,8 @@ class Tela(unittest.TestCase):
         self.assertEqual([a.split("\n")[0].replace("Este app · v" + S.VERSAO, "").strip() for a in apps],
                          ["CronologIA", "ResolvIA", "GerencIA", "InventarIA", "EconomIA", "MemorIA", "CorrerIA"])
         self.assertEqual(self.texto(".sb-app.aqui .sb-aqui"), "Este app · v" + S.VERSAO)
+        self.assertEqual(self.pg.locator(".sb-app.aqui .mb > span").inner_text().strip(), "Pergunte e peça a qualquer app, no chat ou no WhatsApp.",
+                         "0.7.2: o chat com qualquer app, não só o WhatsApp")
         self.assertEqual(self.pg.get_attribute(".sb-app.aqui", "href"), "https://github.com/diegozapella63/CorrerIA-ha")
         self.assertEqual(self.pg.get_attribute(".sb-github", "target"), "_blank")
         self.pg.go_back()
