@@ -3,7 +3,7 @@
    Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.6.0';
+  const VERSAO = '0.7.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -581,6 +581,60 @@
       await acao('pessoa', { id: el.dataset.pessoa, numero: el.value }, el.value.trim() ? 'Número salvo' : 'Número tirado');
     }
   });
+
+  /* ---------- Arrastar para o lado na conversa: as outras conversas da lista, como os outros apps trocam de aba (dedo para a
+     esquerda: a seguinte da lista, mais antiga; para a direita: a anterior, mais nova; a conversa nova, ainda vazia, vem antes
+     de todas). Não vale começando na borda da tela (é o Voltar do celular), num campo, numa fileira que rola para o lado, com
+     a câmera aberta, fora da conversa ou enquanto a IA responde. */
+  let arraste = null;
+  document.addEventListener('touchstart', ev => {
+    arraste = null;
+    if (S.tela || CAM || !ev.touches || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    for (let el = ev.target instanceof Element ? ev.target : ev.target.parentElement; el && el !== document.body; el = el.parentElement) {
+      if (el.matches('input, textarea, select, [contenteditable], [data-noswipe]')) return;
+      const st = getComputedStyle(el);
+      if ((st.overflowX === 'auto' || st.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return;
+    }
+    arraste = { x: t.clientX, y: t.clientY, at: Date.now() };
+  }, { passive: true });
+  document.addEventListener('touchend', ev => {
+    const s = arraste;
+    arraste = null;
+    if (!s || S.tela || CAM || !ev.changedTouches || !ev.changedTouches.length) return;
+    const t = ev.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - s.at > 800) return;
+    trocarConversa(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { arraste = null; }, { passive: true });
+  function deslizar(d, fim) {  // a conversa entra do lado para onde o dedo foi; no fim da lista, só um toque de leve
+    const el = $('#ch-lista');
+    if (!el || !el.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.animate(fim ? [{ transform: 'none' }, { transform: `translateX(${d > 0 ? -14 : 14}px)` }, { transform: 'none' }]
+      : [{ opacity: 0, transform: `translateX(${d > 0 ? 40 : -40}px)` }, { opacity: 1, transform: 'none' }],
+    { duration: fim ? 220 : 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
+  async function trocarConversa(d) {
+    const c = S.ch;
+    if (c.enviando || c.trocando || !c.msgs) return;
+    c.trocando = true;
+    try {
+      if (c.lista === undefined) c.lista = (await api.conversas()).conversas || [];
+      const L = c.lista, i = L.findIndex(x => x.id === c.conversa), j = i + d;  // i = -1: a conversa nova, antes de todas
+      if (j < 0 || j >= L.length) { deslizar(d, true); return; }
+      const r = await api.post('conversa/abrir', { id: L[j].id });
+      if (S.tela) return;
+      Object.assign(c, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas || L });
+      render();
+      deslizar(d);
+    } catch (err) {
+      c.lista = undefined;
+      toast(err.message);
+    } finally {
+      c.trocando = false;
+    }
+  }
 
   if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na conversa
   carregar().then(carregarConversa);

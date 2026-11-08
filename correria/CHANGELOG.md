@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.7.0
+
+- Na **Conversa**, arrastar o dedo para o lado passa pelas conversas já guardadas, como nos outros apps: para a esquerda, a anterior (mais antiga); para a direita, a mais nova. Da conversa nova, ainda vazia, para a esquerda abre a mais recente. No fim da lista, a tela só balança de leve.
+
 ## 0.6.0
 
 - **Nova conversa**, no alto da Conversa: começa outra do zero, e a de antes fica guardada.

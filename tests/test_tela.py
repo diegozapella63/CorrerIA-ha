@@ -353,6 +353,63 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector(".ch-vazio")
         self.assertEqual(self.pg.evaluate("history.state"), None)
 
+    def arrastar(self, dx, x=None, alvo="#ch-lista"):
+        """Um dedo arrastado dx pixels para o lado (negativo: para a esquerda), como no celular."""
+        x = (300 if dx < 0 else 90) if x is None else x
+        self.pg.evaluate("""([alvo, x, dx]) => {
+          const el = document.querySelector(alvo), y = 420, toque = cx => new Touch({identifier: 1, target: el, clientX: cx, clientY: y});
+          el.dispatchEvent(new TouchEvent('touchstart', {touches: [toque(x)], changedTouches: [toque(x)], bubbles: true}));
+          el.dispatchEvent(new TouchEvent('touchend', {touches: [], changedTouches: [toque(x + dx)], bubbles: true}));
+        }""", [alvo, x, dx])
+        self.pg.wait_for_timeout(500)
+
+    def pergunta(self):
+        return self.texto(".ch-msg.eu .ch-bolha") if self.pg.locator(".ch-msg.eu").count() else ""
+
+    def test_arrastar_troca_de_conversa(self):
+        self.abrir_conversa()
+        self.pg.wait_for_selector(".ch-vazio")
+        self.arrastar(-150)
+        self.assertEqual(self.pergunta(), "", "sem conversas guardadas, nada muda")
+        perguntas = ("Quanto gastei no mercado?", "O que vence esta semana?", "Quanto gastei na farmácia?")
+        for n, pergunta in enumerate(perguntas):
+            if n:
+                self.pg.click('.cab-bts [data-a="ch-nova"]')
+                self.pg.wait_for_selector(".ch-vazio")
+            self.pg.fill("#ch-txt", pergunta)
+            self.pg.click('[data-a="ch-enviar"]')
+            self.pg.wait_for_selector(RESPOSTA)
+        # na mais recente: dedo para a esquerda, as mais antigas, uma a uma; no fim da lista, fica
+        for esperado in ("O que vence esta semana?", "Quanto gastei no mercado?", "Quanto gastei no mercado?"):
+            self.arrastar(-150)
+            self.assertEqual(self.pergunta(), esperado)
+        self.arrastar(160)
+        self.assertEqual(self.pergunta(), "O que vence esta semana?", "dedo para a direita: a mais nova")
+        self.assertEqual(S.conversas_tela("_")[1]["aberta"], True, "fica aberta, como pela lista")
+        self.assertEqual(self.pg.evaluate("history.state"), None, "o Voltar do celular não passa pelas conversas")
+        # o que não troca: começar na borda (o Voltar do celular), no campo, um arraste mais para baixo que para o lado, pouco
+        self.arrastar(-150, x=380)
+        self.arrastar(-150, alvo="#ch-txt")
+        self.arrastar(-50)
+        self.pg.evaluate("""() => { const el = document.querySelector('#ch-lista'), t = (x, y) => new Touch({identifier: 1, target: el, clientX: x, clientY: y});
+          el.dispatchEvent(new TouchEvent('touchstart', {touches: [t(300, 200)], changedTouches: [t(300, 200)], bubbles: true}));
+          el.dispatchEvent(new TouchEvent('touchend', {touches: [], changedTouches: [t(200, 500)], bubbles: true})); }""")
+        self.pg.wait_for_timeout(400)
+        self.assertEqual(self.pergunta(), "O que vence esta semana?")
+        # da conversa nova (vazia), dedo para a esquerda: a mais recente; para a direita, nada
+        self.pg.click('.cab-bts [data-a="ch-nova"]')
+        self.pg.wait_for_selector(".ch-vazio")
+        self.arrastar(160)
+        self.assertEqual(self.pergunta(), "")
+        self.arrastar(-150)
+        self.assertEqual(self.pergunta(), "Quanto gastei na farmácia?")
+        # fora da conversa (na lista), arrastar não troca nada
+        self.pg.click('.cab-bts [data-a="conversas"]')
+        self.pg.wait_for_selector(".conv.aberta")
+        self.arrastar(-150, alvo=".conv-pag")
+        self.assertEqual(self.texto(".conv.aberta .conv-abrir b"), "Quanto gastei na farmácia?")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
     def test_tirar_foto(self):
         nav = self.pw.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"])
         self.addCleanup(nav.close)
