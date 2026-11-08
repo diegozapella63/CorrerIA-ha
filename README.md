@@ -4,17 +4,25 @@
 
 Um App do Home Assistant que junta os apps da casa no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), no **Claude** e no **Gemini** (como um conector MCP). Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
 
+<p align="center">
+  <img src="docs/casa.png" width="24%" alt="O WhatsApp configurado">
+  <img src="docs/apps.png" width="24%" alt="Os apps da casa e o que cada um faz">
+  <img src="docs/claude-gemini.png" width="24%" alt="Claude e Gemini: o pedido de conexão com o código">
+  <img src="docs/conversa.png" width="24%" alt="Conversar com a IA: perguntar e lançar com o sim">
+</p>
+
 ## Instalação
 
 1. No Home Assistant: **Configurações → Aplicativos → Loja de aplicativos**.
 2. No menu **⋮ → Repositórios**, adicione:
    ```
-   https://github.com/diegozapella63/correria-ha
+   https://github.com/diegozapella63/CorrerIA-ha
    ```
 3. Procure **CorrerIA** na loja, toque em **Instalar** e depois em **Iniciar**.
-4. Ative **Mostrar na barra lateral** e siga a aba **Documentação** (a conta na Meta, o Duck DNS e a porta 8443 no roteador).
+4. Ative **Mostrar na barra lateral** e siga a aba **Documentação** (a conta na Meta, o Duck DNS, a porta 8443 no roteador e o conector do Claude e do Gemini).
+5. Em cada app da família, ligue **Mais › Configurações › Integrações › CorrerIA**.
 
-[![Adicionar o repositório ao Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdiegozapella63%2Fcorreria-ha)
+[![Adicionar o repositório ao Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdiegozapella63%2FCorrerIA-ha)
 
 ## Os apps da família
 

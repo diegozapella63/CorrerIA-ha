@@ -31,6 +31,7 @@ correria/app/fala.py        áudio do WhatsApp (OGG/Opus) para texto pela fala p
 correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; a casa, Conversar com a IA e Sobre, cada uma com
                             uma entrada no histórico para o Voltar do celular), styles.css, fontes, icon.svg
 tests/                      testes (ver tests/README.md)
+tools/prints_readme.py      refaz as capturas do README (docs/*.png) com uma casa inventada
 ```
 
 A conversa da tela (`/api/conversa`) é de quem está no painel: o Home Assistant manda `X-Remote-User-Id` e o CorrerIA acha a pessoa pelo `user_id` dela; guardada em `conversas.json` (`tela`, as últimas 40 de cada login).
