@@ -3,7 +3,7 @@
    Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.5.0';
+  const VERSAO = '0.6.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -22,6 +22,10 @@
     clip: '<path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 1 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8-8"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+    nova: '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    conversas: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
     chev: '<path d="m9 18 6-6-6-6"/>',
     back: '<path d="m15 18-6-6 6-6"/>',
@@ -43,11 +47,12 @@
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
-    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '' } };
+    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', conversa: null, lista: undefined } };
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
     conversa: () => fetch('api/conversa', { cache: 'no-store' }).then(ok),
+    conversas: () => fetch('api/conversas', { cache: 'no-store' }).then(ok),
   };
   async function ok(r) {
     let j = null;
@@ -285,16 +290,106 @@
     }
     const le = e.apps.some(a => (a.anexos || []).length);
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · os apps da casa</p><h1>Conversa</h1></div>
-        <div class="cab-bts">${M && M.length ? `<button class="bt-icone" data-a="ch-limpar" aria-label="Apagar a conversa" title="Apagar a conversa">${ic('trash')}</button>` : ''}
+        <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
+          ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
           <button class="bt-icone" data-a="opcoes" aria-label="Opções" title="Opções">${ic('gear')}</button></div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
-        ${c.anexo ? `<div class="ch-prev">${ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
-        <div class="ch-barra">${le ? `<button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF">${ic('clip')}</button>` : ''}
+        ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
+        <div class="ch-barra">${le ? `<button class="ch-bt" data-a="ch-camera" aria-label="Tirar foto" title="Tirar foto">${ic('camera')}</button><button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF">${ic('clip')}</button>` : ''}
           <textarea id="ch-txt" class="inp" rows="1" placeholder="Escreva a sua pergunta" enterkeyhint="send">${esc(c.texto)}</textarea>
           <button class="ch-bt pri" data-a="ch-enviar" aria-label="Enviar"${c.enviando ? ' disabled' : ''}>${ic('send')}</button></div>
       </div>`;
+  }
+
+  /* ---------- Conversas: a lista das conversas com a IA, como nos chats de sempre (a mais recente primeiro) */
+  function quando(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const hoje = new Date(), ontem = new Date(Date.now() - 864e5), hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dia = x => x.toDateString();
+    return dia(d) === dia(hoje) ? `hoje às ${hm}` : dia(d) === dia(ontem) ? `ontem às ${hm}` : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ` às ${hm}`;
+  }
+  function telaConversas() {
+    const L = S.ch.lista;
+    const lista = L === undefined ? '<p class="vazio">Carregando…</p>' : !L.length ? '<p class="vazio">Nenhuma conversa ainda.</p>'
+      : `<ul class="conv-lista">${L.map(x => `<li class="conv${x.aberta ? ' aberta' : ''}"><button class="conv-abrir" data-a="conv-abrir" data-v="${esc(x.id)}">
+          <b>${esc(x.titulo)}</b><span>${esc(quando(x.atualizada))} · ${x.mensagens} ${x.mensagens === 1 ? 'mensagem' : 'mensagens'}${x.aberta ? ' · aberta' : ''}</span></button>
+          <button class="bt-icone peq" data-a="conv-apagar" data-v="${esc(x.id)}" aria-label="Apagar ${esc(x.titulo)}" title="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('')}</ul>`;
+    return `${topoTela('Conversas', 'Conversa')}<div class="conv-pag">
+      <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${lista}</div>`;
+  }
+  function carregarLista() {
+    return api.conversas().then(r => { S.ch.lista = r.conversas || []; if (S.tela === 'conversas') render(); })
+      .catch(err => { S.ch.lista = S.ch.lista || []; toast(err.message); if (S.tela === 'conversas') render(); });
+  }
+
+  /* ---------- Tirar foto: a câmera aqui dentro, como nos outros apps (em http não abre: dá para escolher a foto) */
+  let CAM = null;
+  const camOk = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  async function abrirCamera() {
+    fecharCamera(true);
+    CAM = { status: 'abrindo' };
+    history.pushState({ tela: S.tela || '', cam: true }, '');
+    pintarCamera();
+    if (!camOk()) {
+      CAM.status = 'erro';
+      CAM.erro = window.isSecureContext === false
+        ? 'A câmera só abre aqui com o Home Assistant num endereço seguro (https), como o do Nabu Casa. Dá para tirar a foto pelo celular e escolher.'
+        : 'Este navegador não deixa usar a câmera aqui. Dá para tirar a foto pelo celular e escolher.';
+      return pintarCamera();
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } });
+      if (!CAM) { stream.getTracks().forEach(t => t.stop()); return; }
+      Object.assign(CAM, { stream, status: 'ao-vivo' });
+      pintarCamera();
+      const v = $('#camera video');
+      if (v) { v.srcObject = stream; v.play().catch(() => {}); }
+    } catch (err) {
+      if (!CAM) return;
+      const negado = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      CAM.status = 'erro';
+      CAM.erro = negado ? 'Sem permissão para usar a câmera. Libere a câmera para o app do Home Assistant nas configurações do celular, ou escolha uma foto.'
+        : 'Não deu para abrir a câmera. Dá para escolher uma foto.';
+      pintarCamera();
+    }
+  }
+  function pintarCamera() {
+    let el = $('#camera');
+    if (!CAM) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'camera'; el.className = 'cam'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Tirar foto');
+      el.innerHTML = '<video playsinline muted autoplay></video><div class="cam-ui"></div>';
+      document.body.appendChild(el);
+    }
+    $('.cam-ui', el).innerHTML = `<div class="cam-top"><button class="cam-btn" data-a="cam-fechar" aria-label="Fechar">${ic('x')}</button><span class="cam-titulo">Tirar foto</span><span class="cam-btn vazio"></span></div>
+      ${CAM.status === 'erro' ? `<div class="cam-msg">${ic('camera')}<p>${esc(CAM.erro)}</p><button class="btn pri" data-a="cam-galeria">${ic('image', 'ic-s')}Tirar ou escolher foto</button></div>`
+        : `<div class="cam-meio"></div><p class="cam-dica">${CAM.status === 'abrindo' ? 'Abrindo a câmera…' : 'Enquadre e toque no botão'}</p>
+      <div class="cam-baixo"><button class="cam-disparo" data-a="cam-foto" aria-label="Fotografar"${CAM.status !== 'ao-vivo' ? ' disabled' : ''}><span></span></button></div>`}`;
+  }
+  function fecharCamera(semHistorico) {
+    if (!CAM) return;
+    if (CAM.stream) CAM.stream.getTracks().forEach(t => t.stop());
+    CAM = null;
+    pintarCamera();
+    if (!semHistorico && history.state && history.state.cam) history.back();
+  }
+  function camFoto() {
+    const v = $('#camera video');
+    if (!CAM || !v || !v.videoWidth) return;
+    const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+    cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+    try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) { /* ok */ }
+    const agora = new Date();
+    S.ch.anexo = { nome: `Foto ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, b64: cv.toDataURL('image/jpeg', 0.86) };
+    fecharCamera();
+    render();
+    setTimeout(() => { const t = $('#ch-txt'); if (t) t.focus(); }, 60);
   }
 
   function render() {
@@ -302,7 +397,7 @@
     if (!e) return;
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
-    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : conversa(e);
+    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
     if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
   }
@@ -320,12 +415,13 @@
     else { S.tela = ''; render(); }
   }
   window.addEventListener('popstate', () => {
+    if (CAM && !(history.state && history.state.cam)) { fecharCamera(true); return; }  // o Voltar do celular fecha a câmera
     S.tela = (history.state && history.state.tela) || '';
     window.scrollTo(0, 0);
     render();
   });
   function carregarConversa() {
-    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; render(); })
+    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.conversa = r.conversa || null; render(); })
       .catch(err => { S.ch.msgs = []; toast(err.message); render(); });
   }
   async function enviarConversa(texto) {
@@ -339,6 +435,8 @@
     try {
       const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}) });
       c.msgs = r.mensagens || [];
+      c.conversa = r.conversa || null;
+      c.lista = undefined;  // a lista muda (a conversa nova entra, a de agora sobe)
     } catch (err) {
       c.msgs = c.msgs.slice(0, -1);
       c.texto = texto; c.anexo = anexo;
@@ -426,6 +524,30 @@
       S.ch.anexo = null; render();
     } else if (a === 'ch-limpar') {
       try { S.ch.msgs = (await api.post('conversa/limpar', {})).mensagens; render(); toast('Conversa apagada'); } catch (err) { toast(err.message); }
+    } else if (a === 'conversas') {
+      S.ch.lista = undefined; abrirTela('conversas'); carregarLista();
+    } else if (a === 'ch-nova' || a === 'conv-abrir') {
+      try {
+        const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v });
+        Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null });
+        if (S.tela === 'conversas') voltar(); else render();
+        if (a === 'ch-nova') setTimeout(() => { const t = $('#ch-txt'); if (t) t.focus(); }, 60);
+      } catch (err) { toast(err.message); if (a === 'conv-abrir') carregarLista(); }
+    } else if (a === 'conv-apagar') {
+      try {
+        const r = await api.post('conversa/apagar', { id: el.dataset.v });
+        Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas || [] });
+        render(); toast('Conversa apagada');
+      } catch (err) { toast(err.message); }
+    } else if (a === 'ch-camera') {
+      abrirCamera();
+    } else if (a === 'cam-fechar') {
+      fecharCamera();
+    } else if (a === 'cam-foto') {
+      camFoto();
+    } else if (a === 'cam-galeria') {
+      fecharCamera();
+      const inp = $('#ch-foto'); if (inp) inp.click();
     } else if (a === 'limpar') {
       await acao('registro/limpar', {}, 'Mensagens apagadas');
     }
@@ -441,7 +563,7 @@
   });
   document.addEventListener('change', async ev => {
     const el = ev.target;
-    if (el.id === 'ch-arquivo') {  // a foto ou o PDF da conversa
+    if (el.id === 'ch-arquivo' || el.id === 'ch-foto') {  // a foto ou o PDF da conversa
       const f = el.files && el.files[0];
       el.value = '';
       if (!f) return;
@@ -473,5 +595,5 @@
     ultimaCarga = Date.now();
     carregar();
   }, 4000);
-  window.CORRERIA_TESTE = { S, render, carregar };
+  window.CORRERIA_TESTE = { S, render, carregar, get CAM() { return CAM; } };
 })();

@@ -35,7 +35,7 @@ tests/                      testes (ver tests/README.md)
 tools/prints_readme.py      refaz as capturas do README (docs/*.png) com uma casa inventada
 ```
 
-A conversa da tela (`/api/conversa`) é de quem está no painel: o Home Assistant manda `X-Remote-User-Id` e o CorrerIA acha a pessoa pelo `user_id` dela; guardada em `conversas.json` (`tela`, as últimas 40 de cada login).
+A conversa da tela (`/api/conversa`) é de quem está no painel: o Home Assistant manda `X-Remote-User-Id` e o CorrerIA acha a pessoa pelo `user_id` dela; guardada em `conversas.json` (`tela`: de cada login, `{atual, lista: [{id, titulo, criada, atualizada, mensagens}]}`, as últimas 30 conversas com as últimas 40 mensagens cada; a lista de antes da 0.6.0, uma conversa só, vira a primeira). Rotas: `GET /api/conversa` (a aberta), `GET /api/conversas` (a lista), `POST /api/conversa/nova`, `/abrir` e `/apagar` (`{id}`); trocar de conversa descarta o pendente do "sim".
 
 Os dados ficam em `/data/config.json` (ID do número, token, chave secreta, token de verificação, endereço, número de cada pessoa, `mcp`), `/data/conversas.json` (a conversa de cada número, as mensagens já vistas, o registro, a conversa da tela e os `pendentes`: as mudanças que esperam o "sim", por 30 minutos) e `/data/mcp.json` (os clientes registrados pelo Claude e pelo Gemini e as conexões, com os tokens só em hash SHA-256), todos com permissão só do dono e no backup do Home Assistant.
 

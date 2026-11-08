@@ -34,7 +34,7 @@ import mcp
 import oauth
 import whatsapp
 
-VERSAO = "0.5.0"
+VERSAO = "0.6.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -829,20 +829,118 @@ def pessoa_da_tela(cab):
     return ({"id": p["id"], "nome": p["nome"]} if p else {"id": "", "nome": nome or "Você"}), uid or "_"
 
 
-def conversa_tela(chave):
-    return [m for m in ler_conversas().get("tela", {}).get(chave, []) if isinstance(m, dict)]
+MAX_CONVERSAS = 30  # as conversas guardadas de cada login (as mais velhas saem)
 
 
-def _gravar_tela(chave, lista):
+def _titulo(msgs):
+    """O nome da conversa: a primeira pergunta (a primeira linha, até 60 letras), ou o arquivo mandado."""
+    m = next((x for x in msgs if x.get("papel") == "eu"), None) or {}
+    t = re.sub(r"\s+", " ", str(m.get("texto") or "").split("\n")[0]).strip()
+    t = t or str(m.get("anexo") or "").strip() or "Conversa"
+    return t if len(t) <= 60 else t[:59].rstrip() + "…"
+
+
+def _tela_de(c, chave):
+    """As conversas da tela de um login: {"atual": id ou None, "lista": [{id, titulo, criada, atualizada, mensagens}]}.
+    Até a 0.5.0 era uma conversa só (uma lista de mensagens): vira a primeira da lista."""
+    v = (c.get("tela") or {}).get(chave)
+    if isinstance(v, list):
+        msgs = [m for m in v if isinstance(m, dict)]
+        if not msgs:
+            return {"atual": None, "lista": []}
+        cid = "c0"  # fixo: a migração dá o mesmo id a cada leitura, até gravar
+        em = str(msgs[-1].get("em") or agora_iso())
+        return {"atual": cid, "lista": [{"id": cid, "titulo": _titulo(msgs), "criada": str(msgs[0].get("em") or em), "atualizada": em, "mensagens": msgs}]}
+    if not isinstance(v, dict):
+        return {"atual": None, "lista": []}
+    lista = [x for x in v.get("lista") or [] if isinstance(x, dict) and x.get("id") and isinstance(x.get("mensagens"), list)]
+    atual = v.get("atual") if any(x["id"] == v.get("atual") for x in lista) else None
+    return {"atual": atual, "lista": lista}
+
+
+def _mudar_tela(chave, mudar):
+    """Lê as conversas do login, muda (mudar(t) recebe {"atual", "lista"}) e grava; devolve o que mudar devolveu."""
     with TRAVA:
         c = ler_json(CONVERSAS_ARQ)
         tela = c.get("tela") if isinstance(c.get("tela"), dict) else {}
-        if lista:
-            tela[chave] = lista[-MAX_TELA:]
+        t = _tela_de(c, chave)
+        r = mudar(t)
+        t["lista"] = sorted(t["lista"], key=lambda x: str(x.get("atualizada") or ""), reverse=True)[:MAX_CONVERSAS]
+        if t["atual"] and not any(x["id"] == t["atual"] for x in t["lista"]):
+            t["atual"] = None
+        if t["lista"]:
+            tela[chave] = t
         else:
             tela.pop(chave, None)
         c["tela"] = tela
         _gravar_conversas(c)
+        return r
+
+
+def conversa_tela(chave):
+    """A conversa aberta agora (as mensagens); nova, vazia."""
+    t = _tela_de(ler_json(CONVERSAS_ARQ), chave)
+    return next((x["mensagens"] for x in t["lista"] if x["id"] == t["atual"]), [])
+
+
+def conversa_aberta(chave):
+    t = _tela_de(ler_json(CONVERSAS_ARQ), chave)
+    return t["atual"]
+
+
+def conversas_tela(chave):
+    """A lista para a tela: [{id, titulo, atualizada, mensagens: quantas, aberta}], a mais recente primeiro."""
+    t = _tela_de(ler_json(CONVERSAS_ARQ), chave)
+    lista = sorted(t["lista"], key=lambda x: str(x.get("atualizada") or ""), reverse=True)
+    return [{"id": x["id"], "titulo": x.get("titulo") or "Conversa", "atualizada": x.get("atualizada"), "mensagens": len(x["mensagens"]),
+             "aberta": x["id"] == t["atual"]} for x in lista]
+
+
+def _gravar_tela(chave, lista):
+    """Grava as mensagens da conversa aberta (a primeira mensagem de uma conversa nova cria a conversa na lista)."""
+    def mudar(t):
+        conv = next((x for x in t["lista"] if x["id"] == t["atual"]), None)
+        if not lista:
+            if conv:
+                t["lista"].remove(conv)
+            t["atual"] = None
+            return
+        if not conv:
+            conv = {"id": secrets.token_hex(4), "criada": agora_iso()}
+            t["lista"].append(conv)
+            t["atual"] = conv["id"]
+        # atualizada com os microssegundos: duas conversas no mesmo segundo ficam na ordem certa
+        conv.update(mensagens=lista[-MAX_TELA:], titulo=conv.get("titulo") or _titulo(lista), atualizada=datetime.now().isoformat(timespec="microseconds"))
+    _mudar_tela(chave, mudar)
+
+
+def nova_conversa(chave):
+    """Nova conversa: a aberta fica na lista; a próxima mensagem começa outra. A mudança esperando o "sim" sai."""
+    _mudar_tela(chave, lambda t: t.update(atual=None))
+    guardar_pendente("tela:" + chave, None)
+    return {"mensagens": [], "conversa": None, "conversas": conversas_tela(chave)}
+
+
+def abrir_conversa(chave, cid):
+    def mudar(t):
+        if not any(x["id"] == cid for x in t["lista"]):
+            raise ValueError("Essa conversa não existe mais.")
+        t["atual"] = cid
+    _mudar_tela(chave, mudar)
+    guardar_pendente("tela:" + chave, None)
+    return {"mensagens": conversa_tela(chave), "conversa": cid, "conversas": conversas_tela(chave)}
+
+
+def apagar_conversa(chave, cid):
+    def mudar(t):
+        aberta = t["atual"] == cid
+        t["lista"] = [x for x in t["lista"] if x["id"] != cid]
+        if aberta:
+            t["atual"] = None
+        return aberta
+    if _mudar_tela(chave, mudar):
+        guardar_pendente("tela:" + chave, None)
+    return {"mensagens": conversa_tela(chave), "conversa": conversa_aberta(chave), "conversas": conversas_tela(chave)}
 
 
 def conversar(corpo, pessoa, chave):
@@ -886,7 +984,7 @@ def conversar(corpo, pessoa, chave):
         resp.update(app=app["nome"], app_id=app["app"])
     lista += [eu, resp]
     _gravar_tela(chave, lista)
-    return {"mensagens": lista[-MAX_TELA:]}
+    return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave)}
 
 
 class Tela(BaseHTTPRequestHandler):
@@ -939,7 +1037,9 @@ class Tela(BaseHTTPRequestHandler):
             return self.enviar(200, estado())
         if p == "/api/conversa":
             pessoa, chave = pessoa_da_tela(self.headers)
-            return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"]})
+            return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "conversa": conversa_aberta(chave)})
+        if p == "/api/conversas":
+            return self.enviar(200, {"conversas": conversas_tela(pessoa_da_tela(self.headers)[1])})
         nome = "index.html" if p in ("/", "") else p.lstrip("/")
         arq = os.path.realpath(os.path.join(WWW, nome))
         if not arq.startswith(os.path.realpath(WWW) + os.sep) or not os.path.isfile(arq):
@@ -969,11 +1069,17 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/conversa":
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, conversar(c, pessoa, chave))
-            if p == "/api/conversa/limpar":
+            if p == "/api/conversa/limpar":  # apaga a conversa aberta (o botão antigo; hoje a lista tem o Apagar de cada uma)
                 chave = pessoa_da_tela(self.headers)[1]
                 _gravar_tela(chave, [])
                 guardar_pendente("tela:" + chave, None)
                 return self.enviar(200, {"mensagens": []})
+            if p == "/api/conversa/nova":
+                return self.enviar(200, nova_conversa(pessoa_da_tela(self.headers)[1]))
+            if p == "/api/conversa/abrir":
+                return self.enviar(200, abrir_conversa(pessoa_da_tela(self.headers)[1], str(c.get("id") or "")))
+            if p == "/api/conversa/apagar":
+                return self.enviar(200, apagar_conversa(pessoa_da_tela(self.headers)[1], str(c.get("id") or "")))
             if p == "/api/mcp/decidir":
                 pessoa, _ = pessoa_da_tela(self.headers)
                 AUT.decidir(c.get("id"), c.get("aprovar") is True, pessoa)

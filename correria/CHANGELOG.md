@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.6.0
+
+- **Nova conversa**, no alto da Conversa: começa outra do zero, e a de antes fica guardada.
+- **Conversas**, também no alto: a lista das conversas com a IA, como nos chats de sempre. A mais recente fica primeiro, com o nome tirado da primeira pergunta, quando foi e quantas mensagens tem. Toque para abrir ou na lixeira para apagar. Ficam as últimas 30 conversas de cada login.
+- **Tirar foto**, ao lado do clipe: a câmera abre aqui dentro, em tela cheia, como nos outros apps. A foto vai junto da próxima mensagem, com a miniatura antes de enviar. Em http (sem https) ou sem permissão, o app explica e oferece tirar ou escolher a foto pelo celular. O Voltar do celular fecha a câmera.
+
 ## 0.5.0
 
 - O CorrerIA abre direto na **Conversa** com a IA: é só escrever (ou mandar uma foto ou um PDF). A lixeira e a engrenagem ficam no alto.

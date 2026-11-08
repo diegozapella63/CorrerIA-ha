@@ -74,9 +74,9 @@ O que eles leem vai para a Anthropic (Claude) ou para o Google (Gemini), como qu
 
 ## Conversar com a IA
 
-O CorrerIA abre na **Conversa** com os apps da casa, do mesmo jeito que pelo WhatsApp, mas sem passar por ele (e sem a regra de só falar dos apps). Pergunte ("quanto gastei este mês?"), peça uma mudança (com o **sim**, como no WhatsApp) ou mande uma **foto** ou um **PDF** pelo clipe; embaixo de cada resposta aparece qual app foi usado. Com a conversa vazia, aparecem sugestões: é só tocar.
+O CorrerIA abre na **Conversa** com os apps da casa, do mesmo jeito que pelo WhatsApp, mas sem passar por ele (e sem a regra de só falar dos apps). Pergunte ("quanto gastei este mês?"), peça uma mudança (com o **sim**, como no WhatsApp), **tire uma foto** pela câmera (a câmera abre aqui dentro; em http, sem https, dá para tirar ou escolher a foto pelo celular) ou mande uma **foto** ou um **PDF** pelo clipe; embaixo de cada resposta aparece qual app foi usado. Com a conversa vazia, aparecem sugestões: é só tocar.
 
-A conversa é de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e fica guardada, as últimas 40 mensagens: fechou, abre de onde parou. A lixeira no alto apaga. Nas Opções e no Sobre, o Voltar do celular volta um passo.
+As conversas são de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e ficam guardadas: fechou, abre de onde parou. No alto, **Nova conversa** começa outra (a de antes fica guardada) e **Conversas** abre a lista, como nos chats de sempre: a mais recente primeiro, com o nome tirado da primeira pergunta; toque para abrir ou na lixeira para apagar. Ficam as últimas 30 conversas, cada uma com as últimas 40 mensagens. Nas Opções e no Sobre, o Voltar do celular volta um passo.
 
 ## Sobre
 

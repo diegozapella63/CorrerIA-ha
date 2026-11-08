@@ -385,6 +385,64 @@ class TestConversaTela(Base):
         self.assertEqual(S.ler_conversas()["registro"][1]["texto"], "do WhatsApp")
 
 
+class TestListaDeConversas(Base):
+    """As conversas da tela, como nos chats de sempre: a nova começa vazia, a anterior fica na lista, abrir e apagar."""
+    ANA = "u-ana"
+
+    def setUp(self):
+        super().setUp()
+        if os.path.exists(S.CONVERSAS_ARQ):
+            os.remove(S.CONVERSAS_ARQ)
+
+    def falar(self, *textos):
+        for t in textos:
+            lista = S.conversa_tela(self.ANA) + [{"papel": "eu", "texto": t, "em": S.agora_iso()}, {"papel": "ia", "texto": "ok", "em": S.agora_iso()}]
+            S._gravar_tela(self.ANA, lista)
+
+    def test_nova_abrir_apagar(self):
+        self.falar("Quanto gastei no mercado?\nem outubro", "e em setembro?")
+        self.assertEqual([(x["titulo"], x["mensagens"], x["aberta"]) for x in S.conversas_tela(self.ANA)], [("Quanto gastei no mercado?", 4, True)],
+                         "o nome é a primeira pergunta (a primeira linha)")
+        S.guardar_pendente("tela:" + self.ANA, [{"ferramenta": "gerencia_lancar", "argumentos": {}}])
+        r = S.nova_conversa(self.ANA)
+        self.assertEqual((r["mensagens"], r["conversa"], S.conversa_tela(self.ANA)), ([], None, []))
+        self.assertIsNone(S.pegar_pendente("tela:" + self.ANA), "a mudança esperando o sim sai")
+        self.assertEqual(len(S.conversas_tela(self.ANA)), 1, "a nova só entra na lista com a primeira mensagem")
+        self.falar("Lança 20 de padaria")
+        lista = S.conversas_tela(self.ANA)
+        self.assertEqual([(x["titulo"], x["aberta"]) for x in lista], [("Lança 20 de padaria", True), ("Quanto gastei no mercado?", False)])
+        r = S.abrir_conversa(self.ANA, lista[1]["id"])
+        self.assertEqual((len(r["mensagens"]), r["conversa"]), (4, lista[1]["id"]))
+        self.falar("e em agosto?")
+        self.assertEqual(S.conversas_tela(self.ANA)[0]["titulo"], "Quanto gastei no mercado?", "a que recebeu mensagem sobe")
+        r = S.apagar_conversa(self.ANA, lista[1]["id"])
+        self.assertEqual((r["mensagens"], r["conversa"], [x["titulo"] for x in r["conversas"]]), ([], None, ["Lança 20 de padaria"]),
+                         "apagar a aberta: fica uma nova, vazia")
+        with self.assertRaisesRegex(ValueError, "não existe mais"):
+            S.abrir_conversa(self.ANA, lista[1]["id"])
+        self.assertEqual(S.conversas_tela("_"), [], "cada login a sua")
+
+    def test_titulos(self):
+        self.assertEqual(S._titulo([{"papel": "eu", "texto": "x" * 80}]), "x" * 59 + "…")
+        self.assertEqual(S._titulo([{"papel": "eu", "texto": "", "anexo": "nota.jpg"}]), "nota.jpg")
+        self.assertEqual(S._titulo([{"papel": "ia", "texto": "oi"}]), "Conversa")
+
+    def test_ate_30_conversas(self):
+        for n in range(32):
+            S.nova_conversa(self.ANA)
+            S._gravar_tela(self.ANA, [{"papel": "eu", "texto": f"pergunta {n}"}])
+        lista = S.conversas_tela(self.ANA)
+        self.assertEqual((len(lista), lista[0]["titulo"], lista[-1]["titulo"]), (30, "pergunta 31", "pergunta 2"), "as mais velhas saem")
+
+    def test_a_conversa_da_versao_anterior_vira_a_primeira_da_lista(self):
+        S.gravar_arquivo(S.CONVERSAS_ARQ, json.dumps({"tela": {self.ANA: [{"papel": "eu", "texto": "Quanto gastei?", "em": "2026-11-01T10:00:00"},
+                                                                         {"papel": "ia", "texto": "R$ 300", "em": "2026-11-01T10:00:05"}]}}))
+        lista = S.conversas_tela(self.ANA)
+        self.assertEqual([(x["titulo"], x["aberta"], x["atualizada"]) for x in lista], [("Quanto gastei?", True, "2026-11-01T10:00:05")])
+        self.assertEqual(S.abrir_conversa(self.ANA, lista[0]["id"])["conversa"], lista[0]["id"], "o mesmo id até gravar")
+        self.assertEqual(len(S.conversa_tela(self.ANA)), 2)
+
+
 # ---------------------------------------------------------------------------------------------------------------
 class IAFalsa:
     """A IA do Home Assistant de mentira: devolve as respostas da fila (ou um erro) e guarda os pedidos."""
@@ -770,7 +828,7 @@ class TestTela(Base):
         cab = {"X-Remote-User-Id": "u-beto", "X-Remote-User-Display-Name": "Beto"}
         self.addCleanup(S._gravar_tela, "u-beto", [])
         st, r = pedir(self.url + "/api/conversa", cab=cab)
-        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto"})
+        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto", "conversa": None})
         st, r = pedir(self.url + "/api/conversa", "POST", {"texto": "Quanto gastei?"}, cab)
         self.assertEqual((st, json.loads(r)["mensagens"][-1]["app"]), (200, "GerencIA"))
         st, r = pedir(self.url + "/api/conversa/limpar", "POST", {}, cab)
@@ -778,6 +836,21 @@ class TestTela(Base):
         self.assertEqual(S.conversa_tela("u-beto"), [])
         st, r = pedir(self.url + "/api/conversa", "POST", {"texto": ""}, cab)
         self.assertEqual((st, json.loads(r)["erro"]), (400, "Escreva uma mensagem."))
+        # a lista de conversas: nova, abrir e apagar
+        pedir(self.url + "/api/conversa", "POST", {"texto": "Primeira"}, cab)
+        st, r = pedir(self.url + "/api/conversa/nova", "POST", {}, cab)
+        self.assertEqual((st, json.loads(r)["mensagens"]), (200, []))
+        pedir(self.url + "/api/conversa", "POST", {"texto": "Segunda"}, cab)
+        st, r = pedir(self.url + "/api/conversas", cab=cab)
+        lista = json.loads(r)["conversas"]
+        self.assertEqual([(x["titulo"], x["aberta"]) for x in lista], [("Segunda", True), ("Primeira", False)])
+        st, r = pedir(self.url + "/api/conversa/abrir", "POST", {"id": lista[1]["id"]}, cab)
+        self.assertEqual(json.loads(r)["mensagens"][0]["texto"], "Primeira")
+        st, r = pedir(self.url + "/api/conversa/apagar", "POST", {"id": lista[1]["id"]}, cab)
+        self.assertEqual((json.loads(r)["mensagens"], [x["titulo"] for x in json.loads(r)["conversas"]]), ([], ["Segunda"]))
+        st, r = pedir(self.url + "/api/conversa/abrir", "POST", {"id": "nao-existe"}, cab)
+        self.assertEqual((st, json.loads(r)["erro"]), (400, "Essa conversa não existe mais."))
+        self.addCleanup(lambda: os.path.exists(S.CONVERSAS_ARQ) and os.remove(S.CONVERSAS_ARQ))
 
     def test_corpo_grande_so_na_conversa(self):
         grande = b'{"texto": "' + b"x" * (1024 * 1024 + 10) + b'"}'
