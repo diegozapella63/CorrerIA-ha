@@ -1,5 +1,5 @@
 name: CorrerIA
-version: "0.4.0"
+version: "0.5.0"
 slug: correria
 description: Os apps da casa no WhatsApp (API oficial da Meta), no Claude e no Gemini (MCP). Pergunte, lance e marque como feito, com a IA.
 url: https://github.com/diegozapella63/CorrerIA-ha

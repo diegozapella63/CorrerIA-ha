@@ -49,8 +49,10 @@ svg { display: block; }
 /* ---------- cabeçalho */
 .cab { display: flex; align-items: flex-start; gap: 10px; }
 .cab-l { flex: 1; min-width: 0; }
-.bt-topo { flex: none; width: 46px; height: 46px; margin-top: 2px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 20px -10px var(--accent); }
-.bt-topo:active { transform: scale(.94); }
+.cab-bts { flex: none; display: flex; gap: 8px; margin-top: 2px; }
+.bt-icone { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); background: var(--card); border: 1px solid var(--line); }
+.bt-icone:active { background: var(--card-2); transform: scale(.95); }
+body[data-tela="conversa"] .cab { margin-bottom: 18px; }
 .sync { margin-bottom: 18px; }
 .cab-tela { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 18px; }
 .cab-tela h1 { margin: 0; font: 700 clamp(32px, 8.5vw, 42px)/1.05 var(--font-d); }
@@ -63,6 +65,20 @@ svg { display: block; }
 .sync { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
 .sync .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); flex: none; }
 .sync.manual .dot { background: var(--terc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--terc) 25%, transparent); }
+
+/* ---------- as abas das Opções, como nas Configurações dos outros apps */
+.abas {
+  position: sticky; top: 0; z-index: 15; display: flex; gap: 2px; padding: 4px; margin: 16px 0 18px;
+  border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); box-shadow: 0 0 0 8px var(--bg);
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.abas::-webkit-scrollbar { display: none; }
+.abas button { flex: 1 0 auto; height: 40px; padding: 0 10px; border-radius: 10px; color: var(--muted); font: 500 15px/1 var(--font); white-space: nowrap; }
+.abas button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+:root[data-theme="dark"] .abas button.on { background: #2c333d; }
+@media (max-width: 400px) { .abas button { padding: 0 8px; font-size: 14.5px; } }
+.cab-tela + .sync { margin-top: -8px; }
+.sync + .aviso-topo { margin-top: 14px; }
 
 /* ---------- cartões */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 18px; margin-bottom: 18px; }
@@ -197,8 +213,6 @@ textarea.inp { resize: vertical; min-height: 84px; }
 
 /* ---------- Conversar com a IA */
 body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-.bt-limpar { position: absolute; top: 24px; right: max(16px, calc(50vw - 304px)); width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-.bt-limpar:active { background: var(--card-2); }
 .ch-lista { display: flex; flex-direction: column; gap: 12px; }
 .ch-msg { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
 .ch-msg.eu { align-self: flex-end; align-items: flex-end; }
@@ -219,6 +233,7 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 @keyframes ch-ponto { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
 .ch-vazio { color: var(--text-2); text-align: center; padding: 18px 4px 4px; }
 .ch-vazio p { margin: 0 0 14px; }
+.ch-vazio .btn { margin-top: 2px; }
 .ch-sug { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .chip { padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--text); font-size: 15px; }
 .chip:active { background: var(--card-2); }

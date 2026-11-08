@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.5.0
+
+- O CorrerIA abre direto na **Conversa** com a IA: é só escrever (ou mandar uma foto ou um PDF). A lixeira e a engrenagem ficam no alto.
+- A engrenagem abre as **Opções**, em abas: **Apps** (os apps ligados, a IA, o áudio e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa) e **Claude e Gemini**. A aba escolhida fica guardada; o **Sobre** fica no fim.
+- Um pedido do Claude ou do Gemini para conectar aparece no alto da Conversa: um toque leva direto para aprovar.
+- O Voltar do celular volta um passo: do Sobre para as Opções e das Opções para a Conversa.
+
 ## 0.4.0
 
 - **Claude e Gemini**: um cartão novo conecta os apps da casa ao Claude e ao Gemini, como um conector. Eles leem e mudam os dados dos apps (lançar um gasto, marcar uma conta como paga, criar uma tarefa…). Cole o endereço do conector no Claude (Configurações › Conectores) ou no Gemini (Apps conectados); ao conectar, aparece um código, e você aprova o pedido aqui, no Home Assistant, sem senha nova. O pedido aparece no alto da tela e no sino do Home Assistant. Em **Conectados**, quem está ligado e quando usou, com **Desconectar**.

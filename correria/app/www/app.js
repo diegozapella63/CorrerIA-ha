@@ -1,8 +1,9 @@
-/* CorrerIA · a tela (JavaScript puro, sem build): o WhatsApp da Meta, o webhook, quem conversa, os apps da casa, o
-   Claude e o Gemini (MCP) e as últimas mensagens. Ações por data-a; tudo vem de /api/estado. */
+/* CorrerIA · a tela (JavaScript puro, sem build). Abre na conversa com a IA (os apps da casa); a engrenagem leva às
+   Opções, em abas: Apps (os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e Claude e
+   Gemini (o conector MCP). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.4.0';
+  const VERSAO = '0.5.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -31,12 +32,18 @@
     wallet: '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V7Z"/><path d="M4 7V6a2 2 0 0 1 2-2h10"/><circle cx="16" cy="13.5" r="1.3"/>',
     package: '<path d="M11 21.7a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7z"/><path d="M12 22V12M3.3 7 12 12l8.7-5"/>',
     receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     plug: '<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8Z"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
 
-  const S = { e: null, salvando: false, form: {}, tela: '', ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '' } };
+  // tela: '' (a conversa, onde o app abre), 'opcoes' ou 'sobre'; aba: a das Opções (fica guardada neste aparelho)
+  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'Claude e Gemini']];
+  const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
+  const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
+    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '' } };
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
@@ -166,7 +173,6 @@
       : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
     return `<section class="card" id="apps">${cab('layers', 'Apps da casa')}
       ${lista}${ia}${A.length ? audio : ''}
-      ${A.length ? `<button class="btn out larga" data-a="conversa">${ic('chat', 'ic-s')}Conversar com a IA</button>` : ''}
     </section>`;
   }
 
@@ -184,7 +190,7 @@
         <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">Desconectar</button></div>`).join('');
     const endereco = m.url ? `<div class="campo"><label for="f-mcp">Endereço do conector</label><div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>No Claude: Configurações › Conectores › <b>Adicionar conector personalizado</b>. No Gemini (no site): Configurações › Apps conectados › <b>Adicionar app personalizado</b>.</li><li>Cole o endereço e toque em Conectar.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
-      : '<div class="status manual">Escreva o endereço público no cartão Webhook.</div>';
+      : '<div class="status manual">Escreva o endereço público na aba WhatsApp.</div>';
     return `<section class="card" id="mcp">${cab('plug', 'Claude e Gemini')}
       <p class="lead">Os apps da casa dentro do Claude e do Gemini, como um conector.</p>${sw}
       ${pedidos}${endereco}
@@ -205,19 +211,21 @@
     </section>`;
   }
 
-  // um pedido do Claude ou do Gemini esperando: aparece no alto também, para quem abriu o app só para aprovar
+  // um pedido do Claude ou do Gemini esperando: aparece no alto da conversa e das Opções (quem abriu o app só para aprovar)
   function pendentes(e) {
     const n = ((e.mcp || {}).pedidos || []).length;
-    return n ? `<button class="aviso-topo" data-a="ir-mcp">${ic('plug', 'ic-s')}<span>${n === 1 ? esc(e.mcp.pedidos[0].nome) + ' quer se conectar' : n + ' pedidos para conectar'}</span>${ic('chev', 'ic-s')}</button>` : '';
+    if (!n || (S.tela === 'opcoes' && S.aba === 'mcp')) return '';
+    return `<button class="aviso-topo" data-a="ir-mcp">${ic('plug', 'ic-s')}<span>${n === 1 ? esc(e.mcp.pedidos[0].nome) + ' quer se conectar' : n + ' pedidos para conectar'}</span>${ic('chev', 'ic-s')}</button>`;
   }
-  function casa(e) {
+  function opcoes(e) {
+    const aba = ABAS.some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
-    return `
-      <header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · os apps da casa</p>
-        <h1>Contato da CorrerIA Code</h1></div>
-        ${e.apps.length ? `<button class="bt-topo" data-a="conversa" aria-label="Conversar com a IA" title="Conversar com a IA">${ic('chat')}</button>` : ''}</header>
-      <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração'}</div>
-      ${pendentes(e)}${cardWhatsApp(e)}${cardWebhook(e)}${cardPessoas(e)}${cardApps(e)}${cardMcp(e)}${cardMensagens(e)}
+    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e) : cardApps(e) + cardMensagens(e);
+    return `${topoTela('Opções', 'Conversa')}
+      <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>
+      ${pendentes(e)}
+      <nav class="abas" role="tablist" aria-label="Opções">${ABAS.map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
+      ${corpo}
       <section class="card linha-card"><button class="linha" data-a="sobre"><span class="rot-ic">${ic('info')}</span><span class="linha-t"><b>Sobre</b><small>CorrerIA Code, os apps e o GitHub.</small></span>${ic('chev', 'ic-s chev')}</button></section>`;
   }
 
@@ -234,10 +242,10 @@
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
-  const topoTela = titulo => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}CorrerIA</button><h1>${titulo}</h1></header>`;
+  const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${titulo}</h1></header>`;
   function sobre(e) {
     const aqui = r => r === 'CorrerIA-ha';
-    return `${topoTela('Sobre')}
+    return `${topoTela('Sobre', 'Opções')}
       <div class="sobre-topo"><span class="sb-raio" aria-hidden="true">${ic('zap')}</span>
         <h2 class="sb-nome">Correr<span>IA</span> Code</h2><p class="sb-oque">desenvolvimento de softwares</p><p class="sb-lema">Feito na correria, rodado pela IA.</p></div>
       <section class="card">${cab('hourglass', 'Por que CorrerIA?')}
@@ -265,16 +273,21 @@
     let corpo;
     if (M === null) corpo = '<p class="vazio">Abrindo…</p>';
     else if (!M.length && !c.enviando) {
-      const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
-      corpo = `<div class="ch-vazio"><p>Pergunte sobre os apps da casa${e.apps.some(a => (a.anexos || []).length) ? ' ou mande uma foto ou um PDF' : ''}.</p>
-        ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
+      if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Opções</button></div>`;
+      else {
+        const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
+        corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps da casa${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
+          ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
+      }
     } else {
       corpo = M.map(m => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length);
-    return `${topoTela('Conversa')}
-      ${M && M.length ? '<button class="bt-limpar" data-a="ch-limpar" aria-label="Apagar a conversa" title="Apagar a conversa">' + ic('trash', 'ic-s') + '</button>' : ''}
+    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span> · os apps da casa</p><h1>Conversa</h1></div>
+        <div class="cab-bts">${M && M.length ? `<button class="bt-icone" data-a="ch-limpar" aria-label="Apagar a conversa" title="Apagar a conversa">${ic('trash')}</button>` : ''}
+          <button class="bt-icone" data-a="opcoes" aria-label="Opções" title="Opções">${ic('gear')}</button></div></header>
+      ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
         ${c.anexo ? `<div class="ch-prev">${ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
@@ -288,22 +301,19 @@
     const e = S.e;
     if (!e) return;
     const ativo = document.activeElement && document.activeElement.id;
-    document.body.dataset.tela = S.tela || 'casa';
-    $('#app').innerHTML = S.tela === 'conversa' ? conversa(e) : S.tela === 'sobre' ? sobre(e) : casa(e);
+    document.body.dataset.tela = S.tela || 'conversa';
+    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
-    if (S.tela === 'conversa') { const l = $('#ch-lista'); if (l) window.scrollTo(0, document.body.scrollHeight); }
+    if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
   }
 
-  /* ---------- telas: a conversa e o Sobre ocupam uma entrada no histórico (o Voltar do celular volta para a casa) */
+  /* ---------- telas: as Opções e o Sobre ocupam uma entrada no histórico cada (o Voltar do celular volta um passo) */
   function abrirTela(t) {
     if (S.tela === t) return;
-    if (!S.tela) history.pushState({ tela: t }, '');
-    else history.replaceState({ tela: t }, '');
+    history.pushState({ tela: t }, '');
     S.tela = t;
-    if (t === 'conversa' && S.ch.msgs === null) api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; render(); }).catch(err => { S.ch.msgs = []; toast(err.message); render(); });
     window.scrollTo(0, 0);
     render();
-    if (t === 'conversa') setTimeout(() => { const i = $('#ch-txt'); if (i && matchMedia('(hover: hover)').matches) i.focus(); }, 60);
   }
   function voltar() {
     if (S.tela && history.state && history.state.tela) history.back();
@@ -311,8 +321,13 @@
   }
   window.addEventListener('popstate', () => {
     S.tela = (history.state && history.state.tela) || '';
+    window.scrollTo(0, 0);
     render();
   });
+  function carregarConversa() {
+    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; render(); })
+      .catch(err => { S.ch.msgs = []; toast(err.message); render(); });
+  }
   async function enviarConversa(texto) {
     const c = S.ch;
     texto = String(texto == null ? c.texto : texto).trim();
@@ -333,10 +348,14 @@
     render();
   }
 
+  // na conversa, só redesenha quando muda o que ela mostra (um pedido para conectar, os apps): assim a lista não pula
+  const assinatura = e => (S.tela ? JSON.stringify(e) : JSON.stringify([(e.mcp || {}).pedidos, e.apps.map(a => [a.app, a.anexos])]));
   async function carregar() {
     try {
-      S.e = await api.get();
-      render();
+      const e = await api.get();
+      const mudou = !S.e || assinatura(e) !== assinatura(S.e);
+      S.e = e;
+      if (mudou) render();
     } catch (err) {
       if (!S.e) $('#app').innerHTML = `<p class="boot">Não consegui abrir o CorrerIA. ${esc(err.message)}</p>`;
     }
@@ -378,7 +397,9 @@
     } else if (a === 'mcp-desconectar') {
       await acao('mcp/desconectar', { id: el.dataset.v }, 'Desconectado');
     } else if (a === 'ir-mcp') {
-      const c = $('#mcp'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      S.aba = 'mcp'; guardar('correria-aba', 'mcp');
+      if (S.tela !== 'opcoes') abrirTela('opcoes'); else render();
+      const c = $('#mcp'); if (c) c.scrollIntoView({ block: 'start' });
     } else if (a === 'copiar') {
       const inp = document.getElementById(el.dataset.v);
       inp.select();
@@ -389,8 +410,10 @@
       } catch (e) {
         toast('Toque e segure no texto para copiar');  // em http, o navegador não deixa copiar sozinho
       }
-    } else if (a === 'conversa' || a === 'sobre') {
+    } else if (a === 'opcoes' || a === 'sobre') {
       abrirTela(a);
+    } else if (a === 'aba') {
+      S.aba = el.dataset.v; guardar('correria-aba', S.aba); render();
     } else if (a === 'voltar') {
       voltar();
     } else if (a === 'ch-enviar') {
@@ -437,13 +460,13 @@
     }
   });
 
-  if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na casa
-  carregar();
+  if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na conversa
+  carregar().then(carregarConversa);
   // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando); com o Claude e o Gemini ligados, a cada
   // 4 segundos, para o pedido de conexão aparecer logo
   let ultimaCarga = Date.now();
   setInterval(() => {
-    if (document.hidden || S.tela) return;
+    if (document.hidden || S.tela === 'sobre') return;
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && !a.readOnly) return;
     if (!(S.e && S.e.mcp && S.e.mcp.ligado) && Date.now() - ultimaCarga < 9500) return;

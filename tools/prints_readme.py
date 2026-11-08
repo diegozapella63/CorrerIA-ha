@@ -58,19 +58,18 @@ def servir(rota, pedido):
 
 with sync_playwright() as pw:
     nav = pw.chromium.launch()
-    def pagina(tema, pedido=False, altura=844):
+    def pagina(tema, pedido=False, altura=844, aba=None):
         pg = nav.new_page(viewport={"width": 390, "height": altura}, color_scheme=tema, device_scale_factor=2)
+        if aba:
+            pg.add_init_script(f"try {{ localStorage.setItem('correria-aba', '{aba}') }} catch (e) {{}}")
         pg.route("http://correria.local/**", lambda r: servir(r, pedido))
-        pg.goto("http://correria.local/"); pg.wait_for_selector("#mcp"); pg.wait_for_timeout(400)
+        pg.goto("http://correria.local/"); pg.wait_for_selector(".ch-msg.ia"); pg.wait_for_timeout(400)
+        if aba:
+            pg.click('[data-a="opcoes"] >> nth=-1'); pg.wait_for_selector(".abas"); pg.wait_for_timeout(300)
         return pg
-    pg = pagina("dark"); pg.screenshot(path=f"{SAIDA}/casa.png"); pg.close()
-    pg = pagina("dark", pedido=True)
-    pg.evaluate("document.querySelector('#mcp').scrollIntoView({block: 'start'}); window.scrollBy(0, -16)"); pg.wait_for_timeout(200)
-    pg.screenshot(path=f"{SAIDA}/claude-gemini.png"); pg.close()
-    pg = pagina("dark")
-    pg.evaluate("document.querySelector('#apps').scrollIntoView({block: 'start'}); window.scrollBy(0, -16)"); pg.wait_for_timeout(200)
-    pg.screenshot(path=f"{SAIDA}/apps.png"); pg.close()
-    pg = pagina("dark"); pg.click(".bt-topo"); pg.wait_for_selector(".ch-msg.ia"); pg.wait_for_timeout(400)
-    pg.screenshot(path=f"{SAIDA}/conversa.png"); pg.close()
+    pg = pagina("dark"); pg.screenshot(path=f"{SAIDA}/conversa.png"); pg.close()
+    pg = pagina("dark", aba="apps"); pg.screenshot(path=f"{SAIDA}/apps.png"); pg.close()
+    pg = pagina("dark", aba="whatsapp"); pg.screenshot(path=f"{SAIDA}/whatsapp.png"); pg.close()
+    pg = pagina("dark", pedido=True, aba="mcp"); pg.screenshot(path=f"{SAIDA}/claude-gemini.png"); pg.close()
     nav.close()
 print("ok")
