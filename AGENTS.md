@@ -27,7 +27,8 @@ correria/app/mcp.py         o protocolo MCP (JSON-RPC 2.0 pelo POST /mcp, Stream
 correria/app/oauth.py       o login do Claude e do Gemini: OAuth 2.1 com PKCE, registro dinâmico, aprovação no painel
 correria/app/whatsapp.py    a Cloud API: assinatura do webhook, mensagens, mandar, lida/digitando, conferir; números do Brasil
 correria/app/apps.py        os apps da família: acha share/*/correria.json, escolhe o app da pergunta (e do tipo do anexo) e pergunta
-correria/app/fala.py        áudio do WhatsApp (OGG/Opus) para texto pela fala para texto do Home Assistant (POST /api/stt/<motor>)
+correria/app/fala.py        áudio para texto pela fala para texto do Home Assistant (POST /api/stt/<motor>): o do WhatsApp (OGG/Opus)
+                            e o do microfone da Conversa (PCM de 16 kHz, como o Assist; POST /api/fala da tela)
 correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; abre na conversa com a IA; a engrenagem leva às
                             Opções, em abas Apps, WhatsApp e MCP, guardada em localStorage; Opções e Sobre ocupam uma
                             entrada no histórico cada, para o Voltar do celular), styles.css, fontes, icon.svg

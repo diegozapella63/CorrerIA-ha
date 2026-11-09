@@ -309,7 +309,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto(".cab h1"), "Conversa")
         self.pg.wait_for_selector(".ch-sug .chip")  # as sugestões aparecem quando a conversa guardada chega
         self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
-        self.pg.click('[data-a="ch-enviar"]')  # vazio: nada
+        self.assertEqual(self.pg.get_attribute("#ch-pri", "aria-label"), "Falar", "vazio: o botão é o microfone")
         self.assertEqual(self.app.pedidos, [])
         self.pg.fill("#ch-txt", "Quanto gastei?")
         self.pg.click('[data-a="ch-enviar"]')
@@ -322,6 +322,70 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.app.pedidos[0][3]["canal"], "correria")
         self.assertEqual(self.meta.pedidos, [], "não passa pela Meta")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
+    def test_falar(self):
+        """O microfone da conversa (um microfone de mentira do Chromium): com a caixa vazia, o botão redondo é o Falar;
+        ouvindo, fica vermelho com o Pronto e o Cancelar no lugar da câmera; o Pronto manda o que foi entendido."""
+        nav = self.pw.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"])
+        self.addCleanup(nav.close)
+        self.publicar_app()
+        for tema, w in (("dark", 390), ("light", 320)):
+            self.pg = nav.new_page(viewport={"width": w, "height": 760}, color_scheme=tema)
+            self.addCleanup(self.pg.close)
+            self.pg.on("pageerror", lambda e: self.erros.append(str(e)))
+            self.pg.set_default_timeout(8000)
+            self.pg.goto(self.url)
+            self.pg.wait_for_selector('.ch-sug .chip')
+            self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-falar", f"{tema}: a caixa vazia mostra o microfone")
+            # escrever troca o microfone pelo Enviar; apagar volta
+            self.pg.fill("#ch-txt", "oi")
+            self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-enviar")
+            self.pg.fill("#ch-txt", "")
+            self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-falar")
+            # ouvindo: o Pronto, o Cancelar e a caixa parada
+            self.pg.click("#ch-pri")
+            self.pg.wait_for_selector("#ch-pri.gravando:not([disabled])")
+            self.assertEqual(self.pg.get_attribute("#ch-pri", "aria-label"), "Pronto: enviar o que falei")
+            self.assertEqual(self.pg.get_attribute("#ch-txt", "placeholder"), "Ouvindo…")
+            self.assertTrue(self.pg.is_disabled("#ch-txt"))
+            self.assertEqual(self.pg.locator('[data-a="ch-camera"]').count(), 0, "o Cancelar fica no lugar da câmera")
+            larg = self.pg.evaluate("[...document.querySelectorAll('.ch-barra .ch-bt')].map(b => Math.round(b.getBoundingClientRect().width))")
+            self.assertEqual(larg, [46, 46], f"{tema}: Cancelar e Pronto do mesmo tamanho")
+            self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), f"{tema}: nada passa da largura")
+            self.pg.screenshot(path=os.path.join(S.DATA_DIR, f"falar-{tema}-{w}.png"))
+            # Cancelar: nada é mandado
+            self.pg.click('[data-a="ch-falar-x"]')
+            self.pg.wait_for_selector('#ch-pri[data-a="ch-falar"]')
+            self.assertEqual(self.app.pedidos, [])
+            self.assertFalse(self.pg.is_disabled("#ch-txt"))
+        # Pronto: o áudio vira texto (a fala simulada) e vai como a pergunta
+        self.pg.click("#ch-pri")
+        self.pg.wait_for_selector("#ch-pri.gravando:not([disabled])")
+        self.pg.wait_for_timeout(900)
+        self.pg.click("#ch-pri")
+        self.pg.wait_for_selector(RESPOSTA)
+        self.assertEqual(self.texto(".ch-msg.eu .ch-bolha"), "O que tem na agenda amanhã?")
+        self.assertEqual(self.app.pedidos[-1][3]["texto"], "O que tem na agenda amanhã?")
+        self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-falar", "depois, o microfone de novo")
+        self.assertEqual(self.erros, [])
+
+    def test_falar_sem_microfone_ou_sem_fala_para_texto(self):
+        self.publicar_app()
+        self.abrir()
+        self.pg.wait_for_selector('.ch-sug .chip')
+        self.pg.click("#ch-pri")  # o Chromium de teste não tem microfone (ou não deixa): explica e volta ao microfone
+        self.pg.wait_for_function("() => document.querySelector('#toast').classList.contains('on')")
+        self.assertRegex(self.texto("#toast"), r"^(O microfone|Não achei um microfone|Este navegador)")
+        self.pg.wait_for_selector('#ch-pri[data-a="ch-falar"]:not(.gravando)')
+        self.assertFalse(self.pg.is_disabled("#ch-txt"))
+        # sem fala para texto no Home Assistant: o botão é só o Enviar, e as Opções dizem por quê
+        motivo = {"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}
+        with mock.patch.object(S.FALA, "status", side_effect=lambda formato="ogg": motivo):
+            self.pg.reload()
+            self.pg.wait_for_selector('.ch-sug .chip')
+            self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-enviar")
+            self.opcoes("apps")
+            self.assertIn("Falar na conversa: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).", self.texto("#apps"))
 
     def test_sugestao_e_conversa_guardada(self):
         self.abrir_conversa()

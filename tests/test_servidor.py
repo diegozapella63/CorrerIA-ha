@@ -829,6 +829,20 @@ class TestTela(Base):
         self.assertEqual(self.json("/api/nada", {})[0], 404)
         self.assertEqual(self.json("/api/config", [1])[0], 200, "um corpo que não é objeto vale como vazio")
 
+    def test_fala_da_tela(self):
+        """O microfone da conversa: o áudio (PCM de 16 kHz) vira texto pela fala para texto; a tela manda o texto depois."""
+        st, r = pedir(self.url + "/api/estado")
+        self.assertEqual(json.loads(r)["fala_tela"], {"pronta": True, "nome": "Fala simulada (teste)"})
+        st, r = pedir(self.url + "/api/fala", "POST", bytes(16000 * 2), {"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, json.loads(r)), (200, {"texto": "O que tem na agenda amanhã?"}))
+        st, r = pedir(self.url + "/api/fala", "POST", bytes(800), {"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, json.loads(r)), (400, {"erro": "Não ouvi nada. Toque no microfone e fale."}))
+        st, r = pedir(self.url + "/api/fala", "POST", bytes(S.fala.PCM_MAX + 2), {"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, json.loads(r)), (413, {"erro": "Fale até 2 minutos de cada vez."}))
+        with mock.patch.object(S.FALA, "texto", side_effect=S.fala.ErroFala("Não entendi o áudio.")):
+            st, r = pedir(self.url + "/api/fala", "POST", bytes(32000), {"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, json.loads(r)), (400, {"erro": "Não entendi o áudio."}))
+
     def test_conversa_pela_tela(self):
         self.configurar()
         cab = {"X-Remote-User-Id": "u-beto", "X-Remote-User-Display-Name": "Beto"}

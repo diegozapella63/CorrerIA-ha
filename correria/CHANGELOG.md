@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.9.0
+
+- **Falar na Conversa**: com a caixa vazia, o botão redondo vira o microfone. Toque, fale e toque no ✓: o que você disse vai como a pergunta. O **X** cancela. Escrevendo, o botão volta a ser o Enviar. Usa a fala para texto do Home Assistant, a mesma dos áudios do WhatsApp.
+
 ## 0.8.0
 
 - A aba **Claude e Gemini** passa a se chamar **MCP**, com textos que valem para qualquer IA que aceite um conector personalizado (como o ChatGPT), e não só o Claude e o Gemini. O passo a passo ficou: na IA, adicione um **conector personalizado** com o endereço e aprove aqui o pedido com o código.

@@ -1,6 +1,6 @@
-"""fala.py: o áudio do WhatsApp (OGG/Opus) em texto pela fala para texto do Home Assistant (um Home Assistant de
-mentira): escolher o motor que aceita OGG/Opus (o do Home Assistant Cloud primeiro), o cabeçalho X-Speech-Content, o
-texto e os erros."""
+"""fala.py: o áudio do WhatsApp (OGG/Opus) e o do microfone da tela (PCM de 16 kHz) em texto pela fala para texto do
+Home Assistant (um Home Assistant de mentira): escolher o motor que aceita o formato (o do Home Assistant Cloud primeiro),
+o cabeçalho X-Speech-Content, o texto e os erros."""
 import json
 import unittest
 
@@ -62,7 +62,7 @@ class TestFala(unittest.TestCase):
         self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = lambda h, c: (415, "formato") if h.command == "POST" else (200, CLOUD)
         with self.assertRaisesRegex(F.ErroFala, "não aceitou o áudio"):
             self.f.texto(b"OggS")
-        self.assertIsNone(self.f.cache, "esquece o motor para olhar de novo")
+        self.assertNotIn("ogg", self.f.cache, "esquece o motor para olhar de novo")
         self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = lambda h, c: (500, "pane") if h.command == "POST" else (200, CLOUD)
         with self.assertRaisesRegex(F.ErroFala, r"falhou \(500\)"):
             self.f.texto(b"OggS")
@@ -70,10 +70,31 @@ class TestFala(unittest.TestCase):
         with self.assertRaisesRegex(F.ErroFala, "Não entendi o áudio."):
             self.f.texto(b"OggS")
 
+    def test_microfone_da_tela(self):
+        """O microfone da conversa: PCM de 16 kHz, 16 bits, mono, como o Assist; qualquer motor com wav/pcm em 16 kHz."""
+        self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = (200, dict(CLOUD, formats=["ogg"], codecs=["opus"]))
+        self.ha.rotas["/api/stt/stt.faster_whisper"] = lambda h, c: (200, WHISPER) if h.command == "GET" else (200, {"result": "success", "text": "O que vence esta semana?"})
+        self.assertEqual(self.f.status("wav"), {"pronta": True, "nome": "faster-whisper"})
+        self.assertEqual(self.f.status()["nome"], "Home Assistant Cloud", "o do WhatsApp continua no Cloud: cada formato tem o seu")
+        pcm = bytes(16000 * 2)
+        self.assertEqual(self.f.texto(pcm, "wav"), "O que vence esta semana?")
+        m, p, h, c = self.ha.pedidos[-1]
+        self.assertEqual((m, p, len(c)), ("POST", "/api/stt/stt.faster_whisper", len(pcm)))
+        self.assertEqual(h["X-Speech-Content"], "format=wav; codec=pcm; sample_rate=16000; bit_rate=16; channel=1; language=pt")
+        with self.assertRaisesRegex(F.ErroFala, "Não ouvi nada"):
+            self.f.texto(bytes(1000), "wav")
+        with self.assertRaisesRegex(F.ErroFala, "até 2 minutos"):
+            self.f.texto(bytes(F.PCM_MAX + 2), "wav")
+        self.ha.rotas["/api/stt/stt.faster_whisper"] = (200, dict(WHISPER, sample_rates=[8000]))
+        self.f.cache.clear()
+        self.assertEqual(self.f.status("wav")["motivo"], "A fala para texto do Home Assistant (Home Assistant Cloud, faster-whisper) não aceita o áudio do microfone.")
+
     def test_simulada(self):
         f = F.Fala("http://x/api", None, print, simulada=True)
         self.assertTrue(f.status()["pronta"])
         self.assertEqual(f.texto(b"x"), "Quanto gastei com mercado este mês?")
+        self.assertTrue(f.status("wav")["pronta"])
+        self.assertEqual(f.texto(bytes(32000), "wav"), "O que tem na agenda amanhã?")
 
 
 if __name__ == "__main__":

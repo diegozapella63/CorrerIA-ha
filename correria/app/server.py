@@ -34,7 +34,7 @@ import mcp
 import oauth
 import whatsapp
 
-VERSAO = "0.8.0"
+VERSAO = "0.9.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -810,6 +810,7 @@ def estado():
         "pessoas": pessoas,
         "apps": lista,
         "fala": FALA.status(),
+        "fala_tela": FALA.status("wav"),
         "registro": ler_conversas()["registro"][:30],
     }
 
@@ -1059,10 +1060,29 @@ class Tela(BaseHTTPRequestHandler):
             tipo += "; charset=utf-8"
         return self.enviar(200, dados, tipo)
 
+    def fala(self):
+        """POST /api/fala: o microfone da conversa (PCM de 16 kHz, 16 bits, mono, como o Assist) -> {texto}."""
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > fala.PCM_MAX:
+            resto = min(n, 64 * 1024 * 1024)
+            while resto > 0:  # lê e joga fora, para a resposta chegar
+                pedaco = self.rfile.read(min(resto, 1024 * 1024))
+                if not pedaco:
+                    break
+                resto -= len(pedaco)
+            return self.enviar(413, {"erro": "Fale até 2 minutos de cada vez."})
+        audio = self.rfile.read(n) if n > 0 else b""
+        try:
+            return self.enviar(200, {"texto": FALA.texto(audio, "wav")})
+        except fala.ErroFala as e:
+            return self.enviar(400, {"erro": str(e)})
+
     def do_POST(self):
         if not self.permitido():
             return
         p = self.caminho()
+        if p == "/api/fala":
+            return self.fala()
         try:
             c = self.corpo_json()
             if p == "/api/config":

@@ -244,6 +244,9 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-barra .inp { flex: 1; min-height: 46px; max-height: 140px; resize: none; padding: 11px 14px; border-radius: 23px; }
 .ch-bt { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); background: var(--card-2); }
 .ch-bt.pri { background: var(--accent); color: var(--on-accent); }
+/* ouvindo: o botão fica vermelho e a borda cresce com a voz */
+.ch-bt.pri.gravando { background: var(--danger); color: #fff; box-shadow: 0 0 0 calc(var(--nivel, 0) * 9px) color-mix(in srgb, var(--danger) 30%, transparent); transition: box-shadow .12s; }
+.ch-barra.ouvindo .inp::placeholder { color: var(--danger); }
 .ch-prev { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 6px 6px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
 .ch-prev span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-prev button { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }

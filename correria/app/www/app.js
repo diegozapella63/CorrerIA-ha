@@ -3,7 +3,7 @@
    conector para outras IAs). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.8.0';
+  const VERSAO = '0.9.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -25,6 +25,8 @@
     nova: '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     conversas: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
     camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
     chev: '<path d="m9 18 6-6-6-6"/>',
@@ -47,7 +49,7 @@
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
-    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined } };
+    ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined, fala: '' } };
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
@@ -65,7 +67,7 @@
     el.textContent = t;
     el.classList.add('on');
     clearTimeout(toast.t);
-    toast.t = setTimeout(() => el.classList.remove('on'), 2600);
+    toast.t = setTimeout(() => el.classList.remove('on'), Math.min(9000, Math.max(2600, String(t).length * 55)));  // o texto longo fica mais tempo
   }
 
   /* ---------- tema: o claro/escuro do Home Assistant (como os outros apps), senão o do sistema */
@@ -169,15 +171,16 @@
     return f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '';
   }
   function cardApps(e) {
-    const A = e.apps, f = e.fala || {}, i = e.ia || {};
+    const A = e.apps, f = e.fala || {}, i = e.ia || {}, ft = e.fala_tela || {};
     const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
     const audio = f.pronta ? `<div class="status">Áudio: ouve pela fala para texto ${esc(f.nome)}.</div>` : `<div class="status manual">Áudio: ${esc(f.motivo || 'sem fala para texto.')}</div>`;
     const comFerr = A.some(a => a.ferramentas);
     const ia = !comFerr ? '' : i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
       : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
+    const mic = ft.pronta === false ? `<div class="status manual">Falar na conversa: ${esc(ft.motivo || 'sem fala para texto.')}</div>` : '';
     return `<section class="card" id="apps">${cab('layers', 'Apps')}
-      ${lista}${ia}${A.length ? audio : ''}
+      ${lista}${ia}${A.length ? audio + mic : ''}
     </section>`;
   }
 
@@ -288,7 +291,10 @@
       corpo = M.map(m => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
-    const le = e.apps.some(a => (a.anexos || []).length);
+    const le = e.apps.some(a => (a.anexos || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
+    const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Escreva a sua pergunta';
+    const esquerda = ouvindo ? `<button class="ch-bt" data-a="ch-falar-x" aria-label="Cancelar" title="Cancelar">${ic('x')}</button>`
+      : le ? `<button class="ch-bt" data-a="ch-camera" aria-label="Tirar foto" title="Tirar foto"${f ? ' disabled' : ''}>${ic('camera')}</button><button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF"${f ? ' disabled' : ''}>${ic('clip')}</button>` : '';
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>Conversa</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
@@ -297,11 +303,123 @@
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
         ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
-        <div class="ch-barra">${le ? `<button class="ch-bt" data-a="ch-camera" aria-label="Tirar foto" title="Tirar foto">${ic('camera')}</button><button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF">${ic('clip')}</button>` : ''}
-          <textarea id="ch-txt" class="inp" rows="1" placeholder="Escreva a sua pergunta" enterkeyhint="send">${esc(c.texto)}</textarea>
-          <button class="ch-bt pri" data-a="ch-enviar" aria-label="Enviar"${c.enviando ? ' disabled' : ''}>${ic('send')}</button></div>
+        <div class="ch-barra${ouvindo ? ' ouvindo' : ''}">${esquerda}
+          <textarea id="ch-txt" class="inp" rows="1" placeholder="${lugar}" enterkeyhint="send"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
+          ${botaoPri(e)}</div>
       </div>`;
   }
+  // o botão redondo da conversa: com a caixa vazia, o microfone (Falar); ouvindo, o Pronto; com texto ou arquivo, o Enviar
+  function botaoPri(e) {
+    const c = S.ch, f = c.fala;
+    if (f === 'ouvindo' || f === 'abrindo')
+      return `<button id="ch-pri" class="ch-bt pri gravando" data-a="ch-falar" aria-label="Pronto: enviar o que falei" title="Pronto: enviar o que falei"${f === 'abrindo' ? ' disabled' : ''}>${ic('check')}</button>`;
+    if (!f && (e.fala_tela || {}).pronta && !c.texto.trim() && !c.anexo)
+      return `<button id="ch-pri" class="ch-bt pri" data-a="ch-falar" aria-label="Falar" title="Falar"${c.enviando ? ' disabled' : ''}>${ic('mic')}</button>`;
+    return `<button id="ch-pri" class="ch-bt pri" data-a="ch-enviar" aria-label="Enviar"${c.enviando || f ? ' disabled' : ''}>${ic('send')}</button>`;
+  }
+
+  /* ---------- Falar na conversa: o microfone em PCM de 16 kHz, 16 bits, mono (o que a fala para texto do Home Assistant
+     recebe, como o Assist; o mesmo do Falar dos outros apps), com o nível para o botão. Pronto: vira texto no servidor
+     (/api/fala) e vai como a pergunta. Até 2 minutos; sair da conversa ou do app cancela. */
+  const TAXA = 16000, MAX_FALA = 120;
+  function Gravador(nivel) {
+    let pedacos = [], total = 0, taxa = TAXA, fluxo = null, ctx = null, fonte = null, no = null;
+    const fechar = () => {
+      try { if (no) no.onaudioprocess = null; if (fonte) fonte.disconnect(); if (no) no.disconnect(); } catch (e) { /* já fechado */ }
+      if (fluxo) fluxo.getTracks().forEach(t => t.stop());
+      if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+      fluxo = ctx = fonte = no = null;
+    };
+    this.iniciar = async () => {
+      const md = navigator.mediaDevices;
+      if (!md || !md.getUserMedia) throw Object.assign(new Error('sem_api'), { name: 'NoApi' });
+      fluxo = await md.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const AC = window.AudioContext || window.webkitAudioContext;
+      try { ctx = new AC({ sampleRate: TAXA }); } catch (e) { ctx = new AC(); }  // alguns só gravam na taxa deles: convertida no fim
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+      taxa = ctx.sampleRate;
+      fonte = ctx.createMediaStreamSource(fluxo);
+      no = ctx.createScriptProcessor(4096, 1, 1);
+      no.onaudioprocess = ev => {
+        const d = ev.inputBuffer.getChannelData(0);
+        pedacos.push(new Float32Array(d)); total += d.length;
+        let soma = 0;
+        for (let i = 0; i < d.length; i += 4) soma += d[i] * d[i];
+        if (nivel) nivel(Math.min(1, Math.sqrt(soma / (d.length / 4)) * 5));
+      };
+      fonte.connect(no); no.connect(ctx.destination);  // a saída fica muda; só mantém o nó andando
+    };
+    this.parar = () => {  // o áudio em Int16 a 16 kHz
+      fechar();
+      const tudo = new Float32Array(total);
+      let o = 0;
+      for (const p of pedacos) { tudo.set(p, o); o += p.length; }
+      pedacos = [];
+      const r = taxa / TAXA, n = Math.floor(tudo.length / r), out = new Int16Array(n);
+      for (let i = 0; i < n; i++) {  // a média de cada janela: um filtro simples quando gravou a 44,1/48 kHz
+        const a = Math.floor(i * r), b = Math.max(a + 1, Math.min(tudo.length, Math.floor((i + 1) * r)));
+        let s2 = 0;
+        for (let j = a; j < b; j++) s2 += tudo[j];
+        const v = Math.max(-1, Math.min(1, s2 / (b - a)));
+        out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+      }
+      return out;
+    };
+    this.cancelar = () => { fechar(); pedacos = []; total = 0; };
+  }
+  function erroMicrofone(err) {
+    const n = (err && err.name) || '';
+    if (n === 'NotAllowedError' || n === 'SecurityError') return 'O microfone está bloqueado. Permita o microfone para o Home Assistant (no navegador, no cadeado ao lado do endereço; no app do celular, nas permissões do app Home Assistant) e tente de novo.';
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'Não achei um microfone neste aparelho.';
+    if (n === 'NotReadableError') return 'O microfone está sendo usado por outro app. Feche o outro e tente de novo.';
+    if (n === 'NoApi') return window.isSecureContext === false
+      ? 'O microfone só funciona com o Home Assistant aberto por um endereço seguro (https). Neste endereço (http), o celular e o navegador não deixam usar o microfone.'
+      : 'Este navegador não deixa usar o microfone aqui.';
+    return `Não consegui abrir o microfone (${(err && err.message) || n || 'erro'}).`;
+  }
+  let GRAV = null;
+  async function falar() {
+    const c = S.ch;
+    if (c.fala === 'ouvindo') {  // Pronto: o que falou vira texto e vai
+      const g = GRAV;
+      GRAV = null; clearTimeout(falar.t);
+      if (!g) { c.fala = ''; return render(); }
+      const pcm = g.parar();
+      if (pcm.length < TAXA * 0.4) { c.fala = ''; render(); return toast('Não ouvi nada. Toque no microfone e fale.'); }
+      c.fala = 'entendendo'; render();
+      try {
+        const r = await fetch('api/fala', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: pcm.buffer }).then(ok);
+        if (c.fala !== 'entendendo') return;  // saiu da conversa enquanto entendia
+        c.fala = '';
+        if (r && r.texto) return enviarConversa(r.texto);
+        render();
+      } catch (err) {
+        if (c.fala === 'entendendo') { c.fala = ''; render(); }
+        toast(err.message);
+      }
+      return;
+    }
+    if (c.fala || c.enviando) return;
+    const g = new Gravador(nv => { const b = $('#ch-pri'); if (b) b.style.setProperty('--nivel', nv.toFixed(2)); });
+    GRAV = g; c.fala = 'abrindo'; render();
+    try {
+      await g.iniciar();
+    } catch (err) {
+      g.cancelar();
+      if (GRAV === g) { GRAV = null; c.fala = ''; render(); toast(erroMicrofone(err)); }
+      return;
+    }
+    if (GRAV !== g) return g.cancelar();
+    c.fala = 'ouvindo'; render();
+    falar.t = setTimeout(() => S.ch.fala === 'ouvindo' && falar(), MAX_FALA * 1000);
+  }
+  function pararFala() {  // Cancelar, sair da conversa ou do app: o que estava ouvindo some
+    clearTimeout(falar.t);
+    if (GRAV) GRAV.cancelar();
+    GRAV = null;
+    if (S.ch.fala) S.ch.fala = '';
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden && S.ch.fala) { pararFala(); render(); } });
 
   /* ---------- Conversas: a lista das conversas com a IA, como nos chats de sempre (a mais recente primeiro) */
   function quando(iso) {
@@ -405,6 +523,7 @@
   /* ---------- telas: as Opções e o Sobre ocupam uma entrada no histórico cada (o Voltar do celular volta um passo) */
   function abrirTela(t) {
     if (S.tela === t) return;
+    pararFala();
     history.pushState({ tela: t }, '');
     S.tela = t;
     window.scrollTo(0, 0);
@@ -516,6 +635,10 @@
       voltar();
     } else if (a === 'ch-enviar') {
       enviarConversa();
+    } else if (a === 'ch-falar') {
+      falar();
+    } else if (a === 'ch-falar-x') {
+      pararFala(); render();
     } else if (a === 'ch-sug') {
       enviarConversa(el.dataset.v);
     } else if (a === 'ch-anexar') {
@@ -527,6 +650,7 @@
     } else if (a === 'conversas') {
       S.ch.lista = undefined; abrirTela('conversas'); carregarLista();
     } else if (a === 'ch-nova' || a === 'conv-abrir') {
+      pararFala();
       try {
         const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v });
         Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null });
@@ -555,7 +679,11 @@
   document.addEventListener('input', ev => {
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;
-    if (el.id === 'ch-txt') { S.ch.texto = el.value; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; }
+    if (el.id === 'ch-txt') {
+      S.ch.texto = el.value; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+      const b = $('#ch-pri'), novo = botaoPri(S.e);  // o microfone vira Enviar ao escrever (e volta com a caixa vazia)
+      if (b && !novo.includes(`data-a="${b.dataset.a}"`)) b.outerHTML = novo;
+    }
   });
   document.addEventListener('keydown', ev => {
     // no computador, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
@@ -589,7 +717,7 @@
   let arraste = null;
   document.addEventListener('touchstart', ev => {
     arraste = null;
-    if (S.tela || CAM || !ev.touches || ev.touches.length !== 1) return;
+    if (S.tela || CAM || S.ch.fala || !ev.touches || ev.touches.length !== 1) return;
     const t = ev.touches[0];
     if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
     for (let el = ev.target instanceof Element ? ev.target : ev.target.parentElement; el && el !== document.body; el = el.parentElement) {
