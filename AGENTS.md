@@ -63,6 +63,17 @@ Abra `http://localhost:8099` (Ana e Beto aparecem como pessoas de exemplo). A po
 5. `correria/DOCS.md` quando muda o comportamento ou aparece algo novo.
 6. Commit em `main` com mensagem em português ("CorrerIA 0.2.0: ..."), `git pull --rebase` e push. O GitHub roda todos os testes a cada push (aba Actions).
 
+## Arquivos iguais em todos os apps
+
+A lista dos arquivos que são iguais nos apps da família fica em `tools/iguais.py` (ele também é igual em todos):
+`python3 tools/iguais.py` confere os daqui com os dos apps ao lado (`../resolvia-ha`, ...), e o GitHub confere a cada
+push (job **Arquivos iguais aos dos outros apps**, que baixa os outros apps). Mudou um arquivo da lista? Copie para os
+outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em `GRUPOS`, aqui e nas cópias.
+
+`share/<app>/integracao.json` começa igual em todos os apps: `app` (o id, como no `correria.json`), `nome`, `versao` e
+`gravado_em` (ISO 8601 com o fuso), depois os campos de cada app. O ResolvIA e o CronologIA ainda gravam o nome em
+`app` (as versões de antes conferem por ele) e quem lê aceita os dois; o id entra numa próxima versão.
+
 ## Como os apps conversam
 
 - **Os apps → CorrerIA** (o contrato, igual para todos os apps): cada app, com a opção **CorrerIA** ligada nele (Mais › Configurações › Integrações; desligada por padrão, sem depender da IA do app), grava `share/<app>/correria.json` (600, atômico) com `app` (o id, `[a-z0-9]`, prefixo das ferramentas), `nome`, `assunto`, `url`, `ip_url`, `chave` (própria, em `/data/correria.key` do app), `versao`, `ferramentas` (a rota, `/api/integracao/ferramentas`) e, só quem responde com a IA dele (hoje o GerencIA, para fotos e PDFs), `rota` e `anexos`. Tudo com `Authorization: Bearer <chave>` e `X-App: CorrerIA`; desligado, o arquivo some e as rotas respondem 401.

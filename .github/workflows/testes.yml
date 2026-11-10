@@ -28,3 +28,37 @@ jobs:
         env:
           TZ: America/Sao_Paulo
         run: python tools/cobertura.py --minimo 95 --linhas --resumo "$GITHUB_STEP_SUMMARY"
+
+  # os arquivos que são iguais nos apps da família (tools/iguais.py): baixa os outros apps e compara
+  iguais:
+    name: Arquivos iguais aos dos outros apps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: correria-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/gerencia-ha
+          path: gerencia-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/inventario-ha
+          path: inventario-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/economia-ha
+          path: economia-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/resolvia-ha
+          path: resolvia-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/cronologia-ha
+          path: cronologia-ha
+      - uses: actions/checkout@v4
+        with:
+          repository: diegozapella63/memoria-ha
+          path: memoria-ha
+      - run: python3 correria-ha/tools/iguais.py --exigir
