@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.12.1
+
+- **Atalho no celular**: o caminho fica na largura toda, inteiro também nos celulares estreitos, com o **Copiar** embaixo.
+
 ## 0.12.0
 
 - **Atalho no celular**, em **Mais › Configurações › Aparência**: o caminho do CorrerIA no Home Assistant, com **Copiar**, e como criar um ícone na tela inicial do celular que abre a Conversa direto (no app do Home Assistant: Configurações › Aplicativo complementar › Gerenciar atalhos). O mesmo vale em todos os apps da família.

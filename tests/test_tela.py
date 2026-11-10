@@ -695,6 +695,9 @@ class Tela(unittest.TestCase):
             self.aviso("Toque e segure no texto para copiar")  # em http, sem área de transferência: o texto fica selecionado
             self.assertEqual(self.pg.evaluate("document.activeElement.id"), "f-atalho")
             self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
+            for w in (390, 320):  # o caminho inteiro à vista, sem cortar
+                self.pg.set_viewport_size({"width": w, "height": 844})
+                self.assertTrue(self.pg.eval_on_selector("#f-atalho", "(e) => e.scrollWidth <= e.clientWidth"), f"{w} px: o caminho cortado")
             self.pg.locator("#atalho").screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-atalho.png"))
 
     def test_uso_da_ia(self):

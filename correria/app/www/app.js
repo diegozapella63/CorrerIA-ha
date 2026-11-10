@@ -303,7 +303,7 @@
     if (!e.atalho) return '';
     return `<section class="card" id="atalho">${cab('phone', 'Atalho no celular')}<p class="lead">Um ícone na tela inicial do celular que abre o CorrerIA direto.</p>
       <ol class="passos"><li>No app do Home Assistant: <b>Configurações › Aplicativo complementar › Gerenciar atalhos</b>.</li><li>Em <b>Atalho fixado</b>, escolha o tipo <b>Painel</b> e cole o <b>Caminho</b> abaixo.</li></ol>
-      <div class="campo"><label for="f-atalho">Caminho</label><div class="copiar"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
+      <div class="campo"><label for="f-atalho">Caminho</label><div class="copiar pilha"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
   }
 
   /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados) */

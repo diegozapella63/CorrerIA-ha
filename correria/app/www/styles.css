@@ -103,6 +103,7 @@ body[data-tela="conversa"] .cab { margin-bottom: 18px; }
 textarea.inp { resize: vertical; min-height: 84px; }
 .copiar { display: flex; gap: 10px; }
 .copiar .inp { flex: 1; }
+.copiar.pilha { display: grid; gap: 8px; } /* o caminho do Atalho na largura toda (inteiro também em 320 px), o Copiar embaixo */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 12px 18px; border-radius: var(--r-ctl); font: 500 15px/1.2 var(--font); border: 1px solid var(--line-2); background: var(--card-2); color: var(--text); min-height: 48px; }
 .btn.pri { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
 .btn.out { background: transparent; border: 1.5px solid var(--accent); color: var(--accent-text); }
