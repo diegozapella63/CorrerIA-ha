@@ -34,7 +34,13 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 
 ### 3. No CorrerIA
 
-O CorrerIA abre na **Conversa**. A engrenagem no alto abre as **Opções**, em três abas: **Apps** (os apps ligados, a IA, o áudio e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa) e **MCP**. A aba escolhida fica guardada.
+O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem cinco abas: **Apps** (os apps ligados, a IA, o áudio, o **Uso da IA** e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa), **MCP**, **Dados** (onde ficam os dados) e **Aparência** (o tema e a cor do app). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
+
+**Uso da IA** (na aba Apps): quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia, os tipos (WhatsApp e Conversa) e as últimas chamadas, com o tempo e os tokens estimados. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
+
+**Aparência**: o **tema** (Automático, Claro ou Escuro) vale só para o aparelho e começa em **Automático**, que segue o do Home Assistant. A **cor do app** vale para a casa toda: são as 12 cores da família, com os mesmos nomes dos outros apps. Com a **Cor do dia** ligada (vem assim), a cor muda todo dia, a mesma em todos os apps; escolher uma cor desliga.
+
+**Dados**: tudo fica na pasta `/data` do app, que entra no backup do Home Assistant: `config.json` (o WhatsApp, o endereço e o número de cada pessoa), `conversas.json`, `mcp.json` (as IAs conectadas, com os tokens só em código) e `uso_ia.json`. O token e a chave secreta nunca voltam para a tela.
 
 1. **WhatsApp** (aba WhatsApp): cole o ID do número, o token e a chave secreta e toque em **Salvar**. O app confere com a Meta e mostra o número e o nome. O token e a chave não aparecem mais (só o fim, como ••••1234); para trocar, cole outro.
 2. **Webhook na Meta**: escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`). Na Meta, em **WhatsApp › Configuração › Webhook**, toque em Editar, cole a **URL de retorno** e o **Token de verificação** que o CorrerIA mostra e toque em **Verificar e salvar**. Depois, em Campos do webhook, assine **messages**. O cartão mostra quando a Meta confirmou o endereço e a última mensagem que chegou.
@@ -60,7 +66,7 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 
 ## Conector MCP
 
-A aba **MCP** (nas Opções) liga os apps em outras IAs, como um conector: o padrão MCP, com login. Serve para qualquer IA que aceite um conector personalizado remoto (como Claude, ChatGPT e Gemini). A IA vê as ferramentas de todos os apps ligados e lê e muda os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, ela mostra o que vai fazer.
+A aba **MCP** (em Configurações) liga os apps em outras IAs, como um conector: o padrão MCP, com login. Serve para qualquer IA que aceite um conector personalizado remoto (como Claude, ChatGPT e Gemini). A IA vê as ferramentas de todos os apps ligados e lê e muda os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, ela mostra o que vai fazer.
 
 1. Ligue **Ligar o conector** e confira o **Endereço público** (na aba WhatsApp, cartão Webhook). Ele usa a mesma porta (8443) e o mesmo certificado do WhatsApp; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
 2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org:8443/mcp`).
@@ -79,7 +85,7 @@ As conversas são de quem está usando a tela (o login do Home Assistant, ligado
 
 ## Sobre
 
-No fim das Opções, **Sobre**: a CorrerIA Code, os apps da família (com o link de cada um no GitHub) e o meu GitHub. É o mesmo Sobre dos outros apps.
+Em **Mais**, por último, **Sobre**: a CorrerIA Code, os apps da família (com o link de cada um no GitHub) e o meu GitHub. É o mesmo Sobre dos outros apps.
 
 ## Custo e privacidade
 

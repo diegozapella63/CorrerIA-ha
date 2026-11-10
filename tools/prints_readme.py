@@ -27,6 +27,7 @@ def estado(pedido=False):
             "webhook": {"https": True, "certificado": "fullchain.pem", "porta": 8443, "verificado_em": iso(4000), "ultimo": iso(5)},
             "pessoas": [{"id": "person.ana", "nome": "Ana", "numero": "5511987650001"}, {"id": "person.beto", "nome": "Beto", "numero": "5521912340002"}],
             "apps": APPS, "fala": {"pronta": True, "nome": "Home Assistant Cloud"},
+            "aparencia": {"cor": "ouro", "cor_dia": False},
             "registro": [
                 {"em": iso(5), "tipo": "enviada", "quem": "Beto", "texto": "Feito!\n- Tirar o lixo: concluída por Beto (+5 pontos).", "app": "ResolvIA"},
                 {"em": iso(5), "tipo": "recebida", "quem": "Beto", "texto": "sim", "app": ""},
@@ -65,7 +66,8 @@ with sync_playwright() as pw:
         pg.route("http://correria.local/**", lambda r: servir(r, pedido))
         pg.goto("http://correria.local/"); pg.wait_for_selector(".ch-msg.ia"); pg.wait_for_timeout(400)
         if aba:
-            pg.click('[data-a="opcoes"] >> nth=-1'); pg.wait_for_selector(".abas"); pg.wait_for_timeout(300)
+            pg.click('.cab-bts [data-a="mais"]'); pg.click('.mais-menu [data-a="opcoes"]')
+            pg.wait_for_selector(".abas"); pg.wait_for_timeout(300)
         return pg
     pg = pagina("dark"); pg.screenshot(path=f"{SAIDA}/conversa.png"); pg.close()
     pg = pagina("dark", aba="apps"); pg.screenshot(path=f"{SAIDA}/apps.png"); pg.close()

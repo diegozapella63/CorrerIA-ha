@@ -6,9 +6,9 @@ Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da Correr
 
 <p align="center">
   <img src="docs/conversa.png" width="24%" alt="A conversa com a IA: perguntar e lançar com o sim">
-  <img src="docs/apps.png" width="24%" alt="Opções › Apps: os apps e o que cada um faz">
-  <img src="docs/whatsapp.png" width="24%" alt="Opções › WhatsApp: a conta da Meta">
-  <img src="docs/claude-gemini.png" width="24%" alt="Opções › MCP: o pedido de conexão com o código">
+  <img src="docs/apps.png" width="24%" alt="Configurações › Apps: os apps e o que cada um faz">
+  <img src="docs/whatsapp.png" width="24%" alt="Configurações › WhatsApp: a conta da Meta">
+  <img src="docs/claude-gemini.png" width="24%" alt="Configurações › MCP: o pedido de conexão com o código">
 </p>
 
 ## Instalação

@@ -3,7 +3,7 @@
    conector para outras IAs). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.9.0';
+  const VERSAO = '0.10.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -40,15 +40,24 @@
     receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     plug: '<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8Z"/>',
+    mais: '<circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/>',
+    database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+    palette: '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+    contrast: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+    chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
 
-  // tela: '' (a conversa, onde o app abre), 'opcoes' ou 'sobre'; aba: a das Opções (fica guardada neste aparelho)
-  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP']];
+  // tela: '' (a conversa, onde o app abre), 'mais' (o menu, como nos outros apps), 'opcoes' (Configurações) ou 'sobre';
+  // aba: a de Configurações (fica guardada neste aparelho)
+  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP'], ['dados', 'Dados'], ['aparencia', 'Aparência']];
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
-  const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps',
+  const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps', tema: guardada('correria-tema') || 'auto',
     ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined, fala: '' } };
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
@@ -82,11 +91,36 @@
     return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
   function aplicarTema() {
-    const t = temaHA();
+    const t = S.tema === 'claro' ? 'light' : S.tema === 'escuro' ? 'dark' : temaHA();
     if (document.documentElement.dataset.theme !== t) document.documentElement.dataset.theme = t;
   }
+  // a paleta da família: as 12 cores, nesta ordem e com estes nomes, em todos os apps (a do CronologIA)
+  const PALETA = [['vermelho', 'Vermelho', '#FF5A4F', '#C42A1F'], ['coral', 'Coral', '#FF8A65', '#C2410C'], ['laranja', 'Laranja', '#FFA23E', '#B45309'],
+    ['ouro', 'Ouro', '#F2C14E', '#8A6100'], ['verde', 'Verde', '#8BD45F', '#3F7A17'], ['menta', 'Menta', '#4ED3A6', '#0E7A57'],
+    ['turquesa', 'Turquesa', '#3CCBDA', '#0B7285'], ['azul', 'Azul', '#62B5FF', '#0B67A8'], ['indigo', 'Índigo', '#8F9BFF', '#3D4BC2'],
+    ['lilas', 'Lilás', '#B99BFF', '#6D3FD6'], ['rosa', 'Rosa', '#FF77A9', '#BE185D'], ['grafite', 'Grafite', '#B5B9C2', '#4E5560']]
+    .map(([id, nome, fill, ink]) => ({ id, nome, fill, ink }));
+  // a Cor do dia: as 11 sem o Grafite, pelo número do dia na data local (a mesma em todos os apps no mesmo dia)
+  function corDoDia(d = new Date()) {
+    const L = PALETA.filter(c => c.id !== 'grafite'), n = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+    return L[((n % L.length) + L.length) % L.length].id;
+  }
+  // a cor do app é da casa toda (no config.json); o aparelho guarda uma cópia só para abrir já com ela
+  function corAtual(e) {
+    let ap = (e || S.e || {}).aparencia;
+    if (!ap) { try { ap = JSON.parse(guardada('correria-cor') || '{}'); } catch (x) { ap = {}; } }
+    return ap.cor_dia !== false ? corDoDia() : (PALETA.some(c => c.id === ap.cor) ? ap.cor : 'ouro');
+  }
+  function aplicarCor() {
+    const c = PALETA.find(x => x.id === corAtual()), r = document.documentElement.style;
+    r.setProperty('--accent', c.fill);
+    r.setProperty('--accent-ink', c.ink);
+    if (S.e && S.e.aparencia) guardar('correria-cor', JSON.stringify(S.e.aparencia));
+  }
   aplicarTema();
+  aplicarCor();
   setInterval(aplicarTema, 2000);
+  setInterval(aplicarCor, 60000);  // passou da meia-noite com o app aberto: a cor do dia novo
   try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', aplicarTema); } catch (e) { /* antigo */ }
 
   /* ---------- datas */
@@ -228,13 +262,61 @@
   function opcoes(e) {
     const aba = ABAS.some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
-    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e) : cardApps(e) + cardMensagens(e);
-    return `${topoTela('Opções', 'Conversa')}
+    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e)
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : cardApps(e) + cardUso(e) + cardMensagens(e);
+    return `${topoTela('Configurações', 'Mais')}
       <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>
       ${pendentes(e)}
-      <nav class="abas" role="tablist" aria-label="Opções">${ABAS.map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
-      ${corpo}
-      <section class="card linha-card"><button class="linha" data-a="sobre"><span class="rot-ic">${ic('info')}</span><span class="linha-t"><b>Sobre</b><small>CorrerIA Code, os apps e o GitHub.</small></span>${ic('chev', 'ic-s chev')}</button></section>`;
+      <nav class="abas" role="tablist" aria-label="Configurações">${ABAS.map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
+      ${corpo}`;
+  }
+  // Mais, um menu como nos outros apps: Configurações e, por último, Sobre (cada um na sua tela)
+  function telaMais() {
+    const linha = (a, icone, titulo, txt) => `<button class="linha" data-a="${a}"><span class="rot-ic">${ic(icone)}</span><span class="linha-t"><b>${titulo}</b><small>${txt}</small></span>${ic('chev', 'ic-s chev')}</button>`;
+    return `${topoTela('Mais', 'Conversa')}
+      <section class="card linha-card mais-menu">${linha('opcoes', 'gear', 'Configurações', 'Apps, WhatsApp, MCP, dados e aparência.')}
+        ${linha('sobre', 'info', 'Sobre', 'CorrerIA Code, os apps e o GitHub.')}</section>`;
+  }
+
+  /* ---------- Configurações › Dados e Aparência (como nos outros apps) */
+  function cardDados() {
+    return `<section class="card" id="onde">${cab('database', 'Onde ficam os dados')}
+      <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código) e <code>uso_ia.json</code> (o Uso da IA). O token e a chave secreta nunca voltam para a tela.</p></section>`;
+  }
+  const TEMAS = [['auto', 'Automático', 'phone'], ['claro', 'Claro', 'sun'], ['escuro', 'Escuro', 'moon']];
+  function cardTema() {
+    return `<section class="card" id="tema">${cab('contrast', 'Tema')}<p class="lead">Vale só para este aparelho. Automático segue o do Home Assistant.</p>
+      <div class="temas" role="radiogroup" aria-label="Tema">${TEMAS.map(([k, n, i]) => `<button role="radio" aria-checked="${S.tema === k}" class="${S.tema === k ? 'on' : ''}" data-a="tema" data-v="${k}">${ic(i)}<span>${n}</span></button>`).join('')}</div></section>`;
+  }
+  const TAG = 'M8 0h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8L0 13V7z', FURO = 'M9.7 10a2.7 2.7 0 1 0-5.4 0a2.7 2.7 0 1 0 5.4 0z';
+  function cardCor(e) {
+    const ap = e.aparencia || {}, dia = ap.cor_dia !== false, atual = corAtual(e);
+    return `<section class="card" id="cor">${cab('palette', 'Cor do app')}<p class="lead">Em todos os aparelhos da casa.</p>
+      <div class="linha-sw"><div><b>Cor do dia</b><span>Muda a cor do app todo dia, a mesma em todos os apps.</span></div>
+        <button class="sw${dia ? ' on' : ''}" data-a="cor-dia" role="switch" aria-checked="${dia}" aria-label="Cor do dia"></button></div>
+      <div class="cores" role="radiogroup" aria-label="Cor do app">${PALETA.map(c => `<button class="tsw${c.id === atual ? ' on' : ''}" role="radio" aria-checked="${c.id === atual}" style="--a:${c.fill}" data-a="cor" data-v="${c.id}">
+        <svg viewBox="-5 -5 40 30" aria-hidden="true"><path class="sw-ring" d="${TAG}"/><path class="sw-gap" d="${TAG}"/><path class="sw-fill" d="${TAG + FURO}"/><path class="sw-check" d="m14.6 10.3 3.2 3.2 6.5-6.9"/></svg><span>${c.nome}</span></button>`).join('')}</div></section>`;
+  }
+
+  /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados) */
+  const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa' };
+  const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  function cardUso(e) {
+    const u = e.uso_ia;
+    if (!u || !u.hoje) return '';
+    const mil = n => n >= 1000 ? `${String(Math.round(n / 100) / 10).replace('.', ',')} mil` : String(Math.round(n || 0));
+    const tile = (k, t) => `<div class="uso-t"><span class="k">${k}</span><b>${t.chamadas || 0}</b><span class="s${t.erros || t.cota ? ' alerta' : ''}">${t.cota ? `${t.cota} sem cota` : t.erros ? `${t.erros} com erro` : `≈ ${mil(t.tokens)} tokens`}</span></div>`;
+    const max = Math.max(1, ...u.dias.map(d => d.chamadas || 0));
+    const hoje = u.dias.length ? u.dias[u.dias.length - 1].dia : '';
+    const nomeDia = d => d === hoje ? 'hoje' : SEM[new Date(d + 'T12:00:00').getDay()];
+    const tipos = u.semana.tipos || {};
+    const ult = (u.ultimas || []).slice(0, 6);
+    return `<section class="card" id="uso">${cab('chart', 'Uso da IA')}<p class="lead">As chamadas do CorrerIA para a IA do Home Assistant. Os tokens são estimados.</p>
+      <div class="uso-ts">${tile('Hoje', u.hoje)}${tile('7 dias', u.semana)}${tile('Este mês', u.mes)}</div>
+      <div class="uso-barras" aria-label="Chamadas nos últimos 7 dias">${u.dias.map(d => `<div class="uso-b${d.dia === hoje ? ' hoje' : ''}" title="${nomeDia(d.dia)}: ${d.chamadas}"><i style="height:${d.chamadas ? Math.max(4, Math.round(d.chamadas / max * 100)) : 0}%"></i><span>${nomeDia(d.dia)}</span></div>`).join('')}</div>
+      ${Object.keys(tipos).length ? `<p class="uso-tipos">${Object.keys(tipos).map(k => `${TIPO_USO[k] || esc(k)} <b>${tipos[k]}</b>`).join(' · ')}</p>` : ''}
+      ${ult.length ? `<div class="lbl">Últimas chamadas</div><ul class="uso-ult">${ult.map(c => `<li><b>${TIPO_USO[c.tipo] || esc(c.tipo)}</b>${c.resultado !== 'ok' ? `<span class="erro">${c.resultado === 'cota' ? 'sem cota' : c.resultado === 'formato' ? 'fora do formato' : 'erro'}</span>` : ''}<span>${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(horaCurta(c.quando))}</span></li>`).join('')}</ul>` : '<p class="vazio">Nenhuma chamada ainda.</p>'}
+    </section>`;
   }
 
   /* ---------- Sobre: quem faz os apps (CorrerIA Code), os apps da família e o GitHub (a mesma página dos outros apps) */
@@ -253,7 +335,7 @@
   const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${titulo}</h1></header>`;
   function sobre(e) {
     const aqui = r => r === 'CorrerIA-ha';
-    return `${topoTela('Sobre', 'Opções')}
+    return `${topoTela('Sobre', 'Mais')}
       <div class="sobre-topo"><span class="sb-raio" aria-hidden="true">${ic('zap')}</span>
         <h2 class="sb-nome">Correr<span>IA</span> Code</h2><p class="sb-oque">desenvolvimento de softwares</p><p class="sb-lema">Feito na correria, rodado pela IA.</p></div>
       <section class="card">${cab('hourglass', 'Por que CorrerIA?')}
@@ -281,7 +363,7 @@
     let corpo;
     if (M === null) corpo = '<p class="vazio">Abrindo…</p>';
     else if (!M.length && !c.enviando) {
-      if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Opções</button></div>`;
+      if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Configurações</button></div>`;
       else {
         const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
         corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
@@ -298,7 +380,7 @@
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>Conversa</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
-          <button class="bt-icone" data-a="opcoes" aria-label="Opções" title="Opções">${ic('gear')}</button></div></header>
+          <button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
@@ -515,7 +597,8 @@
     if (!e) return;
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
-    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    aplicarCor();
+    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
     if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
   }
@@ -627,8 +710,18 @@
       } catch (e) {
         toast('Toque e segure no texto para copiar');  // em http, o navegador não deixa copiar sozinho
       }
-    } else if (a === 'opcoes' || a === 'sobre') {
+    } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {
       abrirTela(a);
+    } else if (a === 'tema') {
+      S.tema = el.dataset.v; guardar('correria-tema', S.tema); aplicarTema(); render();
+    } else if (a === 'cor') {  // escolher uma cor desliga a Cor do dia; vale para a casa toda
+      const c = PALETA.find(x => x.id === el.dataset.v);
+      S.e.aparencia = { cor: c.id, cor_dia: false }; render();
+      await acao('config', { cor: c.id, cor_dia: false }, 'Cor do app: ' + c.nome);
+    } else if (a === 'cor-dia') {
+      const on = !((S.e.aparencia || {}).cor_dia !== false);
+      S.e.aparencia = Object.assign({}, S.e.aparencia, { cor_dia: on }); render();
+      await acao('config', { cor_dia: on }, on ? 'Cor do dia ligada' : 'Cor do dia desligada');
     } else if (a === 'aba') {
       S.aba = el.dataset.v; guardar('correria-aba', S.aba); render();
     } else if (a === 'voltar') {

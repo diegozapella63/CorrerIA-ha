@@ -1,5 +1,13 @@
 # Mudanças
 
+## 0.10.0
+
+O CorrerIA fica igual aos outros apps da família:
+
+- **Mais**: os três pontos no alto da Conversa abrem um menu, como nos outros apps: **Configurações** (antes Opções) e, por último, **Sobre**, que sai de dentro de Configurações.
+- **Configurações** ganha as abas **Dados** (onde ficam os dados, sem mostrar token nem chave) e **Aparência**: o **tema** (Automático, Claro ou Escuro, só neste aparelho, começando em Automático) e a **cor do app** para a casa toda, com as 12 cores da família e a **Cor do dia**, a mesma dos outros apps. Antes, a cor era sempre âmbar.
+- **Uso da IA**, na aba Apps: quantas vezes o CorrerIA chamou a IA hoje, em 7 dias e no mês, por dia, do WhatsApp e da Conversa, com as últimas chamadas e os tokens estimados.
+
 ## 0.9.0
 
 - **Falar na Conversa**: com a caixa vazia, o botão redondo vira o microfone. Toque, fale e toque no ✓: o que você disse vai como a pergunta. O **X** cancela. Escrevendo, o botão volta a ser o Enviar. Usa a fala para texto do Home Assistant, a mesma dos áudios do WhatsApp.

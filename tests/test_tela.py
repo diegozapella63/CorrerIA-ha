@@ -50,7 +50,7 @@ class Tela(unittest.TestCase):
         cls.app.fechar()
 
     def setUp(self):
-        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ, S.MCP_ARQ):
+        for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ, S.MCP_ARQ, S.USO.arquivo):
             if os.path.exists(arq):
                 os.remove(arq)
         S.AUT.pedidos.clear()
@@ -73,8 +73,9 @@ class Tela(unittest.TestCase):
         self.addCleanup(lambda: self.assertEqual(self.erros, [], "nenhum erro na página"))
 
     def opcoes(self, aba=None):
-        """A engrenagem no alto da conversa abre as Opções; aba: apps, whatsapp ou mcp."""
-        self.pg.click('.cab-bts [data-a="opcoes"]')
+        """O Mais (os três pontos no alto da conversa) e, nele, Configurações; aba: apps, whatsapp, mcp, dados ou aparencia."""
+        self.pg.click('.cab-bts [data-a="mais"]')
+        self.pg.click('.mais-menu [data-a="opcoes"]')
         self.pg.wait_for_selector(".abas")
         if aba:
             self.pg.click(f'.abas [data-v="{aba}"]')
@@ -99,8 +100,8 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto(".ch-vazio p"), "Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.")
         self.pg.click('.ch-vazio [data-a="opcoes"]')
         self.pg.wait_for_selector(".abas")
-        self.assertEqual(self.texto(".cab-tela h1"), "Opções")
-        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP"])
+        self.assertEqual(self.texto(".cab-tela h1"), "Configurações")
+        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência"])
         self.assertEqual(self.texto(".abas .on"), "Apps", "começa em Apps")
         self.pg.click('.abas [data-v="whatsapp"]')
         self.assertEqual(self.texto(".sync"), "Falta terminar a configuração do WhatsApp")
@@ -554,15 +555,20 @@ class Tela(unittest.TestCase):
     def test_voltar_do_celular_volta_um_passo(self):
         self.abrir_conversa()
         self.opcoes()
-        self.pg.click('[data-a="sobre"]')
-        self.pg.wait_for_selector(".sobre-topo")
-        self.assertEqual(self.texto(".voltar"), "Opções")
+        self.assertEqual(self.texto(".voltar"), "Mais")
         self.pg.go_back()
-        self.pg.wait_for_selector(".abas")
+        self.pg.wait_for_selector(".mais-menu")
+        self.pg.click('.mais-menu [data-a="sobre"]')
+        self.pg.wait_for_selector(".sobre-topo")
+        self.assertEqual(self.texto(".voltar"), "Mais")
+        self.pg.go_back()
+        self.pg.wait_for_selector(".mais-menu")
         self.assertEqual(self.texto(".voltar"), "Conversa")
         self.pg.go_back()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()
+        self.pg.click('[data-a="voltar"]')
+        self.pg.wait_for_selector(".mais-menu")
         self.pg.click('[data-a="voltar"]')
         self.pg.wait_for_selector("#ch-txt")
         self.assertEqual(self.pg.evaluate("history.state"), None)
@@ -570,8 +576,8 @@ class Tela(unittest.TestCase):
     # ---- Sobre
     def test_sobre(self):
         self.abrir()
-        self.opcoes()
-        self.pg.click('[data-a="sobre"]')
+        self.pg.click('.cab-bts [data-a="mais"]')
+        self.pg.click('.mais-menu [data-a="sobre"]')
         self.pg.wait_for_selector(".sobre-topo")
         self.assertEqual(self.texto(".sb-nome"), "CorrerIA Code")
         apps = self.pg.locator(".sb-app b").all_inner_texts()
@@ -583,7 +589,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.get_attribute(".sb-app.aqui", "href"), "https://github.com/diegozapella63/CorrerIA-ha")
         self.assertEqual(self.pg.get_attribute(".sb-github", "target"), "_blank")
         self.pg.go_back()
-        self.pg.wait_for_selector(".abas")
+        self.pg.wait_for_selector(".mais-menu")
 
     def test_ultimas_mensagens(self):
         self.abrir()
@@ -622,11 +628,73 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_function("document.documentElement.dataset.theme === 'dark'")
         self.assertNotEqual(self.pg.evaluate("getComputedStyle(document.body).backgroundColor"), fundo_claro, "troca na hora")
 
-    def test_sobre_no_fim(self):
+    def test_mais_menu_configuracoes_e_sobre_no_fim(self):
+        """1.0.0: como nos outros apps, o Mais (três pontos) é um menu: Configurações e, por último, o Sobre, à parte."""
         self.abrir()
-        self.opcoes()
-        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app > section')].pop().innerText.trim().replace(/\\s+/g, ' ')"),
-                         "Sobre CorrerIA Code, os apps e o GitHub.")
+        self.assertEqual(self.pg.locator('.cab-bts [data-a="mais"] circle').count(), 3, "os três pontos")
+        self.pg.click('.cab-bts [data-a="mais"]')
+        self.pg.wait_for_selector(".mais-menu")
+        self.assertEqual(self.texto(".cab-tela h1"), "Mais")
+        self.assertEqual([t.strip() for t in self.pg.locator(".mais-menu .linha-t b").all_inner_texts()], ["Configurações", "Sobre"])
+        self.pg.click('.mais-menu [data-a="opcoes"]')
+        self.pg.wait_for_selector(".abas")
+        self.assertEqual(self.pg.locator('#app [data-a="sobre"]').count(), 0, "o Sobre não fica dentro de Configurações")
+
+    def test_dados_onde_ficam(self):
+        S.salvar_config({"numero_id": MetaFalsa.NUMERO_ID, "token": TOKEN, "segredo": "segredo-do-app-123"})
+        self.abrir()
+        self.opcoes("dados")
+        t = self.texto("#onde")
+        self.assertTrue(t.startswith("Onde ficam os dados") and "config.json" in t and "conversas.json" in t and "uso_ia.json" in t, t)
+        self.assertNotIn(TOKEN, self.pg.content(), "o token nunca vai para a tela")
+
+    def test_aparencia_tema_no_aparelho_e_cor_da_casa(self):
+        self.abrir("light")
+        self.opcoes("aparencia")
+        self.assertEqual(self.pg.locator(".temas button").all_inner_texts(), ["Automático", "Claro", "Escuro"])
+        self.assertEqual(self.texto(".temas .on"), "Automático", "começa em Automático")
+        self.assertEqual(self.pg.evaluate("document.documentElement.dataset.theme"), "light")
+        self.pg.click('.temas [data-v="escuro"]')
+        self.assertEqual(self.pg.evaluate("document.documentElement.dataset.theme"), "dark")
+        nomes = [t.strip() for t in self.pg.locator(".cores .tsw span").all_inner_texts()]
+        self.assertEqual(nomes, ["Vermelho", "Coral", "Laranja", "Ouro", "Verde", "Menta", "Turquesa", "Azul", "Índigo", "Lilás", "Rosa", "Grafite"])
+        dia = self.pg.evaluate("""() => { const L = ['vermelho','coral','laranja','ouro','verde','menta','turquesa','azul','indigo','lilas','rosa'], d = new Date();
+            return L[Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5) % 11]; }""")
+        self.assertEqual(self.pg.get_attribute('.sw[data-a="cor-dia"]', "aria-checked"), "true", "Cor do dia ligada de início")
+        self.assertEqual(self.pg.get_attribute(".cores .tsw.on", "data-v"), dia, "a cor do dia, a mesma de todos os apps")
+        outra = "azul" if dia != "azul" else "verde"
+        self.pg.click(f'.cores [data-v="{outra}"]')
+        self.aviso("Cor do app: " + ("Azul" if outra == "azul" else "Verde"))
+        self.assertEqual(self.pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()"), "#62B5FF" if outra == "azul" else "#8BD45F")
+        c = S.ler_config()
+        self.assertEqual((c["cor"], c["cor_dia"]), (outra, False), "a cor vale para a casa toda (no servidor)")
+        self.assertEqual(self.pg.get_attribute('.sw[data-a="cor-dia"]', "aria-checked"), "false", "escolher uma cor desliga a Cor do dia")
+        # outro aparelho: a cor da casa; o tema, o dele (Automático)
+        outro = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="light")
+        self.addCleanup(outro.close)
+        outro.goto(self.url)
+        outro.wait_for_selector("#ch-txt")
+        self.assertEqual(outro.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()"), "#62B5FF" if outra == "azul" else "#8BD45F")
+        self.assertEqual(outro.evaluate("document.documentElement.dataset.theme"), "light")
+        self.pg.click('.sw[data-a="cor-dia"]')
+        self.aviso("Cor do dia ligada")
+        self.assertTrue(S.ler_config()["cor_dia"])
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
+
+    def test_uso_da_ia(self):
+        self.abrir()
+        self.opcoes("apps")
+        self.assertEqual(self.texto("#uso .vazio"), "Nenhuma chamada ainda.")
+        S.USO.registrar("whatsapp", 4000, 400, 3.2)
+        S.USO.registrar("conversa", 800, 0, 1.0, "HTTP 429 Too Many Requests")
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_selector("#uso .uso-ult li")
+        tiles = [" ".join(t.split()) for t in self.pg.locator("#uso .uso-t").all_inner_texts()]
+        self.assertEqual(tiles[0], "HOJE 2 1 sem cota")
+        self.assertEqual(self.pg.locator("#uso .uso-b").count(), 7)
+        self.assertEqual(self.texto("#uso .uso-tipos"), "WhatsApp 1 · Conversa 1")
+        ult = self.pg.locator("#uso .uso-ult li").all_inner_texts()
+        self.assertTrue(ult[0].startswith("Conversa") and "sem cota" in ult[0] and ult[1].startswith("WhatsApp"), ult)
 
 
     def test_abas_numa_linha_e_guardadas(self):
@@ -635,7 +703,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator("#whatsapp").count(), 1)
         self.assertEqual(self.pg.locator("#mcp").count(), 0, "uma aba de cada vez")
         tops = self.pg.evaluate("[...document.querySelectorAll('.abas button')].map(b => Math.round(b.getBoundingClientRect().top))")
-        self.assertEqual(len(set(tops)), 1, "as três abas numa linha")
+        self.assertEqual(len(set(tops)), 1, "as cinco abas numa linha")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.pg.set_viewport_size({"width": 320, "height": 700})
         self.assertFalse(self.pg.evaluate("document.querySelector('.abas').scrollWidth > document.querySelector('.abas').clientWidth + 1"), "cabem em 320 px")

@@ -29,9 +29,11 @@ correria/app/whatsapp.py    a Cloud API: assinatura do webhook, mensagens, manda
 correria/app/apps.py        os apps da família: acha share/*/correria.json, escolhe o app da pergunta (e do tipo do anexo) e pergunta
 correria/app/fala.py        áudio para texto pela fala para texto do Home Assistant (POST /api/stt/<motor>): o do WhatsApp (OGG/Opus)
                             e o do microfone da Conversa (PCM de 16 kHz, como o Assist; POST /api/fala da tela)
-correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; abre na conversa com a IA; a engrenagem leva às
-                            Opções, em abas Apps, WhatsApp e MCP, guardada em localStorage; Opções e Sobre ocupam uma
-                            entrada no histórico cada, para o Voltar do celular), styles.css, fontes, icon.svg
+correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; abre na conversa com a IA; os três pontos
+                            levam ao Mais, um menu com Configurações e Sobre; Configurações em abas Apps, WhatsApp, MCP, Dados e
+                            Aparência, guardada em localStorage; Mais, Configurações e Sobre ocupam uma entrada no histórico
+                            cada, para o Voltar do celular), styles.css, fontes, icon.svg
+correria/app/uso.py         Uso da IA: as chamadas da IA do WhatsApp e da tela, por dia e tipo, em /data/uso_ia.json
 tests/                      testes (ver tests/README.md)
 tools/prints_readme.py      refaz as capturas do README (docs/*.png) com uma casa inventada
 ```
@@ -82,6 +84,18 @@ Abra `http://localhost:8099` (Ana e Beto aparecem como pessoas de exemplo). A po
 - **Inativos no fim, recolhidos**: o que está inativo, cancelado, encerrado, arquivado ou ignorado de propósito (por uma opção, como Nunca considerar) fica numa seção no fim da lista, recolhida por padrão, com o nome e a contagem (ex.: **Arquivados (3)**); abre num toque. Vale para todos os apps da família. Aqui ainda não há lista assim: um app com a opção CorrerIA desligada nem aparece, e uma conexão desconectada sai da lista.
 - **Caixas de seleção no visual do app**: nenhuma janela nativa do celular. Toda caixa de seleção abre pelo selectsheet.js; sugestões de texto (no lugar do `<datalist>`) e horários (sem AM/PM) também no visual do app; a caixa fechada igual aos outros campos (altura, cantos, seta), no claro e no escuro. Aqui ainda não há caixa de seleção nem `<datalist>`: a primeira que entrar traz o `selectsheet.js` (o arquivo igual dos outros apps, sem mudar nada), carregado antes do `app.js`.
 - Dados de exemplo e de testes sempre inventados (Ana, Beto, números fictícios): nunca nomes, números ou conversas reais do dono.
+
+**Padrão da família (igual em todos os apps)**
+- Barra de baixo: o botão do meio é **Adicionar** (no EconomIA, a ação principal dele); **Buscar**, quando houver, é a 2ª aba; **Mais** é a última, com o ícone de três pontos.
+- **Mais** é um menu: as funções do app, depois **Configurações** e por último **Sobre**. Os relatórios se chamam **Relatório de/do …**.
+- **Configurações** em 4 abas, nesta ordem: **Integrações › Dados › Aparência › Opções**; abre em Integrações. Nenhuma função do app vira aba.
+- **Integrações**, nesta ordem: os outros apps da família › CorrerIA › **IA do Home Assistant** (o Usar IA) › Falar › Uso da IA › Sensores.
+- IA: as entradas se chamam **Colar mensagem**, **Escolher fotos** (ou **Escolher fotos ou PDF**, onde PDF vale) e **Digitalizar com IA**; a conversa recomeça em **Nova conversa**; o Voltar do celular fecha a Conversa.
+- Palavras: **Apagar** (nunca Excluir); **Testar no meu celular**; **Home Assistant Cloud** (não Nabu Casa); recolhidos como **Nome (n)**; o CHANGELOG começa com "# Mudanças".
+- **Dados**: Exportar › Backup na pasta share › Importar › Versões anteriores › Onde ficam os dados › Começar do zero.
+- **Aparência**: o tema vale no aparelho (começa em Automático); a cor do app vale para a casa toda; uma paleta só, de 12 cores (Vermelho, Coral, Laranja, Ouro, Verde, Menta, Turquesa, Azul, Índigo, Lilás, Rosa, Grafite); a Cor do dia é a mesma em todos os apps (as 11 sem o Grafite, pelo número do dia).
+
+Aqui (o CorrerIA não tem barra de baixo nem Integrações: ele é a integração dos outros): os três pontos no alto da Conversa abrem o **Mais** (Configurações e, por último, Sobre); Configurações fica com as abas que fazem sentido aqui (**Apps**, **WhatsApp**, **MCP**, **Dados** e **Aparência**); o **Uso da IA** fica na aba Apps (`uso.py`); Dados só tem **Onde ficam os dados** (nada de exportar: o token, a chave secreta e as conversas não saem daqui); a cor da casa em `config.json` (`cor`, `cor_dia`), o tema no aparelho (`correria-tema`). O endereço do repositório é `CorrerIA-ha` (o remote de verdade): não mude.
 
 ## Conversa com o dono
 

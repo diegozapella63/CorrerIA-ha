@@ -32,9 +32,10 @@ import ferramentas
 import ia
 import mcp
 import oauth
+import uso
 import whatsapp
 
-VERSAO = "0.9.0"
+VERSAO = "0.10.0"
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
@@ -48,6 +49,8 @@ HA_API = os.environ.get("CORRERIA_HA_API", "http://supervisor/core/api")
 GRAPH = os.environ.get("CORRERIA_GRAPH", whatsapp.GRAPH)
 PERMITIDOS = {"172.30.32.2", "127.0.0.1", "::1"}  # o painel do Home Assistant (ingress)
 CONFIG_ARQ = os.path.join(DATA_DIR, "config.json")
+USO = uso.Uso(os.path.join(DATA_DIR, "uso_ia.json"))  # Uso da IA: as chamadas da IA do WhatsApp e da tela
+CANAL = threading.local()  # o canal da pergunta que está na IA agora (whatsapp ou conversa), para o Uso da IA
 CONVERSAS_ARQ = os.path.join(DATA_DIR, "conversas.json")
 MCP_ARQ = os.path.join(DATA_DIR, "mcp.json")
 PENDENTE_VALE = 30 * 60       # uma mudança proposta espera o "sim" por até 30 minutos
@@ -98,11 +101,16 @@ def ler_config():
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
            "mcp": c.get("mcp") is True,
+           # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
+           "cor": c.get("cor") if c.get("cor") in CORES else "", "cor_dia": c.get("cor_dia") is not False,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
     if len(out["verificacao"]) < 16:  # o token de verificação que a Meta manda de volta ao cadastrar o webhook
         out["verificacao"] = secrets.token_urlsafe(18)
         gravar_config(out)
     return out
+
+
+CORES = ("vermelho", "coral", "laranja", "ouro", "verde", "menta", "turquesa", "azul", "indigo", "lilas", "rosa", "grafite")
 
 
 def gravar_config(c):
@@ -147,6 +155,12 @@ def salvar_config(corpo):
             c["ligado"] = corpo.get("ligado") is not False
         if "mcp" in corpo:
             c["mcp"] = corpo.get("mcp") is True
+        if "cor" in corpo:  # escolher uma cor desliga a Cor do dia (a tela manda os dois)
+            if corpo.get("cor") not in CORES:
+                raise ValueError("Cor desconhecida.")
+            c["cor"] = corpo.get("cor")
+        if "cor_dia" in corpo:
+            c["cor_dia"] = corpo.get("cor_dia") is not False
         gravar_config(c)
     if any(k in corpo for k in ("numero_id", "token")):
         ESTADO.update(conta=None, conta_em=None)
@@ -316,6 +330,17 @@ def chamar_ia(instrucoes):
     """A IA do Home Assistant (ai_task.generate_data, a entidade padrão de Configurações › Sistema › IA)."""
     if not TOKEN:
         raise ia.ErroIA("Sem o Home Assistant.")
+    comeco, tipo = time.time(), getattr(CANAL, "tipo", "conversa")
+    try:
+        dados = _chamar_ia(instrucoes)
+    except ia.ErroIA as e:
+        USO.registrar(tipo, len(instrucoes), 0, time.time() - comeco, str(e))
+        raise
+    USO.registrar(tipo, len(instrucoes), len(json.dumps(dados, ensure_ascii=False)), time.time() - comeco)
+    return dados
+
+
+def _chamar_ia(instrucoes):
     try:
         r = ha_post("/services/ai_task/generate_data?return_response", {"task_name": "CorrerIA", "instructions": instrucoes}, timeout=150)
     except urllib.error.HTTPError as e:
@@ -390,6 +415,7 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
             return "Tudo bem, não mudei nada.", []
     if not any(a["ferramentas"] for a in APPS.lista()):
         return None
+    CANAL.tipo = "whatsapp" if canal == "whatsapp" else "conversa"
     try:
         r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente)
     except ia.ErroIA as e:
@@ -812,6 +838,8 @@ def estado():
         "fala": FALA.status(),
         "fala_tela": FALA.status("wav"),
         "registro": ler_conversas()["registro"][:30],
+        "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
+        "uso_ia": USO.resumo(),
     }
 
 
