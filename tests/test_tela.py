@@ -682,12 +682,18 @@ class Tela(unittest.TestCase):
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
 
     def test_atalho_no_celular(self):
-        # Aparência › Atalho no celular: o caminho do app no Home Assistant e o Copiar; fora do Home Assistant, nada
+        # Opções › Atalho no celular (0.13.0; antes em Aparência): o caminho do app no Home Assistant e o Copiar; fora do
+        # Home Assistant, nem a aba
         self.abrir()
-        self.opcoes("aparencia")
-        self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora do Home Assistant, sem o cartão")
+        self.opcoes()
+        self.assertEqual(self.pg.locator('.abas [data-v="opcoes"]').count(), 0, "fora do Home Assistant, sem a aba Opções")
         with mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}):
             self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+            self.pg.wait_for_selector('.abas [data-v="opcoes"]')
+            self.assertEqual(self.pg.eval_on_selector_all(".abas button", "bs => bs.map(b => b.textContent.trim())"), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"], "Opções por último")
+            self.pg.click('.abas [data-v="aparencia"]')
+            self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora da Aparência")
+            self.pg.click('.abas [data-v="opcoes"]')
             self.pg.wait_for_selector("#atalho")
             self.assertEqual(self.pg.input_value("#f-atalho"), "/app/a1b2c3d4_correria")
             self.assertIn("Gerenciar atalhos", self.texto("#atalho .passos"))

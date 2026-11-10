@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.13.0
+
+- **Atalho no celular** saiu de Aparência e foi para uma aba nova, **Opções** (Mais › Configurações › Opções), como nos outros apps.
+
 ## 0.12.1
 
 - **Atalho no celular**: o caminho fica na largura toda, inteiro também nos celulares estreitos, com o **Copiar** embaixo.

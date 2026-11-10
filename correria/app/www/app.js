@@ -53,7 +53,9 @@
 
   // tela: '' (a conversa, onde o app abre), 'mais' (o menu, como nos outros apps), 'opcoes' (Configurações) ou 'sobre';
   // aba: a de Configurações (fica guardada neste aparelho)
-  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP'], ['dados', 'Dados'], ['aparencia', 'Aparência']];
+  // Opções (0.13.0): o Atalho no celular, como nos outros apps; só dentro do Home Assistant (fora dele, a aba some)
+  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP'], ['dados', 'Dados'], ['aparencia', 'Aparência'], ['opcoes', 'Opções']];
+  const abasDe = (e) => ABAS.filter(([k]) => k !== 'opcoes' || (e && e.atalho));
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps', tema: guardada('correria-tema') || 'auto',
@@ -259,14 +261,14 @@
     return `<button class="aviso-topo" data-a="ir-mcp">${ic('plug', 'ic-s')}<span>${n === 1 ? esc(e.mcp.pedidos[0].nome) + ' quer se conectar' : n + ' pedidos para conectar'}</span>${ic('chev', 'ic-s')}</button>`;
   }
   function opcoes(e) {
-    const aba = ABAS.some(([k]) => k === S.aba) ? S.aba : 'apps';
+    const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) + cardAtalho(e) : cardApps(e) + cardUso(e) + cardMensagens(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardMensagens(e);
     return `${topoTela('Configurações', 'Mais')}
       <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>
       ${pendentes(e)}
-      <nav class="abas" role="tablist" aria-label="Configurações">${ABAS.map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
+      <nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
       ${corpo}`;
   }
   // Mais, um menu como nos outros apps: Configurações e, por último, Sobre (cada um na sua tela)

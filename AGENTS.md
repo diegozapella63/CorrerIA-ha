@@ -32,8 +32,8 @@ correria/app/apps.py        os apps da família: acha share/*/correria.json, esc
 correria/app/fala.py        áudio para texto pela fala para texto do Home Assistant (POST /api/stt/<motor>): o do WhatsApp (OGG/Opus)
                             e o do microfone da Conversa (PCM de 16 kHz, como o Assist; POST /api/fala da tela)
 correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem build; abre na conversa com a IA; os três pontos
-                            levam ao Mais, um menu com Configurações e Sobre; Configurações em abas Apps, WhatsApp, MCP, Dados e
-                            Aparência, guardada em localStorage; Mais, Configurações e Sobre ocupam uma entrada no histórico
+                            levam ao Mais, um menu com Configurações e Sobre; Configurações em abas Apps, WhatsApp, MCP, Dados, Aparência e
+                            Opções, guardada em localStorage; Mais, Configurações e Sobre ocupam uma entrada no histórico
                             cada, para o Voltar do celular), styles.css, fontes, icon.svg
 correria/app/uso.py         Uso da IA: as chamadas da IA do WhatsApp e da tela, por dia e tipo, em /data/uso_ia.json
 tests/                      testes (ver tests/README.md)
@@ -110,7 +110,7 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 - **Dados**: Exportar › Backup na pasta share › Importar › Versões anteriores › Onde ficam os dados › Começar do zero.
 - **Aparência**: o tema vale no aparelho (começa em Sistema); a cor do app vale para a casa toda; uma paleta só, de 12 cores (Vermelho, Coral, Laranja, Ouro, Verde, Menta, Turquesa, Azul, Índigo, Lilás, Rosa, Grafite); a Cor do dia é a mesma em todos os apps (as 11 sem o Grafite, pelo número do dia).
 
-Aqui (o CorrerIA não tem barra de baixo nem Integrações: ele é a integração dos outros): os três pontos no alto da Conversa abrem o **Mais** (Configurações e, por último, Sobre); Configurações fica com as abas que fazem sentido aqui (**Apps**, **WhatsApp**, **MCP**, **Dados** e **Aparência**); o **Uso da IA** fica na aba Apps (`uso.py`); Dados só tem **Onde ficam os dados** (nada de exportar: o token, a chave secreta e as conversas não saem daqui); a cor da casa em `config.json` (`cor`, `cor_dia`), o tema no aparelho (`correria-tema`). O endereço do repositório é `CorrerIA-ha` (o remote de verdade): não mude.
+Aqui (o CorrerIA não tem barra de baixo nem Integrações: ele é a integração dos outros): os três pontos no alto da Conversa abrem o **Mais** (Configurações e, por último, Sobre); Configurações fica com as abas que fazem sentido aqui (**Apps**, **WhatsApp**, **MCP**, **Dados**, **Aparência** e **Opções**, esta só com o Atalho no celular e só dentro do Home Assistant); o **Uso da IA** fica na aba Apps (`uso.py`); Dados só tem **Onde ficam os dados** (nada de exportar: o token, a chave secreta e as conversas não saem daqui); a cor da casa em `config.json` (`cor`, `cor_dia`), o tema no aparelho (`correria-tema`). O endereço do repositório é `CorrerIA-ha` (o remote de verdade): não mude.
 
 ## Conversa com o dono
 
