@@ -331,3 +331,15 @@ body[data-tela="conversa"] #toast { bottom: calc(96px + env(safe-area-inset-bott
 .uso-ult li { display: flex; flex-wrap: wrap; gap: 2px 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
 .uso-ult li .erro { color: var(--danger); font-weight: 600; }
 .uso-ult li span:last-child { flex-basis: 100%; font-size: 12.5px; }
+
+/* ---------- uma altura só, a mesma em todos os apps da família (50 px): botões, campos, botões de escolha (as abas de
+   Configurações, o Tema). Ficam de fora os botões só com ícone, a caixa da conversa, as linhas das listas, os
+   interruptores e as cores. */
+:root { --altura: 50px; }
+.btn, .btn.peq, .inp, .pessoa .inp { min-height: var(--altura); }
+.pessoa .inp { padding-top: 0; padding-bottom: 0; }
+.temas, .abas { min-height: var(--altura); }
+.abas { align-items: center; }
+.temas button { flex-direction: row; gap: 7px; min-height: 42px; padding: 0 6px; }
+.temas button .ic { width: 18px; height: 18px; flex: none; }
+@media (max-width: 380px) { .temas button .ic { display: none; } }

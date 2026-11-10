@@ -712,6 +712,24 @@ class Tela(unittest.TestCase):
         self.opcoes()
         self.assertEqual(self.texto(".abas .on"), "WhatsApp", "a aba fica guardada")
 
+    def test_uma_altura_so(self):
+        """0.11.0: botões, campos e botões de escolha (as abas, o Tema) com a altura da família (50 px), a mesma dos
+        outros apps, no celular e no estreito; ficam de fora os botões só com ícone e a caixa da conversa."""
+        self.abrir()
+        medir = """() => [...document.querySelectorAll('.btn, .inp, .abas, .temas')].filter(e => e.offsetParent && e.getBoundingClientRect().width > 4 && !e.closest('.ch-barra'))
+            .map(e => [e.offsetHeight, e.className + ' ' + (e.textContent || e.placeholder || '').trim().slice(0, 24)])"""
+        for largura in (390, 320):
+            self.pg.set_viewport_size({"width": largura, "height": 760})
+            self.pg.reload()
+            self.pg.wait_for_selector("#ch-txt")
+            self.opcoes()
+            for aba in ("apps", "whatsapp", "mcp", "dados", "aparencia"):
+                self.pg.click(f'.abas [data-v="{aba}"]')
+                self.pg.wait_for_selector(f'.abas [data-v="{aba}"].on')
+                hs = self.pg.evaluate(medir)
+                self.assertTrue(hs, aba)
+                self.assertEqual([x for x in hs if x[0] != 50], [], f"{largura} px › {aba}: tudo com 50 px")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.11.0
+
+- **Uma altura só**: botões, campos e botões de escolha (as abas de Configurações, o Tema) têm a mesma altura, a mesma de todos os apps da família. O Tema ficou com o ícone ao lado do nome.
+
 ## 0.10.1
 
 - Nada muda na tela. A versão do app agora é escrita num lugar só, e os testes passam a cobrir quase todo o servidor (mais de 95%).
