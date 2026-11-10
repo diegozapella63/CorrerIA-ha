@@ -896,5 +896,159 @@ class TestTela(Base):
                 self.assertEqual(pedir(self.url + "/api/config", "POST", {})[0], 403)
 
 
+# ---------------------------------------------------------------------------------------------------------------
+class TestCasosRaros(Base):
+    """O que quase nunca acontece, mas tem de dar certo: respostas quebradas, o app que saiu, o certificado estragado,
+    o aviso no sino, o corpo que não chega inteiro, o registro no computador e o main()."""
+
+    def setUp(self):
+        super().setUp()
+        self.tela = ThreadingHTTPServer(("127.0.0.1", 0), S.Tela)
+        threading.Thread(target=self.tela.serve_forever, daemon=True).start()
+        self.addCleanup(self.tela.server_close)
+        self.addCleanup(self.tela.shutdown)
+        self.url = f"http://127.0.0.1:{self.tela.server_address[1]}"
+        self.hook = S.ServidorWebhook(("127.0.0.1", 0), S.Webhook)
+        threading.Thread(target=self.hook.serve_forever, daemon=True).start()
+        self.addCleanup(self.hook.server_close)
+        self.addCleanup(self.hook.shutdown)
+        self.url_hook = f"http://127.0.0.1:{self.hook.server_address[1]}"
+
+    def cru(self, porta, cabecalho, corpo):
+        """Um pedido que promete mais do que manda e fecha a escrita: a resposta chega mesmo assim."""
+        import socket
+        s = socket.create_connection(("127.0.0.1", porta), timeout=10)
+        try:
+            s.sendall(cabecalho.encode() + corpo)
+            s.shutdown(socket.SHUT_WR)
+            r = b""
+            while True:
+                b = s.recv(65536)
+                if not b:
+                    break
+                r += b
+        finally:
+            s.close()
+        return int(r.split(b" ", 2)[1]), r.split(b"\r\n\r\n", 1)[1]
+
+    def test_cor_da_casa(self):
+        with self.assertRaisesRegex(ValueError, "Cor desconhecida"):
+            S.salvar_config({"cor": "amarelo-canario"})
+        S.salvar_config({"cor": "turquesa", "cor_dia": False})
+        c = S.ler_config()
+        self.assertEqual((c["cor"], c["cor_dia"]), ("turquesa", False))
+        S.salvar_config({"cor_dia": True})
+        self.assertTrue(S.ler_config()["cor_dia"])
+
+    def test_ia_que_responde_estranho(self):
+        ha = ServidorFalso({"/api/services/ai_task/generate_data": (500, "pane geral")})
+        self.addCleanup(ha.fechar)
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            with self.assertRaisesRegex(S.ia.ErroIA, "respondeu 500"):
+                S.chamar_ia("x")
+        from tests.base import porta_livre
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", f"http://127.0.0.1:{porta_livre()}/api"):
+            with self.assertRaisesRegex(S.ia.ErroIA, "Não consegui falar com o Home Assistant"):
+                S.chamar_ia("x")
+        self.assertFalse(S.estado()["ia"]["ok"])
+
+    def test_o_sim_depois_que_o_app_saiu(self):
+        texto, nomes = S.executar([{"ferramenta": "gerencia_lancar", "resumo": "Lançar Feira"}], {"id": "person.ana", "nome": "Ana"}, "WhatsApp")
+        self.assertEqual((texto, nomes), ("- Não deu: Lançar Feira (o app não está mais ligado).", []))
+
+    def test_texto_vazio_nao_responde(self):
+        self.configurar()
+        self.assertIsNone(S.responder_texto(None, ANA_WA, {"id": "person.ana", "nome": "Ana"}, "   "))
+        self.assertEqual(self.registro(), [])
+        self.assertEqual(self.meta.pedidos, [])
+
+    def test_certificado_estragado_fica_em_http(self):
+        ssl_dir = pasta_temp()
+        for arq in ("fullchain.pem", "privkey.pem"):
+            with open(os.path.join(ssl_dir, arq), "w") as f:
+                f.write("isto não é um certificado")
+        with mock.patch.object(S, "SSL_DIR", ssl_dir), mock.patch.object(S, "log") as log:
+            hook = S.ServidorWebhook(("127.0.0.1", 0), S.Webhook)
+            threading.Thread(target=hook.serve_forever, daemon=True).start()
+            self.addCleanup(hook.server_close)
+            self.addCleanup(hook.shutdown)
+            self.assertEqual(pedir(f"http://127.0.0.1:{hook.server_address[1]}/webhook")[0], 403, "responde, em http")
+            self.assertTrue(any("certificado inválido" in str(c) for c in log.call_args_list))
+
+    def test_aviso_no_sino_do_home_assistant(self):
+        ha = ServidorFalso({"/api/services/persistent_notification/create": (200, []), "/api/services/persistent_notification/dismiss": (200, [])})
+        self.addCleanup(ha.fechar)
+        cli = S.AUT.registrar({"client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"]})
+        d = base64.urlsafe_b64encode(hashlib.sha256(b"v" * 43).digest()).rstrip(b"=").decode()
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            p = S.AUT.pedir({"response_type": ["code"], "client_id": [cli["client_id"]], "redirect_uri": ["https://claude.ai/api/mcp/auth_callback"],
+                             "code_challenge": [d], "code_challenge_method": ["S256"]}, "https://casa-exemplo.duckdns.org:8443")
+            self.assertTrue(esperar(lambda: any(x[1].endswith("/create") for x in ha.pedidos)))
+            criado = next(x for x in ha.pedidos if x[1].endswith("/create"))[3]
+            self.assertEqual(criado["notification_id"], "correria_conectar")
+            self.assertIn(p["codigo"], criado["message"])
+            st, e = pedir(self.url + "/api/mcp/decidir", "POST", {"id": p["id"], "aprovar": False})
+            self.assertEqual(st, 200)
+            self.assertTrue(esperar(lambda: any(x[1].endswith("/dismiss") for x in ha.pedidos)), "o aviso some do sino")
+        with mock.patch.object(S, "log") as log:
+            S._tentar(lambda: (_ for _ in ()).throw(OSError("fora do ar")))
+        self.assertIn("fora do ar", str(log.call_args))
+        S.avisar_pedido({"nome": "Claude", "codigo": "1234"})  # sem o Home Assistant: nada
+
+    def test_desconectar_o_que_nao_existe_e_erro_inesperado(self):
+        st, r = pedir(self.url + "/api/mcp/desconectar", "POST", {"id": "x-nada"})
+        self.assertEqual(st, 400)
+        with mock.patch.object(S, "ler_conversas", side_effect=RuntimeError("pane")), mock.patch.object(S, "log"):
+            st, r = pedir(self.url + "/api/registro/limpar", "POST", {})
+        self.assertEqual((st, json.loads(r)), (500, {"erro": "pane"}))
+
+    def test_mcp_ligado_so_aceita_post(self):
+        self.assertEqual(pedir(self.url_hook + "/mcp", "DELETE")[0], 404, "desligado: nem existe")
+        S.salvar_config({"mcp": True})
+        st, _ = pedir(self.url_hook + "/mcp")
+        self.assertEqual(st, 405)
+        self.assertEqual(pedir(self.url_hook + "/mcp", "DELETE")[0], 405)
+        for corpo in (b"{quebrado", b"[1, 2]", json.dumps({"grant_type": "password"}).encode()):
+            st, r = pedir(self.url_hook + "/token", "POST", corpo, {"Content-Type": "application/json"})
+            self.assertEqual((st, json.loads(r)["error"]), (400, "unsupported_grant_type"), corpo)
+
+    def test_conversa_antiga_sem_mensagens(self):
+        self.assertEqual(S._tela_de({"tela": {"u-ana": ["texto solto", 3]}}, "u-ana"), {"atual": None, "lista": []})
+
+    def test_corpo_que_nao_chega_inteiro(self):
+        porta = self.tela.server_address[1]
+        st, r = self.cru(porta, f"POST /api/config HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {2 * 1024 * 1024}\r\n\r\n", b"{}")
+        self.assertEqual((st, json.loads(r)), (400, {"erro": "Pedido grande demais."}))
+        st, r = self.cru(porta, f"POST /api/fala HTTP/1.1\r\nHost: x\r\nContent-Type: application/octet-stream\r\nContent-Length: {S.fala.PCM_MAX + 10}\r\n\r\n", b"\0" * 10)
+        self.assertEqual(st, 413)
+        st, r = pedir(self.url + "/api/config", "POST", b"{quebrado")
+        self.assertEqual((st, json.loads(r)), (400, {"erro": "Pedido inválido."}))
+
+    def test_registro_dos_pedidos_no_computador(self):
+        with mock.patch.object(S, "DEV", True), mock.patch.object(S, "LOG_HTTP", True), mock.patch.object(S, "log") as log:
+            pedir(self.url + "/api/estado")
+            pedir(self.url_hook + "/nada")
+        txt = " ".join(str(c) for c in log.call_args_list)
+        self.assertIn("/api/estado", txt)
+        self.assertIn("Webhook:", txt)
+
+    def test_main_sobe_os_dois_servidores(self):
+        subidos = []
+
+        class Falso:
+            daemon_threads = False
+
+            def __init__(self, endereco, handler):
+                subidos.append((endereco, handler))
+
+            def serve_forever(self):
+                pass
+        with mock.patch.object(S, "ServidorWebhook", Falso), mock.patch.object(S, "ThreadingHTTPServer", Falso), \
+                mock.patch.object(S, "log") as log:
+            S.main()
+        self.assertEqual(subidos, [(("0.0.0.0", S.PORTA_WEBHOOK), S.Webhook), (("0.0.0.0", S.PORTA), S.Tela)])
+        self.assertIn(f"CorrerIA {S.VERSAO}", str(log.call_args_list[-1]))
+
+
 if __name__ == "__main__":
     unittest.main()

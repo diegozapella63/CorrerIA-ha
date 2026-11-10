@@ -13,6 +13,8 @@ CorrerIA é um app (add-on) do Home Assistant que junta os apps em três lugares
 
 O Home Assistant instala direto do GitHub (`repository.yaml` + `correria/config.yaml`), a partir da branch `main`: o que está em `main` é o que os usuários recebem.
 
+No `config.yaml`, `url` aponta para o repositório e o `panel_admin` fica no padrão do Home Assistant (o painel só para administradores): aqui ficam o token da Meta, a chave secreta, os números das pessoas e a aprovação das IAs conectadas.
+
 ## Estrutura
 
 ```
@@ -36,6 +38,7 @@ correria/app/www/           a tela: index.html, app.js (JavaScript puro, sem bui
 correria/app/uso.py         Uso da IA: as chamadas da IA do WhatsApp e da tela, por dia e tipo, em /data/uso_ia.json
 tests/                      testes (ver tests/README.md)
 tools/prints_readme.py      refaz as capturas do README (docs/*.png) com uma casa inventada
+tools/cobertura.py          a cobertura de linhas dos testes (tests/run.sh --cobertura), só biblioteca padrão
 ```
 
 A conversa da tela (`/api/conversa`) é de quem está no painel: o Home Assistant manda `X-Remote-User-Id` e o CorrerIA acha a pessoa pelo `user_id` dela; guardada em `conversas.json` (`tela`: de cada login, `{atual, lista: [{id, titulo, criada, atualizada, mensagens}]}`, as últimas 30 conversas com as últimas 40 mensagens cada; a lista de antes da 0.6.0, uma conversa só, vira a primeira). Rotas: `GET /api/conversa` (a aberta), `GET /api/conversas` (a lista), `POST /api/conversa/nova`, `/abrir` e `/apagar` (`{id}`); trocar de conversa descarta o pendente do "sim".
@@ -54,8 +57,8 @@ Abra `http://localhost:8099` (Ana e Beto aparecem como pessoas de exemplo). A po
 ## Checklist de toda mudança
 
 1. Implementar. Servidor: só biblioteca padrão do Python. Tela: `correria/app/www/app.js` (um IIFE; ações por `data-a`; tudo vem de `/api/estado`).
-2. Testar: `python3 -m unittest discover -s tests -t .` (servidor e tela; a tela precisa do playwright, o https do openssl). Toda mudança ou bug corrigido vem com o teste dele.
-3. Subir a versão nos três lugares (iguais): `correria/config.yaml` (`version:`), `correria/app/server.py` (`VERSAO`) e `correria/app/www/app.js` (`const VERSAO`). Correção = patch (0.1.0 → 0.1.1); novidade = minor (0.1.x → 0.2.0).
+2. Testar: `tests/run.sh` (o mesmo que `python3 -m unittest discover -s tests -t .`: servidor e tela; a tela precisa do playwright, o https do openssl); só a tela: `tests/e2e/run.sh` (ou `tests/e2e/run.sh test_sobre ...`); a cobertura de linhas do servidor: `tests/run.sh --cobertura` (fica acima de 95%; ver tests/README.md). Toda mudança ou bug corrigido vem com o teste dele.
+3. Subir a versão num lugar só: `correria/config.yaml` (`version:`). O servidor lê de lá (`VERSAO`, pelo `ler_versao`; na imagem, o Dockerfile copia o config.yaml para /app) e a tela recebe pelo `/api/estado`; o `tests/test_versao.py` confere, e também a seção do CHANGELOG. Correção = patch (0.1.0 → 0.1.1); novidade = minor (0.1.x → 0.2.0).
 4. `correria/CHANGELOG.md`: nova seção no topo, em português, do ponto de vista de quem usa.
 5. `correria/DOCS.md` quando muda o comportamento ou aparece algo novo.
 6. Commit em `main` com mensagem em português ("CorrerIA 0.2.0: ..."), `git pull --rebase` e push. O GitHub roda todos os testes a cada push (aba Actions).

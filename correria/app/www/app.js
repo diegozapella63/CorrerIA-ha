@@ -3,7 +3,6 @@
    conector para outras IAs). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
-  const VERSAO = '0.10.0';
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const IC = {
@@ -342,7 +341,7 @@
         <p class="sb-txt">Porque eu sou um programador sem tempo: vivo na correria. Então eu uso a IA para rodar tudo isso aqui. Ela escreve, testa e publica; eu dou as ideias e reclamo dos botões tortos.</p></section>
       <section class="card">${cab('layers', 'Os apps')}
         <ul class="sb-apps" aria-label="Os apps">${PRODUTOS.map(([n, repo, i, linha]) => `<li>${linkFora(`${GITHUB}/${repo}`,
-          `<span class="rot-ic" aria-hidden="true">${ic(i)}</span><span class="mb"><b>${marcaNome(n)}${aqui(repo) ? `<em class="sb-aqui">Este app · v${esc(e.versao || VERSAO)}</em>` : ''}</b><span>${linha}</span></span>${ic('external-link', 'sb-ext')}`,
+          `<span class="rot-ic" aria-hidden="true">${ic(i)}</span><span class="mb"><b>${marcaNome(n)}${aqui(repo) ? `<em class="sb-aqui">Este app · v${esc(e.versao || '')}</em>` : ''}</b><span>${linha}</span></span>${ic('external-link', 'sb-ext')}`,
           `sb-app${aqui(repo) ? ' aqui' : ''}`)}</li>`).join('')}</ul></section>
       ${linkFora(GITHUB, `${ic('external-link', 'ic-s')}Meu GitHub`, 'btn pri larga sb-github')}`;
   }

@@ -9,5 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 COPY app/ /app/
+# a versão fica só no config.yaml: o servidor lê daqui (e a tela recebe pelo /api/estado)
+COPY config.yaml /app/config.yaml
 
 CMD ["python3", "/app/server.py"]

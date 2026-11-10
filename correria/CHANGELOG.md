@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.10.1
+
+- Nada muda na tela. A versão do app agora é escrita num lugar só, e os testes passam a cobrir quase todo o servidor (mais de 95%).
+
 ## 0.10.0
 
 O CorrerIA fica igual aos outros apps da família:

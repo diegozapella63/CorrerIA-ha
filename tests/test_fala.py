@@ -89,6 +89,23 @@ class TestFala(unittest.TestCase):
         self.f.cache.clear()
         self.assertEqual(self.f.status("wav")["motivo"], "A fala para texto do Home Assistant (Home Assistant Cloud, faster-whisper) não aceita o áudio do microfone.")
 
+    def test_motor_que_nao_responde_e_respostas_quebradas(self):
+        """Um motor que responde algo que não é JSON fica de fora; o áudio que não chega ou volta quebrado vira um erro claro."""
+        self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = lambda h, c: (200, "isto não é JSON") if h.command == "GET" else (200, "")
+        self.ha.rotas["/api/stt/stt.faster_whisper"] = lambda h, c: (200, WHISPER) if h.command == "GET" else (200, "quebrado")
+        self.assertEqual(self.f.status("wav"), {"pronta": True, "nome": "faster-whisper"}, "o Cloud quebrado fica de fora")
+        with self.assertRaisesRegex(F.ErroFala, "Não entendi o áudio."):
+            self.f.texto(bytes(32000), "wav")
+        antes = self.f._pedir
+
+        def caiu(metodo, *a, **k):
+            if metodo == "POST":
+                raise OSError("a conexão caiu")
+            return antes(metodo, *a, **k)
+        self.f._pedir = caiu
+        with self.assertRaisesRegex(F.ErroFala, r"não respondeu \(a conexão caiu\)"):
+            self.f.texto(bytes(32000), "wav")
+
     def test_simulada(self):
         f = F.Fala("http://x/api", None, print, simulada=True)
         self.assertTrue(f.status()["pronta"])

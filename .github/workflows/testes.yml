@@ -24,3 +24,7 @@ jobs:
           set -o pipefail
           python -m unittest discover -s tests -t . -v 2>&1 | tee saida.txt
           ! tail -3 saida.txt | grep -q "skipped"
+      - name: Cobertura de linhas do servidor (mínimo 95%)
+        env:
+          TZ: America/Sao_Paulo
+        run: python tools/cobertura.py --minimo 95 --linhas --resumo "$GITHUB_STEP_SUMMARY"

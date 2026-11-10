@@ -35,7 +35,22 @@ import oauth
 import uso
 import whatsapp
 
-VERSAO = "0.10.0"
+def ler_versao():
+    """A versão fica num lugar só, o config.yaml do app: no contêiner, ao lado do server.py (o Dockerfile copia); no
+    computador, na pasta de cima."""
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    for arq in (os.path.join(aqui, "config.yaml"), os.path.join(aqui, "..", "config.yaml")):
+        try:
+            with open(arq, encoding="utf-8") as f:
+                m = re.search(r'^version:\s*"?([\d.]+)', f.read(), re.M)
+            if m:
+                return m.group(1)
+        except OSError:
+            pass
+    return "0"
+
+
+VERSAO = ler_versao()
 DATA_DIR = os.environ.get("CORRERIA_DATA", "/data")
 SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")

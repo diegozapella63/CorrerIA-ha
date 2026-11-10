@@ -208,6 +208,62 @@ class TestOAuth(unittest.TestCase):
         self.assertEqual(len(d["clientes"]), 50)
         self.assertEqual(len(self.a.conexoes()), 1, "o cliente com conexão fica")
 
+    def test_limites_e_casos_raros(self):
+        with self.assertRaises(O.ErroOAuth) as e:
+            self.a.registrar(["não é um objeto"])
+        self.assertEqual(e.exception.erro, "invalid_client_metadata")
+        with self.assertRaises(O.ErroOAuth) as e:
+            self.a.registrar({"redirect_uris": ["https://[::1/volta"]})
+        self.assertEqual(e.exception.erro, "invalid_redirect_uri", "endereço que nem se lê")
+        self.assertEqual(self.a.situacao("nao-existe"), {"estado": "vencido"})
+        # localhost: a porta pode mudar, o caminho não
+        c = self.a.registrar({"client_name": "Local", "redirect_uris": ["http://localhost:7777/callback"]})
+        _, d = pkce()
+        with self.assertRaises(O.ErroOAuth) as e:
+            self.a.pedir({"response_type": ["code"], "client_id": [c["client_id"]], "redirect_uri": ["http://localhost:7777/outro"],
+                          "code_challenge": [d], "code_challenge_method": ["S256"]}, BASE)
+        self.assertIsNone(e.exception.ir)
+        # Basic quebrado: base64 sem o fim ou que não é texto
+        for basic in ("Basic YQ", "Basic //4="):
+            with self.assertRaises(O.ErroOAuth) as e:
+                self.a.trocar({"grant_type": "authorization_code"}, basic)
+            self.assertEqual((e.exception.erro, e.exception.status), ("invalid_client", 401), basic)
+        # o aviso no Home Assistant que falha não impede o pedido
+        log = []
+        a = O.Autorizacao(os.path.join(pasta_temp(), "mcp.json"), gravar, lambda *x: log.append(x), ao_pedir=lambda p: 1 / 0, relogio=self.rel)
+        cli = a.registrar({"redirect_uris": [VOLTA]})
+        p = a.pedir({"response_type": ["code"], "client_id": [cli["client_id"]], "redirect_uri": [VOLTA], "code_challenge": [d],
+                     "code_challenge_method": ["S256"]}, BASE)
+        self.assertEqual(a.situacao(p["id"]), {"estado": "esperando"})
+        self.assertTrue(any("Não consegui avisar" in x[0] for x in log))
+
+    def test_limpa_pedidos_e_codigos_velhos(self):
+        c = self.cliente()
+        _, d = pkce()
+        velho = self.pedir(c["client_id"], d)
+        aprovado = self.pedir(c["client_id"], d)
+        self.a.decidir(aprovado["id"], True, ANA)
+        self.assertEqual(len(self.a.codigos), 1)
+        self.rel.t += O.PEDIDO_VALE + 121
+        self.assertEqual(self.a.abertos(), [])
+        self.assertNotIn(velho["id"], self.a.pedidos, "o pedido velho sai da memória")
+        self.assertEqual(self.a.codigos, {}, "e o código vencido também")
+
+    def test_limite_de_clientes_e_de_conexoes(self):
+        from unittest import mock
+        with mock.patch.object(O, "MAX_CLIENTES", 2):
+            self.conectar()
+            self.conectar()
+            with self.assertRaises(O.ErroOAuth) as e:
+                self.cliente()
+            self.assertEqual((e.exception.erro, e.exception.status), ("temporarily_unavailable", 503), "todos com conexão: não tira nenhum")
+        with mock.patch.object(O, "MAX_CONEXOES", 2):
+            self.rel.t += 10
+            _, tok = self.conectar()
+            ids = [x["id"] for x in self.a.conexoes()]
+            self.assertEqual(len(ids), 2, "fica nas mais usadas")
+            self.assertTrue(self.a.conexao(tok["access_token"]), "a nova fica")
+
     def test_esquecer_tudo(self):
         _, tok = self.conectar()
         self.a.esquecer_tudo()
