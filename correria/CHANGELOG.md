@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.12.0
+
+- **Atalho no celular**, em **Mais › Configurações › Aparência**: o caminho do CorrerIA no Home Assistant, com **Copiar**, e como criar um ícone na tela inicial do celular que abre a Conversa direto (no app do Home Assistant: Configurações › Aplicativo complementar › Gerenciar atalhos). O mesmo vale em todos os apps da família.
+
 ## 0.11.1
 
 - **Tema**: **Automático** agora se chama **Sistema** (segue o claro ou escuro do Home Assistant, como antes). O nome cabe ao lado do ícone e é o mesmo em todos os apps da família.

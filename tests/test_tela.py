@@ -681,6 +681,22 @@ class Tela(unittest.TestCase):
         self.assertTrue(S.ler_config()["cor_dia"])
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
 
+    def test_atalho_no_celular(self):
+        # Aparência › Atalho no celular: o caminho do app no Home Assistant e o Copiar; fora do Home Assistant, nada
+        self.abrir()
+        self.opcoes("aparencia")
+        self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora do Home Assistant, sem o cartão")
+        with mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}):
+            self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+            self.pg.wait_for_selector("#atalho")
+            self.assertEqual(self.pg.input_value("#f-atalho"), "/app/a1b2c3d4_correria")
+            self.assertIn("Gerenciar atalhos", self.texto("#atalho .passos"))
+            self.pg.click('#atalho [data-a="copiar"]')
+            self.aviso("Toque e segure no texto para copiar")  # em http, sem área de transferência: o texto fica selecionado
+            self.assertEqual(self.pg.evaluate("document.activeElement.id"), "f-atalho")
+            self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
+            self.pg.locator("#atalho").screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-atalho.png"))
+
     def test_uso_da_ia(self):
         self.abrir()
         self.opcoes("apps")

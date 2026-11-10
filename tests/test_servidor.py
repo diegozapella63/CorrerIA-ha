@@ -85,6 +85,14 @@ class Base(unittest.TestCase):
 
 # ---------------------------------------------------------------------------------------------------------------
 class TestConfig(Base):
+    def test_atalho_no_celular(self):
+        # o caminho do app no Home Assistant, pelo nome do contêiner; fora dele, nada
+        self.assertEqual(S.atalho("a1b2c3d4-correria"), "/app/a1b2c3d4_correria")
+        self.assertIsNone(S.atalho("meu-computador"))
+        self.assertIsNone(S.atalho(""))
+        with mock.patch.dict(os.environ, {"CORRERIA_HOST": "e5f6a7b8-correria"}):
+            self.assertEqual(S.estado()["atalho"], "/app/e5f6a7b8_correria")
+
     def test_token_de_verificacao_criado_uma_vez(self):
         v = S.ler_config()["verificacao"]
         self.assertGreaterEqual(len(v), 16)

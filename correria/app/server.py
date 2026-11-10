@@ -16,6 +16,7 @@ import mimetypes
 import os
 import re
 import secrets
+import socket
 import ssl
 import threading
 import time
@@ -826,6 +827,14 @@ class Webhook(BaseHTTPRequestHandler):
 
 # ---------------------------------------------------------------- a tela (porta 8099, pelo painel)
 
+def atalho(host=None):
+    """O caminho deste app no Home Assistant (/app/<slug>), para o Atalho no celular (Configurações › Aparência): pelo nome
+    do contêiner (a1b2c3d4-correria → /app/a1b2c3d4_correria). CORRERIA_HOST troca o nome (testes); fora do Home
+    Assistant, None (o cartão não aparece)."""
+    host = host if host is not None else (os.environ.get("CORRERIA_HOST") or socket.gethostname())
+    return "/app/" + host.replace("-", "_") if re.fullmatch(r"[a-z0-9]+-correria", host or "") else None
+
+
 def estado():
     c = ler_config()
     nums = c["pessoas"]
@@ -854,6 +863,7 @@ def estado():
         "fala_tela": FALA.status("wav"),
         "registro": ler_conversas()["registro"][:30],
         "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
+        "atalho": atalho(),
         "uso_ia": USO.resumo(),
     }
 

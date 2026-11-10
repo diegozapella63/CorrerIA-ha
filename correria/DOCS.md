@@ -83,6 +83,10 @@ O CorrerIA abre na **Conversa** com os apps, do mesmo jeito que pelo WhatsApp, m
 
 As conversas são de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e ficam guardadas: fechou, abre de onde parou. No alto, **Nova conversa** começa outra (a de antes fica guardada) e **Conversas** abre a lista, como nos chats de sempre: a mais recente primeiro, com o nome tirado da primeira pergunta; toque para abrir ou na lixeira para apagar. Na conversa, arrastar o dedo para o lado passa para as outras: para a esquerda, a anterior (mais antiga); para a direita, a mais nova. Ficam as últimas 30 conversas, cada uma com as últimas 40 mensagens. Nas Opções e no Sobre, o Voltar do celular volta um passo.
 
+## Atalho no celular
+
+Para abrir o CorrerIA direto da tela inicial do celular (Android), sem passar pelo menu do Home Assistant: em **Mais › Configurações › Aparência › Atalho no celular**, toque em **Copiar** ao lado do **Caminho** (algo como `/app/a1b2c3d4_correria`). No app do Home Assistant, abra **Configurações › Aplicativo complementar › Gerenciar atalhos** e, em **Atalho fixado**, escolha o tipo **Painel**, cole o caminho, dê o nome e adicione à tela inicial. O ícone abre o CorrerIA na Conversa. O mesmo cartão existe em todos os apps da família.
+
 ## Sobre
 
 Em **Mais**, por último, **Sobre**: a CorrerIA Code, os apps da família (com o link de cada um no GitHub) e o meu GitHub. É o mesmo Sobre dos outros apps.
