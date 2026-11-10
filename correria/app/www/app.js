@@ -396,7 +396,7 @@
       <div class="ch-pe">
         ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
         <div class="ch-barra${ouvindo ? ' ouvindo' : ''}">${esquerda}
-          <textarea id="ch-txt" class="inp" rows="1" placeholder="${lugar}" enterkeyhint="send"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
+          <textarea id="ch-txt" class="inp" rows="1" data-size="off" placeholder="${lugar}" enterkeyhint="send"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
           ${botaoPri(e)}</div>
       </div>`;
   }
@@ -611,6 +611,12 @@
     $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
     if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
+    // as abas não cabem num celular estreito e rolam para o lado: a escolhida fica à vista (a tela é redesenhada)
+    const aba = document.querySelector('.abas .on');
+    if (aba && aba.parentElement) {
+      const nav = aba.parentElement, x = aba.offsetLeft - nav.offsetLeft;
+      if (x < nav.scrollLeft || x + aba.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = Math.max(0, x - (nav.clientWidth - aba.offsetWidth) / 2);
+    }
   }
 
   /* ---------- telas: as Opções e o Sobre ocupam uma entrada no histórico cada (o Voltar do celular volta um passo) */

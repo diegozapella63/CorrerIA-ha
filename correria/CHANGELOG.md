@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.13.1
+
+- **Configurações**: no celular estreito, a aba escolhida (como **Opções**, a última) fica à vista; antes, as abas voltavam para o começo.
+
 ## 0.13.0
 
 - **Atalho no celular** saiu de Aparência e foi para uma aba nova, **Opções** (Mais › Configurações › Opções), como nos outros apps.

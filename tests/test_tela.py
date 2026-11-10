@@ -695,6 +695,11 @@ class Tela(unittest.TestCase):
             self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora da Aparência")
             self.pg.click('.abas [data-v="opcoes"]')
             self.pg.wait_for_selector("#atalho")
+            # 0.13.1: no celular estreito as abas rolam para o lado: a escolhida (a última) fica à vista
+            self.pg.set_viewport_size({"width": 360, "height": 800})
+            self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+            self.pg.wait_for_selector('.abas [data-v="opcoes"].on')
+            self.assertTrue(self.pg.eval_on_selector('.abas [data-v="opcoes"]', "(b) => { const n = b.parentElement.getBoundingClientRect(), r = b.getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; }"), "Opções à vista")
             self.assertEqual(self.pg.input_value("#f-atalho"), "/app/a1b2c3d4_correria")
             self.assertIn("Gerenciar atalhos", self.texto("#atalho .passos"))
             self.pg.click('#atalho [data-a="copiar"]')
