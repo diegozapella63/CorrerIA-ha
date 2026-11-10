@@ -79,6 +79,8 @@ Abra `http://localhost:8099` (Ana e Beto aparecem como pessoas de exemplo). A po
 - O token e a chave secreta nunca voltam para a tela (só o fim, ••••1234).
 - Em http (sem https) não há área de transferência: o Copiar seleciona o texto e explica.
 - Celular primeiro (390 px); tema claro e escuro, seguindo o do Home Assistant na hora.
+- **Inativos no fim, recolhidos**: o que está inativo, cancelado, encerrado, arquivado ou ignorado de propósito (por uma opção, como Nunca considerar) fica numa seção no fim da lista, recolhida por padrão, com o nome e a contagem (ex.: **Arquivados (3)**); abre num toque. Vale para todos os apps da família. Aqui ainda não há lista assim: um app com a opção CorrerIA desligada nem aparece, e uma conexão desconectada sai da lista.
+- **Caixas de seleção no visual do app**: nenhuma janela nativa do celular. Toda caixa de seleção abre pelo selectsheet.js; sugestões de texto (no lugar do `<datalist>`) e horários (sem AM/PM) também no visual do app; a caixa fechada igual aos outros campos (altura, cantos, seta), no claro e no escuro. Aqui ainda não há caixa de seleção nem `<datalist>`: a primeira que entrar traz o `selectsheet.js` (o arquivo igual dos outros apps, sem mudar nada), carregado antes do `app.js`.
 - Dados de exemplo e de testes sempre inventados (Ana, Beto, números fictícios): nunca nomes, números ou conversas reais do dono.
 
 ## Conversa com o dono
