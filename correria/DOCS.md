@@ -38,7 +38,7 @@ O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um me
 
 **Uso da IA** (na aba Apps): quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia, os tipos (WhatsApp e Conversa) e as últimas chamadas, com o tempo e os tokens estimados. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
 
-**Aparência**: o **tema** (Automático, Claro ou Escuro) vale só para o aparelho e começa em **Automático**, que segue o do Home Assistant. A **cor do app** vale para a casa toda: são as 12 cores da família, com os mesmos nomes dos outros apps. Com a **Cor do dia** ligada (vem assim), a cor muda todo dia, a mesma em todos os apps; escolher uma cor desliga.
+**Aparência**: o **tema** (Sistema, Claro ou Escuro) vale só para o aparelho e começa em **Sistema**, que segue o do Home Assistant. A **cor do app** vale para a casa toda: são as 12 cores da família, com os mesmos nomes dos outros apps. Com a **Cor do dia** ligada (vem assim), a cor muda todo dia, a mesma em todos os apps; escolher uma cor desliga.
 
 **Dados**: tudo fica na pasta `/data` do app, que entra no backup do Home Assistant: `config.json` (o WhatsApp, o endereço e o número de cada pessoa), `conversas.json`, `mcp.json` (as IAs conectadas, com os tokens só em código) e `uso_ia.json`. O token e a chave secreta nunca voltam para a tela.
 

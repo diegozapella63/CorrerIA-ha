@@ -282,9 +282,9 @@
     return `<section class="card" id="onde">${cab('database', 'Onde ficam os dados')}
       <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código) e <code>uso_ia.json</code> (o Uso da IA). O token e a chave secreta nunca voltam para a tela.</p></section>`;
   }
-  const TEMAS = [['auto', 'Automático', 'phone'], ['claro', 'Claro', 'sun'], ['escuro', 'Escuro', 'moon']];
+  const TEMAS = [['auto', 'Sistema', 'phone'], ['claro', 'Claro', 'sun'], ['escuro', 'Escuro', 'moon']];
   function cardTema() {
-    return `<section class="card" id="tema">${cab('contrast', 'Tema')}<p class="lead">Vale só para este aparelho. Automático segue o do Home Assistant.</p>
+    return `<section class="card" id="tema">${cab('contrast', 'Tema')}<p class="lead">Vale só para este aparelho. Sistema segue o do Home Assistant.</p>
       <div class="temas" role="radiogroup" aria-label="Tema">${TEMAS.map(([k, n, i]) => `<button role="radio" aria-checked="${S.tema === k}" class="${S.tema === k ? 'on' : ''}" data-a="tema" data-v="${k}">${ic(i)}<span>${n}</span></button>`).join('')}</div></section>`;
   }
   const TAG = 'M8 0h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8L0 13V7z', FURO = 'M9.7 10a2.7 2.7 0 1 0-5.4 0a2.7 2.7 0 1 0 5.4 0z';
