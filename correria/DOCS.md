@@ -13,7 +13,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 ## Do que precisa
 
 - Uma conta na Meta para desenvolvedores, com um app do tipo **Empresa** e o produto **WhatsApp**. Para começar, a Meta dá um **número de teste**, que conversa com até 5 números cadastrados. Para todo mundo conversar, depois, um número só do CorrerIA (um chip que não esteja no WhatsApp comum).
-- O Home Assistant acessível pela internet com **https**, só na porta do CorrerIA: o app **Duck DNS** (com o Let's Encrypt) e a porta **8443** encaminhada no roteador. O Nabu Casa não serve, porque ele não chega nos apps.
+- O Home Assistant acessível pela internet com **https**, só na porta do CorrerIA: o app **Duck DNS** (com o Let's Encrypt) e a porta **8443** encaminhada no roteador. O Home Assistant Cloud não serve, porque ele não chega nos apps.
 - Nos apps, a opção **CorrerIA** ligada (GerencIA 1.39.0, CronologIA 1.60.0, ResolvIA 2.49.0, InventarIA 1.37.0 e MemorIA 1.8.0 ou mais novos).
 - Para o WhatsApp e a conversa da tela, uma IA no Home Assistant (Configurações › Sistema › IA: a entidade padrão das tarefas de IA).
 
