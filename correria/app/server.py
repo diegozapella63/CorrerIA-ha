@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import apps
@@ -79,7 +79,7 @@ PESSOA_RE = re.compile(r"^person\.[a-z0-9_]+$")
 
 TRAVA = threading.Lock()
 _travas_numero = defaultdict(threading.Lock)  # uma pergunta de cada vez por pessoa (a conversa fica na ordem)
-ESTADO = {"ultimo_webhook": None, "verificado_em": None, "conta": None, "conta_em": None, "ia": None}
+ESTADO = {"ultimo_webhook": None, "verificado_em": None, "conta": None, "conta_em": None, "conta_erro": "", "ia": None}
 
 
 def log(*a):
@@ -116,7 +116,7 @@ def ler_config():
     c = ler_json(CONFIG_ARQ)
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
-           "mcp": c.get("mcp") is True,
+           "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True,
            # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
            "cor": c.get("cor") if c.get("cor") in CORES else "", "cor_dia": c.get("cor_dia") is not False,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
@@ -171,6 +171,8 @@ def salvar_config(corpo):
             c["ligado"] = corpo.get("ligado") is not False
         if "mcp" in corpo:
             c["mcp"] = corpo.get("mcp") is True
+        if "sensores" in corpo:
+            c["sensores"] = corpo.get("sensores") is True
         if "cor" in corpo:  # escolher uma cor desliga a Cor do dia (a tela manda os dois)
             if corpo.get("cor") not in CORES:
                 raise ValueError("Cor desconhecida.")
@@ -180,6 +182,8 @@ def salvar_config(corpo):
         gravar_config(c)
     if any(k in corpo for k in ("numero_id", "token")):
         ESTADO.update(conta=None, conta_em=None)
+    if "sensores" in corpo:  # cria ou tira os sensores na hora
+        threading.Thread(target=publicar_sensores if c["sensores"] else remover_sensores, daemon=True).start()
     return c
 
 
@@ -211,8 +215,12 @@ def conta(c=None):
 
 def conferir_conta():
     """Confere o ID e o token na Meta: o número e o nome que aparecem no WhatsApp."""
-    r = conta().conferir()
-    ESTADO.update(conta=r, conta_em=agora_iso())
+    try:
+        r = conta().conferir()
+    except whatsapp.ErroWhatsApp as e:
+        ESTADO.update(conta=None, conta_erro=str(e), conta_em=agora_iso())
+        raise
+    ESTADO.update(conta=r, conta_erro="", conta_em=agora_iso())
     return r
 
 
@@ -610,6 +618,111 @@ class ServidorWebhook(ThreadingHTTPServer):
         pass  # robôs da internet batendo na porta: sem barulho no registro
 
 
+# ---------------------------------------------------------------- sensores no Home Assistant (0.14.0)
+# Com Sensores ligado (Configurações › Apps; vem desligado): quantos dias faltam para o certificado de /ssl vencer (o
+# Duck DNS renova sozinho; um que não renovou para o WhatsApp e o conector) e se o WhatsApp está conectado (a conta
+# conferida na Meta a cada 30 minutos). Publicados quando mudam e a cada 15 minutos; desligado, saem do Home Assistant.
+SENSORES = ("sensor.correria_certificado", "binary_sensor.correria_whatsapp")
+CONFERIR_A_CADA = 30 * 60
+_sensores = {"sig": None, "em": 0.0, "erro": False}
+_sensores_trava = threading.Lock()
+
+
+def validade_certificado(caminho):
+    """Quando vence o certificado (o primeiro do arquivo: o do endereço) e para quem é, ou (None, "")."""
+    try:
+        d = ssl._ssl._test_decode_cert(caminho)  # noqa: SLF001  (só biblioteca padrão: o ssl lê o PEM sem abrir conexão)
+        nomes = [v for k, v in d.get("subjectAltName") or () if k == "DNS"]
+        return datetime.fromtimestamp(ssl.cert_time_to_seconds(d["notAfter"]), timezone.utc), (nomes[0] if nomes else "")
+    except (OSError, ssl.SSLError, KeyError, ValueError):
+        return None, ""
+
+
+def estados_sensores(agora=None):
+    agora = agora or datetime.now(timezone.utc)
+    c = ler_config()
+    cc = certificado()
+    vence, dominio = validade_certificado(cc[0]) if cc else (None, "")
+    dias = (vence - agora).days if vence else None
+    cert = {"state": dias if vence else "unknown", "attributes": {
+        "friendly_name": "CorrerIA: certificado", "unit_of_measurement": "d", "device_class": "duration",
+        "icon": "mdi:certificate-outline" if dias is None or dias > 14 else "mdi:certificate",
+        "vence": vence.astimezone().isoformat(timespec="minutes") if vence else None, "dominio": dominio or None,
+        "arquivo": os.path.basename(cc[0]) if cc else None}}
+    pronto = bool(c["numero_id"] and c["token"] and c["segredo"])
+    on = pronto and bool(ESTADO["conta"])
+    erro = "" if on else ("Falta configurar o WhatsApp." if not pronto else ESTADO.get("conta_erro") or "Ainda não conferido.")
+    wpp = {"state": "on" if on else "off", "attributes": {
+        "friendly_name": "CorrerIA: WhatsApp", "device_class": "connectivity", "icon": "mdi:whatsapp",
+        "nome": (ESTADO["conta"] or {}).get("nome") or None, "respondendo": on and c["ligado"], "erro": erro or None,
+        "conferido_em": ESTADO["conta_em"], "ultima_mensagem": ESTADO["ultimo_webhook"]}}
+    return {"sensor.correria_certificado": cert, "binary_sensor.correria_whatsapp": wpp}
+
+
+def publicar_sensores(forcar=False):
+    if not TOKEN:
+        return
+    with _sensores_trava:
+        c = ler_config()
+        if not c["sensores"]:
+            return
+        corpos = estados_sensores()
+        sig = json.dumps(corpos, sort_keys=True)
+        if not forcar and sig == _sensores["sig"] and time.time() - _sensores["em"] < 900:
+            return
+        try:
+            for ent, corpo in corpos.items():
+                ha_post("/states/" + ent, corpo)
+            _sensores.update(sig=sig, em=time.time(), erro=False)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            if not _sensores["erro"]:
+                log("Sensores:", e)
+            _sensores.update(sig=None, erro=True)
+
+
+def remover_sensores():
+    if not TOKEN:
+        return
+    with _sensores_trava:
+        _sensores.update(sig=None, em=0.0)
+        for ent in SENSORES:
+            req = urllib.request.Request(HA_API + "/states/" + ent, method="DELETE", headers={"Authorization": f"Bearer {TOKEN}"})
+            try:
+                urllib.request.urlopen(req, timeout=10).read()
+            except (urllib.error.URLError, OSError):
+                pass  # já não existia, ou o Home Assistant está fora: some no próximo reinício
+
+
+def rodada_sensores(agora=None):
+    """Uma volta do laço (a cada minuto): confere a conta na Meta a cada 30 minutos e publica o que mudou; desligado, tira
+    os sensores uma vez (os que ficaram de quando estava ligado)."""
+    c = ler_config()
+    if not c["sensores"]:
+        if _sensores["sig"] is not False:
+            remover_sensores()
+            _sensores["sig"] = False
+        return
+    if _sensores["sig"] is False:
+        _sensores["sig"] = None
+    agora = agora or time.time()
+    if c["numero_id"] and c["token"] and c["segredo"] and agora - _sensores.get("conferido", 0.0) >= CONFERIR_A_CADA:
+        _sensores["conferido"] = agora
+        try:
+            conferir_conta()
+        except (whatsapp.ErroWhatsApp, urllib.error.URLError, OSError, ValueError) as e:
+            ESTADO.update(conta=None, conta_erro=str(e) or "Sem resposta da Meta.", conta_em=agora_iso())
+    publicar_sensores()
+
+
+def laco_sensores():
+    while True:
+        try:
+            rodada_sensores()
+        except Exception as e:  # noqa: BLE001
+            log("Sensores:", e)
+        time.sleep(60)
+
+
 # ---------------------------------------------------------------- o conector MCP para outras IAs (na porta pública)
 
 INSTRUCOES_MCP = ("CorrerIA: os apps da CorrerIA Code num lugar só. Cada ferramenta tem o app na frente do nome "
@@ -853,6 +966,7 @@ def estado():
         "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
                 "conexoes": AUT.conexoes()},
         "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada},
+        "sensores": {"ligado": c["sensores"]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
@@ -1190,6 +1304,7 @@ def main():
     ler_config()  # cria o token de verificação na primeira vez
     hook = ServidorWebhook(("0.0.0.0", PORTA_WEBHOOK), Webhook)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
+    threading.Thread(target=laco_sensores, daemon=True).start()
     cc = certificado()
     log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook e MCP na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")
     tela = ThreadingHTTPServer(("0.0.0.0", PORTA), Tela)

@@ -1060,3 +1060,108 @@ class TestCasosRaros(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------------------------------------------
+class TestSensores(Base):
+    """0.14.0: sensor.correria_certificado e binary_sensor.correria_whatsapp, com Sensores ligado."""
+
+    def setUp(self):
+        super().setUp()
+        self.ha = ServidorFalso({f"/api/states/{e}": (200, {}) for e in S.SENSORES})
+        self.addCleanup(self.ha.fechar)
+        for alvo, valor in (("TOKEN", "t"), ("HA_API", self.ha.url + "/api")):
+            p = mock.patch.object(S, alvo, valor)
+            p.start()
+            self.addCleanup(p.stop)
+        S._sensores.update(sig=None, em=0.0, erro=False, conferido=0.0)
+        S.ESTADO["conta_erro"] = ""
+        self.ssl = pasta_temp()
+        p = mock.patch.object(S, "SSL_DIR", self.ssl)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def enviados(self, metodo="POST"):
+        return {p[1].split("/states/")[1]: p[3] for p in self.ha.pedidos if p[0] == metodo}
+
+    def test_certificado_e_whatsapp(self):
+        certificado(self.ssl)
+        self.configurar(pessoas=False, app=False)
+        S.salvar_config({"sensores": True})
+        S.rodada_sensores()
+        s = self.enviados()
+        c = s["sensor.correria_certificado"]
+        self.assertIn(c["state"], (1, 2), "o certificado de teste vale 2 dias")
+        self.assertEqual((c["attributes"]["unit_of_measurement"], c["attributes"]["device_class"], c["attributes"]["arquivo"]), ("d", "duration", "fullchain.pem"))
+        self.assertEqual(c["attributes"]["icon"], "mdi:certificate", "perto de vencer")
+        self.assertTrue(c["attributes"]["vence"])
+        w = s["binary_sensor.correria_whatsapp"]
+        self.assertEqual((w["state"], w["attributes"]["nome"], w["attributes"]["respondendo"], w["attributes"]["erro"]), ("on", "CorrerIA Code", True, None))
+        self.assertEqual(w["attributes"]["device_class"], "connectivity")
+        self.assertNotIn("4000", json.dumps(w), "o número não vai para o sensor")
+        n = len(self.ha.pedidos)
+        S.rodada_sensores()
+        self.assertEqual(len(self.ha.pedidos), n, "nada mudou: não manda de novo (e a Meta só a cada 30 minutos)")
+
+    def test_token_vencido_desliga_o_whatsapp(self):
+        self.configurar(pessoas=False, app=False)
+        S.salvar_config({"sensores": True})
+        self.meta.rotas[f"/{MetaFalsa.NUMERO_ID}"] = (401, {"error": {"code": 190, "message": "expirou"}})
+        S.rodada_sensores()
+        s = self.enviados()
+        self.assertEqual(s["sensor.correria_certificado"]["state"], "unknown", "sem certificado em /ssl")
+        w = s["binary_sensor.correria_whatsapp"]
+        self.assertEqual(w["state"], "off")
+        self.assertIn("token do WhatsApp venceu", w["attributes"]["erro"])
+
+    def test_sem_whatsapp_configurado(self):
+        S.salvar_config({"sensores": True})
+        S.rodada_sensores()
+        w = self.enviados()["binary_sensor.correria_whatsapp"]
+        self.assertEqual((w["state"], w["attributes"]["erro"]), ("off", "Falta configurar o WhatsApp."))
+
+    def test_desligado_tira_uma_vez(self):
+        S.rodada_sensores()
+        self.assertEqual(set(self.enviados("DELETE")), set(S.SENSORES))
+        n = len(self.ha.pedidos)
+        S.rodada_sensores()
+        self.assertEqual(len(self.ha.pedidos), n, "já tirados")
+        S.salvar_config({"sensores": True})
+        S.rodada_sensores()
+        self.assertIn("binary_sensor.correria_whatsapp", self.enviados())
+        self.assertTrue(S.estado()["sensores"]["ligado"])
+
+    def test_ligar_e_desligar_pela_tela_na_hora(self):
+        S.salvar_config({"sensores": True})
+        for _ in range(50):
+            if len(self.enviados()) == 2:
+                break
+            time.sleep(0.05)
+        self.assertEqual(len(self.enviados()), 2)
+        S.salvar_config({"sensores": False})
+        for _ in range(50):
+            if len(self.enviados("DELETE")) == 2:
+                break
+            time.sleep(0.05)
+        self.assertEqual(set(self.enviados("DELETE")), set(S.SENSORES))
+
+    def test_home_assistant_fora_avisa_uma_vez(self):
+        S.salvar_config({"sensores": True})
+        with mock.patch.object(S, "HA_API", "http://127.0.0.1:9/api"), mock.patch.object(S, "log") as log:
+            S.publicar_sensores()
+            S.publicar_sensores()
+            S.remover_sensores()
+        self.assertEqual(log.call_count, 1)
+        self.assertIsNone(S._sensores["sig"])
+
+    def test_sem_home_assistant_nada(self):
+        with mock.patch.object(S, "TOKEN", None):
+            S.salvar_config({"sensores": True})
+            S.publicar_sensores()
+            S.remover_sensores()
+        self.assertEqual(self.ha.pedidos, [])
+
+    def test_certificado_que_nao_abre(self):
+        with open(os.path.join(self.ssl, "fullchain.pem"), "w") as f:
+            f.write("lixo")
+        self.assertEqual(S.validade_certificado(os.path.join(self.ssl, "fullchain.pem")), (None, ""))

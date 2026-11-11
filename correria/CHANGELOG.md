@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.14.0
+
+- **Sensores no Home Assistant** (em **Configurações › Apps**, depois do Uso da IA; vem desligado): `sensor.correria_certificado`, com os dias até o certificado vencer, e `binary_sensor.correria_whatsapp`, ligado com o WhatsApp conectado (e o erro da Meta quando cai, como um token vencido). A aba **Documentação** traz um exemplo de automação.
+
 ## 0.13.1
 
 - **Configurações**: no celular estreito, a aba escolhida (como **Opções**, a última) fica à vista; antes, as abas voltavam para o começo.

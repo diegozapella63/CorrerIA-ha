@@ -264,7 +264,7 @@
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardMensagens(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardSensores(e) + cardMensagens(e);
     return `${topoTela('Configurações', 'Mais')}
       <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>
       ${pendentes(e)}
@@ -327,6 +327,14 @@
       ${Object.keys(tipos).length ? `<p class="uso-tipos">${Object.keys(tipos).map(k => `${TIPO_USO[k] || esc(k)} <b>${tipos[k]}</b>`).join(' · ')}</p>` : ''}
       ${ult.length ? `<div class="lbl">Últimas chamadas</div><ul class="uso-ult">${ult.map(c => `<li><b>${TIPO_USO[c.tipo] || esc(c.tipo)}</b>${c.resultado !== 'ok' ? `<span class="erro">${c.resultado === 'cota' ? 'sem cota' : c.resultado === 'formato' ? 'fora do formato' : 'erro'}</span>` : ''}<span>${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(horaCurta(c.quando))}</span></li>`).join('')}</ul>` : '<p class="vazio">Nenhuma chamada ainda.</p>'}
     </section>`;
+  }
+
+  /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
+  function cardSensores(e) {
+    const on = !!(e.sensores && e.sensores.ligado);
+    return `<section class="card" id="sensores">${cab('chart', 'Sensores no Home Assistant')}<p class="lead">Para painéis e automações.</p>
+      <div class="linha-sw"><div><b>Criar os sensores</b><span>${on ? 'Ligado: <code>sensor.correria_certificado</code> (os dias até o certificado vencer) e <code>binary_sensor.correria_whatsapp</code> (o WhatsApp conectado).' : 'Desligado: nenhum sensor no Home Assistant.'}</span></div>
+        <button class="sw${on ? ' on' : ''}" data-a="sensores" role="switch" aria-checked="${on}" aria-label="Criar os sensores"></button></div></section>`;
   }
 
   /* ---------- Sobre: quem faz os apps (CorrerIA Code), os apps da família e o GitHub (a mesma página dos outros apps) */
@@ -708,6 +716,9 @@
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
     } else if (a === 'mcp') {
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
+    } else if (a === 'sensores') {
+      const on = !!(S.e.sensores && S.e.sensores.ligado);
+      await acao('config', { sensores: !on }, on ? 'Sensores desligados' : 'Sensores ligados');
     } else if (a === 'mcp-aprovar' || a === 'mcp-recusar') {
       await acao('mcp/decidir', { id: el.dataset.v, aprovar: a === 'mcp-aprovar' }, a === 'mcp-aprovar' ? 'Aprovado: volte para a IA' : 'Recusado');
     } else if (a === 'mcp-desconectar') {

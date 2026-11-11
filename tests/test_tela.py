@@ -726,6 +726,22 @@ class Tela(unittest.TestCase):
         ult = self.pg.locator("#uso .uso-ult li").all_inner_texts()
         self.assertTrue(ult[0].startswith("Conversa") and "sem cota" in ult[0] and ult[1].startswith("WhatsApp"), ult)
 
+    def test_sensores(self):
+        """0.14.0: Sensores no Home Assistant, depois do Uso da IA, desligado até ligar."""
+        self.abrir()
+        self.opcoes("apps")
+        ids = self.pg.evaluate("[...document.querySelectorAll('.card')].map(c => c.id)")
+        self.assertEqual(ids[ids.index("uso") + 1], "sensores", ids)
+        self.assertIn("Desligado: nenhum sensor no Home Assistant.", self.texto("#sensores"))
+        self.pg.click('#sensores [data-a="sensores"]')
+        self.pg.wait_for_selector('#sensores .sw.on')
+        self.assertTrue(S.ler_config()["sensores"])
+        self.assertIn("sensor.correria_certificado", self.texto("#sensores"))
+        self.assertIn("binary_sensor.correria_whatsapp", self.texto("#sensores"))
+        self.pg.click('#sensores [data-a="sensores"]')
+        self.pg.wait_for_selector('#sensores .sw:not(.on)')
+        self.assertFalse(S.ler_config()["sensores"])
+
 
     def test_abas_numa_linha_e_guardadas(self):
         self.abrir()

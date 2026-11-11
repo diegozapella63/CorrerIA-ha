@@ -34,7 +34,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 
 ### 3. No CorrerIA
 
-O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o áudio, o **Uso da IA** e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa), **MCP**, **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
+O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o áudio, o **Uso da IA**, os **Sensores no Home Assistant** e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa), **MCP**, **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
 
 **Uso da IA** (na aba Apps): quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia, os tipos (WhatsApp e Conversa) e as últimas chamadas, com o tempo e os tokens estimados. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
 
@@ -49,6 +49,33 @@ O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um me
 5. A **Conversa** (onde o CorrerIA abre) fala com os apps pela tela, sem passar pela Meta: bom para conferir antes de terminar a parte da Meta.
 
 Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
+
+## Sensores no Home Assistant
+
+Com **Criar os sensores** ligado (em **Configurações › Apps › Sensores no Home Assistant**; vem desligado, e desligar tira os sensores), o CorrerIA cria:
+
+- `sensor.correria_certificado`: quantos dias faltam para o certificado de `/ssl` vencer (o do Duck DNS, que renova sozinho), com `vence`, `dominio` e `arquivo`; sem certificado, fica desconhecido. Um certificado vencido derruba o WhatsApp e o conector.
+- `binary_sensor.correria_whatsapp`: ligado com a conta do WhatsApp conferida na Meta (a cada 30 minutos), com `nome`, `respondendo` (o **Responder pelo WhatsApp** ligado), `erro` (o que a Meta disse, como um token vencido), `conferido_em` e `ultima_mensagem`.
+
+Exemplo de automação:
+
+```yaml
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.correria_certificado
+    below: 15
+  - trigger: state
+    entity_id: binary_sensor.correria_whatsapp
+    to: "off"
+    for: "01:00:00"
+actions:
+  - action: notify.mobile_app_celular_da_ana
+    data:
+      title: CorrerIA
+      message: >-
+        {% if is_state('binary_sensor.correria_whatsapp', 'off') %}O WhatsApp desconectou: {{ state_attr('binary_sensor.correria_whatsapp', 'erro') }}
+        {% else %}O certificado vence em {{ states('sensor.correria_certificado') }} dias.{% endif %}
+```
 
 ## Como responde
 
