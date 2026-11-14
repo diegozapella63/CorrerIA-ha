@@ -707,12 +707,18 @@ class Tela(unittest.TestCase):
         self.aviso("Mensagens apagadas")
         self.assertEqual(self.texto("#mensagens .vazio"), "Nenhuma mensagem ainda.")
         self.pg.click('.abas [data-v="mcp"]')
-        self.assertEqual(self.texto("#mudancas h2"), "Últimas mudanças")
-        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#mudancas .msg')].map(m => [m.querySelector('b').textContent, m.querySelector('p').textContent])"),
+        self.assertEqual(self.pg.locator("#mudancas").count(), 0, "0.16.3: com o conector desligado, nada dele (as Últimas mudanças dependem dele)")
+        S.salvar_config({"mcp": True})
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_selector("#mcp .sub-box #mudancas")
+        self.assertEqual(self.texto("#mcp .sub-box #mudancas span"), "Últimas mudanças", "0.16.3: no quadro do Conector MCP, embaixo de Ligar o conector")
+        self.assertEqual(self.pg.locator("section#mudancas").count(), 0, "sem um cartão à parte")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#mcp .sub-box .msg')].map(m => [m.querySelector('b').textContent, m.querySelector('p').textContent])"),
                          [["Claude · Ana", "Lançado: Feira · R$ 12 · GerencIA"]])
-        self.pg.click('#mudancas [data-a="limpar"]')
+        self.pg.click('#mcp [data-a="limpar"]')
         self.aviso("Mudanças apagadas")
-        self.assertEqual(self.pg.locator("#mudancas").count(), 0, "sem mudanças e com o conector desligado, o cartão some")
+        self.assertEqual(self.texto("#mcp .sub-box .vazio"), "Nenhuma mudança ainda.")
+        S.salvar_config({"mcp": False})
 
     def test_tudo_pronto(self):
         self.publicar_app()

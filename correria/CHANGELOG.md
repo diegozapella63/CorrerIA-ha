@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.16.3
+
+- **Conector MCP**: o que depende do conector (os pedidos para conectar, o endereço público e o do conector, os conectados e as **Últimas mudanças**) fica num quadro embaixo de **Ligar o conector**, dentro do cartão dele. Com o conector desligado, nada disso aparece.
+
 ## 0.16.2
 
 - **Configurações**: a seta que mostra que há mais abas agora aparece (na 0.16.1 ela ficava escondida atrás das abas), e acompanha a largura delas quando a fonte do app termina de carregar.

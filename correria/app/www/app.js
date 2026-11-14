@@ -269,25 +269,33 @@
     const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Na IA, adicione um <b>conector personalizado</b> com este endereço.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
       : '';
+    // 0.16.3: tudo o que depende do conector (os pedidos, os endereços, os conectados e as Últimas mudanças) fica num
+    // quadro recuado logo abaixo de Ligar o conector, dentro do cartão dele
+    const R = e.registro_mcp || [];
+    const mudancas = `<div class="lbl sub-t" id="mudancas">${ic('clock', 'ic-s')}<span>Últimas mudanças</span>${R.length ? `<button class="btn peq" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</div>
+      ${listaMsgs(R, 'Nenhuma mudança ainda.')}`;
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
       <p class="lead">Os apps dentro de outras IAs, como um conector. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>${sw}
-      ${pedidos}${publico}${endereco}
-      ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
+      <div class="sub-op"><div class="sub-box">${pedidos}${publico}${endereco}
+        ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
+        ${mudancas}</div></div>
     </section>`;
   }
 
   const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'], mcp: ['plug', 'Conector MCP'] };
-  function cardMensagens(e, mcp) {
-    const R = (mcp ? e.registro_mcp : e.registro) || [];
-    if (mcp && !R.length && !(e.mcp || {}).ligado) return '';
-    const vazio = mcp ? 'Nenhuma mudança ainda.' : 'Nenhuma mensagem ainda.';
-    return `<section class="card" id="${mcp ? 'mudancas' : 'mensagens'}">${cab(mcp ? 'plug' : 'inbox', mcp ? 'Últimas mudanças' : 'Últimas mensagens', R.length ? `<button class="btn peq" data-a="limpar" data-v="${mcp ? 'mcp' : 'whatsapp'}">${ic('trash', 'ic-s')}Limpar</button>` : '')}
-      ${R.length ? `<div class="msgs">${R.map(r => {
-        const [icone, rot] = TIPO[r.tipo] || ['chat', r.tipo];
-        return `<div class="msg ${esc(r.tipo)}"><span class="msg-ic" title="${rot}">${ic(icone, 'ic-s')}</span><div>
-          <div class="msg-t"><b>${esc(r.quem)}${r.tipo === 'bloqueada' ? ' · sem cadastro' : ''}</b><time datetime="${esc(r.em)}">${horaCurta(r.em)}</time></div>
-          <p>${esc(r.texto)}${r.app && r.tipo === 'mcp' ? ` <small>· ${esc(r.app)}</small>` : ''}</p></div></div>`;
-      }).join('')}</div>` : `<p class="vazio">${vazio}</p>`}
+  function listaMsgs(R, vazio) {
+    return R.length ? `<div class="msgs">${R.map(r => {
+      const [icone, rot] = TIPO[r.tipo] || ['chat', r.tipo];
+      return `<div class="msg ${esc(r.tipo)}"><span class="msg-ic" title="${rot}">${ic(icone, 'ic-s')}</span><div>
+        <div class="msg-t"><b>${esc(r.quem)}${r.tipo === 'bloqueada' ? ' · sem cadastro' : ''}</b><time datetime="${esc(r.em)}">${horaCurta(r.em)}</time></div>
+        <p>${esc(r.texto)}${r.app && r.tipo === 'mcp' ? ` <small>· ${esc(r.app)}</small>` : ''}</p></div></div>`;
+    }).join('')}</div>` : `<p class="vazio">${vazio}</p>`;
+  }
+  // as últimas mensagens do WhatsApp (as do conector ficam no cartão dele, 0.16.3)
+  function cardMensagens(e) {
+    const R = e.registro || [];
+    return `<section class="card" id="mensagens">${cab('inbox', 'Últimas mensagens', R.length ? `<button class="btn peq" data-a="limpar" data-v="whatsapp">${ic('trash', 'ic-s')}Limpar</button>` : '')}
+      ${listaMsgs(R, 'Nenhuma mensagem ainda.')}
     </section>`;
   }
 
@@ -299,7 +307,7 @@
   }
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
-    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e) + cardMensagens(e, true)
+    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e)
       : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardIA(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}

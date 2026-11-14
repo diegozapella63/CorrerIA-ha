@@ -387,3 +387,15 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 42px; co
 .abas-fim.esq { left: 1px; justify-content: flex-start; padding-left: 8px; border-radius: 13px 0 0 13px; background: linear-gradient(to left, transparent, var(--card-2) 62%); }
 .abas-fim .ic-s { width: 18px; height: 18px; }
 .abas-wrap.tem-dir > .abas-fim.dir, .abas-wrap.tem-esq > .abas-fim.esq { display: flex; }
+
+/* 0.16.3 (padrão da família): o que depende de uma chave fica num quadro recuado logo abaixo dela (no Conector MCP: os
+   pedidos, os endereços, os conectados e as Últimas mudanças) */
+.sub-op { padding: 0 0 4px 26px; }
+.sub-box { padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card-2); }
+.sub-box > :first-child { margin-top: 0; }
+.sub-box > :last-child { margin-bottom: 0; }
+.sub-box .inp { background: var(--bg); }
+.sub-box .sub-t { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.sub-box .sub-t > span { flex: 1; }
+.sub-box .sub-t .btn.peq { margin: 0; }
+@media (max-width: 360px) { .sub-op { padding-left: 10px; } .sub-box { padding: 10px; } }
