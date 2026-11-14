@@ -47,6 +47,18 @@
     moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
     chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    spark: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4L2.4 12.5a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+    gauge: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
+    calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>',
+    refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12A9 9 0 0 1 18.5 5.8L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
+    toggle: '<rect x="2" y="6" width="20" height="12" rx="6"/><circle cx="16" cy="12" r="3"/>',
+    unlink: '<path d="m18.8 13.4 1.8-1.8a5 5 0 0 0-7.1-7.1l-1.8 1.8M5.2 10.6l-1.8 1.8a5 5 0 0 0 7.1 7.1l1.8-1.8M8 2v3M2 8h3M16 22v-3M22 16h-3"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
@@ -54,7 +66,7 @@
   // tela: '' (a conversa, onde o app abre), 'mais' (o menu, como nos outros apps), 'opcoes' (Configurações) ou 'sobre';
   // aba: a de Configurações (fica guardada neste aparelho)
   // Opções (0.13.0): o Atalho no celular, como nos outros apps; só dentro do Home Assistant (fora dele, a aba some)
-  const ABAS = [['apps', 'Apps'], ['whatsapp', 'WhatsApp'], ['mcp', 'MCP'], ['dados', 'Dados'], ['aparencia', 'Aparência'], ['opcoes', 'Opções']];
+  const ABAS = [['apps', 'Apps', 'layers'], ['whatsapp', 'WhatsApp', 'chat'], ['mcp', 'MCP', 'plug'], ['dados', 'Dados', 'database'], ['aparencia', 'Aparência', 'palette'], ['opcoes', 'Opções', 'toggle']];
   const abasDe = (e) => ABAS.filter(([k]) => k !== 'opcoes' || (e && e.atalho));
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
@@ -145,6 +157,9 @@
   };
 
   /* ---------- a tela */
+  // 0.16.0 (padrão da família): toda linha com título tem um ícone pequeno antes dele; todo campo também
+  const tituloLinha = (icone, titulo) => `<b>${ic(icone, 'ic-s')}${titulo}</b>`;
+  const rotulo = (para, icone, titulo) => `<label for="${para}">${ic(icone, 'ic-s')}${titulo}</label>`;
   const cab = (icone, titulo, extra = '') => `<div class="rot"><span class="rot-ic">${ic(icone)}</span><h2>${titulo}</h2>${extra}</div>`;
 
   function cardWhatsApp(e) {
@@ -158,16 +173,16 @@
       : `<div class="status manual">Áudios do WhatsApp não viram texto. ${esc(f.motivo || 'Falta a fala para texto no Home Assistant.')}</div>`;
     return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
       <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>
-      ${e.pronto ? `<div class="linha-sw"><div><b>Responder pelo WhatsApp</b><span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
+      ${e.pronto ? `<div class="linha-sw"><div>${tituloLinha('chat', 'Responder pelo WhatsApp')}<span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
         <button class="sw${c.ligado ? ' on' : ''}" data-a="ligado" role="switch" aria-checked="${c.ligado}" aria-label="Responder pelo WhatsApp"></button></div>` : ''}
       ${st}${audio}
-      <div class="campo"><label for="f-numero">ID do número de telefone</label>
+      <div class="campo">${rotulo('f-numero', 'hash', 'ID do número de telefone')}
         <input id="f-numero" class="inp" inputmode="numeric" autocomplete="off" data-f="numero_id" value="${esc(S.form.numero_id != null ? S.form.numero_id : c.numero_id)}" placeholder="Ex.: 109876543210"></div>
-      <div class="campo"><label for="f-token">Token de acesso</label>
+      <div class="campo">${rotulo('f-token', 'key', 'Token de acesso')}
         <input id="f-token" class="inp" type="password" autocomplete="off" data-f="token" value="${esc(S.form.token || '')}" placeholder="${c.token ? esc(c.token) + ' · cole outro para trocar' : 'Do Usuário do sistema, que não vence'}"></div>
-      <div class="campo"><label for="f-segredo">Chave secreta do aplicativo</label>
+      <div class="campo">${rotulo('f-segredo', 'lock', 'Chave secreta do aplicativo')}
         <input id="f-segredo" class="inp" type="password" autocomplete="off" data-f="segredo" value="${esc(S.form.segredo || '')}" placeholder="${c.segredo ? esc(c.segredo) + ' · cole outra para trocar' : 'Configurações do app › Básico'}"></div>
-      <div class="btns"><button class="btn out" data-a="conferir"${e.pronto ? '' : ' disabled'}>Conferir</button><button class="btn pri" data-a="salvar"${S.salvando ? ' disabled' : ''}>Salvar</button></div>
+      <div class="btns"><button class="btn out" data-a="conferir"${e.pronto ? '' : ' disabled'}>${ic('refresh', 'ic-s')}Conferir</button><button class="btn pri" data-a="salvar"${S.salvando ? ' disabled' : ''}>${ic('check', 'ic-s')}Salvar</button></div>
     </section>`;
   }
 
@@ -180,11 +195,11 @@
         : '<div class="status manual">A Meta ainda não chamou.</div>';
     return `<section class="card" id="webhook">${cab('link', 'Webhook na Meta')}
       <p class="lead">O endereço pelo qual a Meta entrega as mensagens. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>
-      <div class="campo"><label for="f-endereco">Endereço público</label>
+      <div class="campo">${rotulo('f-endereco', 'globe', 'Endereço público')}
         <input id="f-endereco" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : c.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
       ${c.webhook ? `<ol class="passos"><li>Na Meta, em WhatsApp › Configuração › <b>Webhook</b>, toque em Editar.</li><li>Cole a <b>URL de retorno</b> e o <b>Token de verificação</b> abaixo e toque em Verificar e salvar.</li><li>Em Campos do webhook, assine <b>messages</b>.</li></ol>
-      <div class="campo"><label for="f-url">URL de retorno</label><div class="copiar"><input id="f-url" class="inp" readonly value="${esc(c.webhook)}"><button class="btn peq out" data-a="copiar" data-v="f-url" aria-label="Copiar a URL de retorno">${ic('copy', 'ic-s')}Copiar</button></div></div>` : ''}
-      <div class="campo"><label for="f-verif">Token de verificação</label><div class="copiar"><input id="f-verif" class="inp" readonly value="${esc(c.verificacao)}"><button class="btn peq out" data-a="copiar" data-v="f-verif" aria-label="Copiar o token de verificação">${ic('copy', 'ic-s')}Copiar</button></div></div>
+      <div class="campo">${rotulo('f-url', 'link', 'URL de retorno')}<div class="copiar"><input id="f-url" class="inp" readonly value="${esc(c.webhook)}"><button class="btn peq out" data-a="copiar" data-v="f-url" aria-label="Copiar a URL de retorno">${ic('copy', 'ic-s')}Copiar</button></div></div>` : ''}
+      <div class="campo">${rotulo('f-verif', 'shield', 'Token de verificação')}<div class="copiar"><input id="f-verif" class="inp" readonly value="${esc(c.verificacao)}"><button class="btn peq out" data-a="copiar" data-v="f-verif" aria-label="Copiar o token de verificação">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${cert}${meta}
     </section>`;
   }
@@ -212,38 +227,50 @@
     const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};
     const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
-    const comFerr = A.some(a => a.ferramentas);
-    const ia = !comFerr ? '' : i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
-      : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
     const mic = ft.pronta === false ? `<div class="status manual">Falar na conversa: ${esc(ft.motivo || 'sem fala para texto.')}</div>` : '';
     return `<section class="card" id="apps">${cab('layers', 'Apps')}
-      ${lista}${ia}${A.length ? mic : ''}
+      ${lista}${A.length ? mic : ''}
     </section>`;
+  }
+
+  /* ---------- Configurações › Apps › IA do Home Assistant (0.16.0): qual IA conversa (no WhatsApp e aqui), como nos outros
+     apps; o nome dela no que deu certo ou errado (sem cota, por exemplo) e no Uso da IA */
+  function cardIA(e) {
+    const i = e.ia || {}, L = (e.ias || {}).lista || [], sel = (e.ias || {}).escolhida || '';
+    if (!e.apps.some(a => a.ferramentas) && !L.length) return '';
+    const op = (v, n) => `<button role="radio" aria-checked="${v === sel}" class="ia-op${v === sel ? ' on' : ''}" data-a="ia-ent" data-v="${esc(v)}">${ic('spark', 'ic-s')}<span>${esc(n)}</span>${v === sel ? ic('check', 'ic-s ia-ok') : ''}</button>`;
+    const st = i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
+      : i.ok === false ? `<div class="status erro">${esc(i.erro)}</div>`
+        : i.ok ? `<div class="status">${esc(i.nome || 'A IA padrão do Home Assistant')} respondeu ${quando(i.em)}.</div>` : '';
+    return `<section class="card" id="ia">${cab('spark', 'IA do Home Assistant')}
+      <div class="lbl" id="ia-l">${ic('spark', 'ic-s')}IA para conversar</div>
+      <div class="ia-ops" role="radiogroup" aria-labelledby="ia-l">${op('', 'Padrão do Home Assistant')}${L.map(x => op(x.id, x.nome)).join('')}</div>
+      ${st}</section>`;
   }
 
   // o conector MCP (para qualquer IA que aceite um, sem nome de marca na tela): o endereço, os pedidos esperando aprovação e quem está conectado
   function cardMcp(e) {
     const m = e.mcp || {};
-    const sw = `<div class="linha-sw"><div><b>Ligar o conector</b><span>${m.ligado ? 'Ligado: as IAs conectadas leem e mudam os apps, com a sua aprovação.' : 'Desligado.'}</span></div>
+    const sw = `<div class="linha-sw"><div>${tituloLinha('plug', 'Ligar o conector')}<span>${m.ligado ? 'Ligado: as IAs conectadas leem e mudam os apps, com a sua aprovação.' : 'Desligado.'}</span></div>
         <button class="sw${m.ligado ? ' on' : ''}" data-a="mcp" role="switch" aria-checked="${!!m.ligado}" aria-label="Ligar o conector"></button></div>`;
     if (!m.ligado) return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
       <p class="lead">Os apps dentro de outras IAs, como um conector.</p>${sw}</section>`;
     const pedidos = (m.pedidos || []).map(p => `<div class="pedido"><div class="pedido-t"><b>${esc(p.nome)} quer se conectar</b><span>Código <b class="cod">${esc(p.codigo)}</b> · ${esc(p.host)}</span></div>
-        <div class="btns"><button class="btn out" data-a="mcp-recusar" data-v="${esc(p.id)}">Recusar</button><button class="btn pri" data-a="mcp-aprovar" data-v="${esc(p.id)}">Aprovar</button></div></div>`).join('');
+        <div class="btns"><button class="btn out" data-a="mcp-recusar" data-v="${esc(p.id)}">${ic('x', 'ic-s')}Recusar</button><button class="btn pri" data-a="mcp-aprovar" data-v="${esc(p.id)}">${ic('check', 'ic-s')}Aprovar</button></div></div>`).join('');
     const conexoes = (m.conexoes || []).map(c => `<div class="conexao"><span class="av">${esc((c.nome || '?').slice(0, 1).toUpperCase())}</span>
         <div class="conexao-t"><b>${esc(c.nome)}</b><span>${[c.pessoa, c.usado ? 'usou ' + quando(c.usado) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
-        <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">Desconectar</button></div>`).join('');
+        <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">${ic('unlink', 'ic-s')}Desconectar</button></div>`).join('');
     const w = e.webhook || {};  // 0.15.0: o endereço público e o certificado aqui também (antes: "Escreva o endereço público na aba WhatsApp")
-    const publico = `<div class="campo"><label for="f-endereco-mcp">Endereço público</label>
+    const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público')}
         <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : e.config.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
       ${w.https ? `<div class="status">Certificado ${esc(w.certificado)} · porta ${w.porta}</div>` : `<div class="status manual">Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).</div>`}`;
-    const endereco = m.url ? `<div class="campo"><label for="f-mcp">Endereço do conector</label><div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
+    const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Na IA, adicione um <b>conector personalizado</b> com este endereço.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
       : '';
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
       <p class="lead">Os apps dentro de outras IAs, como um conector. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>${sw}
       ${pedidos}${publico}${endereco}
-      ${conexoes ? `<div class="lbl">Conectados</div>${conexoes}` : ''}
+      ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
     </section>`;
   }
 
@@ -252,7 +279,7 @@
     const R = (mcp ? e.registro_mcp : e.registro) || [];
     if (mcp && !R.length && !(e.mcp || {}).ligado) return '';
     const vazio = mcp ? 'Nenhuma mudança ainda.' : 'Nenhuma mensagem ainda.';
-    return `<section class="card" id="${mcp ? 'mudancas' : 'mensagens'}">${cab(mcp ? 'plug' : 'inbox', mcp ? 'Últimas mudanças' : 'Últimas mensagens', R.length ? `<button class="btn peq" data-a="limpar" data-v="${mcp ? 'mcp' : 'whatsapp'}">Limpar</button>` : '')}
+    return `<section class="card" id="${mcp ? 'mudancas' : 'mensagens'}">${cab(mcp ? 'plug' : 'inbox', mcp ? 'Últimas mudanças' : 'Últimas mensagens', R.length ? `<button class="btn peq" data-a="limpar" data-v="${mcp ? 'mcp' : 'whatsapp'}">${ic('trash', 'ic-s')}Limpar</button>` : '')}
       ${R.length ? `<div class="msgs">${R.map(r => {
         const [icone, rot] = TIPO[r.tipo] || ['chat', r.tipo];
         return `<div class="msg ${esc(r.tipo)}"><span class="msg-ic" title="${rot}">${ic(icone, 'ic-s')}</span><div>
@@ -272,12 +299,12 @@
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e) + cardMensagens(e, true)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardIA(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${aba === 'whatsapp' ? `<div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>` : ''}
       ${pendentes(e)}
-      <nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
+      <nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n, i]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${ic(i, 'ic-s')}<span>${n}</span></button>`).join('')}</nav>
       ${corpo}`;
   }
   // Mais, um menu como nos outros apps: Configurações e, por último, Sobre (cada um na sua tela)
@@ -302,7 +329,7 @@
   function cardCor(e) {
     const ap = e.aparencia || {}, dia = ap.cor_dia !== false, atual = corAtual(e);
     return `<section class="card" id="cor">${cab('palette', 'Cor do app')}<p class="lead">Em todos os aparelhos da casa.</p>
-      <div class="linha-sw"><div><b>Cor do dia</b><span>Muda a cor do app todo dia, a mesma em todos os apps.</span></div>
+      <div class="linha-sw"><div>${tituloLinha('calendar', 'Cor do dia')}<span>Muda a cor do app todo dia, a mesma em todos os apps.</span></div>
         <button class="sw${dia ? ' on' : ''}" data-a="cor-dia" role="switch" aria-checked="${dia}" aria-label="Cor do dia"></button></div>
       <div class="cores" role="radiogroup" aria-label="Cor do app">${PALETA.map(c => `<button class="tsw${c.id === atual ? ' on' : ''}" role="radio" aria-checked="${c.id === atual}" style="--a:${c.fill}" data-a="cor" data-v="${c.id}">
         <svg viewBox="-5 -5 40 30" aria-hidden="true"><path class="sw-ring" d="${TAG}"/><path class="sw-gap" d="${TAG}"/><path class="sw-fill" d="${TAG + FURO}"/><path class="sw-check" d="m14.6 10.3 3.2 3.2 6.5-6.9"/></svg><span>${c.nome}</span></button>`).join('')}</div></section>`;
@@ -314,7 +341,7 @@
     if (!e.atalho) return '';
     return `<section class="card" id="atalho">${cab('phone', 'Atalho no celular')}<p class="lead">Um ícone na tela inicial do celular que abre o CorrerIA direto.</p>
       <ol class="passos"><li>No app do Home Assistant: <b>Configurações › Aplicativo complementar › Gerenciar atalhos</b>.</li><li>Em <b>Atalho fixado</b>, escolha o tipo <b>Painel</b> e cole o <b>Caminho</b> abaixo.</li></ol>
-      <div class="campo"><label for="f-atalho">Caminho</label><div class="copiar pilha"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
+      <div class="campo">${rotulo('f-atalho', 'phone', 'Caminho')}<div class="copiar pilha"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
   }
 
   /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
@@ -342,14 +369,14 @@
     const sel = u.dias.find(d => d.dia === S.usoDia);
     const tipos = Object.entries(u.semana.tipos || {}).sort((a, b) => b[1] - a[1]);
     const ult = (u.ultimas || []).map(c => `<li><b>${esc(TIPO_USO[c.tipo] || c.tipo)}</b>${RES_USO[c.resultado] ? `<span class="r-erro">${RES_USO[c.resultado]}</span>` : ''}
-        <span class="t">${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(quandoCurto(c.quando))}</span>${c.erro ? `<span class="uso-motivo">${esc(c.erro)}</span>` : ''}</li>`).join('');
+        <span class="t">${c.ia ? `${esc(c.ia)} · ` : ''}${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(quandoCurto(c.quando))}</span>${c.erro ? `<span class="uso-motivo">${esc(c.erro)}</span>` : ''}</li>`).join('');
     return `<section class="card" id="uso">${cab('chart', 'Uso da IA')}<p class="lead">As chamadas do CorrerIA para a IA do Home Assistant. Os tokens são estimados.</p>
       <div class="uso-ts">${tile('Hoje', u.hoje)}${tile('7 dias', u.semana)}${tile('Este mês', u.mes)}</div>
       <div class="uso-chart" role="group" aria-label="Chamadas de IA nos últimos 7 dias">${barras}</div>
       <div class="uso-dias" aria-hidden="true">${u.dias.map(d => `<span>${nomeDia(d.dia)}</span>`).join('')}</div>
       <p class="uso-cap" aria-live="polite">${diaLongo(sel.dia)}: <b>${chamadas(sel.chamadas || 0)}</b>${resto(sel)}.</p>
       ${tipos.length ? `<ul class="uso-tipos" aria-label="Nos últimos 7 dias">${tipos.map(([k, n]) => `<li>${esc(TIPO_USO[k] || k)} <b>${n}</b></li>`).join('')}</ul>` : ''}
-      <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}Últimas chamadas</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
+      <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas chamadas</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
     </section>`;
   }
   // 14:32 hoje; 11/11 14:32 nos outros dias (como nos outros apps)
@@ -363,8 +390,8 @@
   /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
   function cardSensores(e) {
     const on = !!(e.sensores && e.sensores.ligado);
-    return `<section class="card" id="sensores">${cab('chart', 'Sensores no Home Assistant')}<p class="lead">Para painéis e automações.</p>
-      <div class="linha-sw"><div><b>Criar os sensores</b><span>${on ? 'Ligado: <code>sensor.correria_certificado</code> (os dias até o certificado vencer) e <code>binary_sensor.correria_whatsapp</code> (o WhatsApp conectado).' : 'Desligado: nenhum sensor no Home Assistant.'}</span></div>
+    return `<section class="card" id="sensores">${cab('gauge', 'Sensores no Home Assistant')}<p class="lead">Para painéis e automações.</p>
+      <div class="linha-sw"><div>${tituloLinha('gauge', 'Criar os sensores')}<span>${on ? 'Ligado: <code>sensor.correria_certificado</code> (os dias até o certificado vencer) e <code>binary_sensor.correria_whatsapp</code> (o WhatsApp conectado).' : 'Desligado: nenhum sensor no Home Assistant.'}</span></div>
         <button class="sw${on ? ' on' : ''}" data-a="sensores" role="switch" aria-checked="${on}" aria-label="Criar os sensores"></button></div></section>`;
   }
 
@@ -381,7 +408,9 @@
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
-  const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${titulo}</h1></header>`;
+  const ICONE_TELA = { 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
+  const tituloTela = titulo => `${ICONE_TELA[titulo] ? `<span class="rot-ic tela-ic" aria-hidden="true">${ic(ICONE_TELA[titulo])}</span>` : ''}${titulo}`;
+  const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${tituloTela(titulo)}</h1></header>`;
   function sobre(e) {
     const aqui = r => r === 'CorrerIA-ha';
     return `${topoTela('Sobre', 'Mais')}
@@ -416,7 +445,7 @@
       else {
         const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
         corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
-          ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
+          ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${ic('chat', 'ic-s')}${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
       }
     } else {
       corpo = M.map(m => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
@@ -426,7 +455,7 @@
     const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Escreva a sua pergunta';
     const esquerda = ouvindo ? `<button class="ch-bt" data-a="ch-falar-x" aria-label="Cancelar" title="Cancelar">${ic('x')}</button>`
       : le ? `<button class="ch-bt" data-a="ch-camera" aria-label="Tirar foto" title="Tirar foto"${f ? ' disabled' : ''}>${ic('camera')}</button><button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF"${f ? ' disabled' : ''}>${ic('clip')}</button>` : '';
-    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>Conversa</h1></div>
+    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
           <button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
@@ -747,6 +776,9 @@
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
     } else if (a === 'mcp') {
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
+    } else if (a === 'ia-ent') {  // 0.16.0: a IA para conversar
+      const v = el.dataset.v, x = ((S.e.ias || {}).lista || []).find(o => o.id === v);
+      await acao('config', { ia_entidade: v }, 'IA para conversar: ' + (x ? x.nome : 'a padrão do Home Assistant'));
     } else if (a === 'sensores') {
       const on = !!(S.e.sensores && S.e.sensores.ligado);
       await acao('config', { sensores: !on }, on ? 'Sensores desligados' : 'Sensores ligados');

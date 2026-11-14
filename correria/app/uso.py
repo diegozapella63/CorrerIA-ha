@@ -38,8 +38,8 @@ class Uso:
         except (OSError, ValueError):
             return {}
 
-    def registrar(self, tipo, entrada=0, saida=0, segundos=0.0, erro=None, agora=None):
-        """Uma chamada: o tipo, os caracteres que foram e voltaram, quanto tempo levou e como terminou."""
+    def registrar(self, tipo, entrada=0, saida=0, segundos=0.0, erro=None, agora=None, ia=""):
+        """Uma chamada: o tipo, os caracteres que foram e voltaram, quanto tempo levou, como terminou e (0.16.0) qual IA."""
         agora = agora or datetime.now()
         res = resultado(erro)
         tokens = round((int(entrada) + int(saida)) / 4)
@@ -57,6 +57,8 @@ class Uso:
             u["dias"] = dias
             ult = u["ultimas"] if isinstance(u.get("ultimas"), list) else []
             nova = {"quando": agora.isoformat(timespec="seconds"), "tipo": tipo, "resultado": res, "segundos": round(segundos, 1), "tokens": tokens}
+            if ia:
+                nova["ia"] = str(ia)[:60]
             if res != "ok" and erro:
                 nova["erro"] = str(erro)[:200]  # o motivo, embaixo da chamada (como nos outros apps)
             u["ultimas"] = ([nova] + ult)[:ULTIMAS]

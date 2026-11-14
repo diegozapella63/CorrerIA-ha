@@ -218,7 +218,7 @@ class Tela(unittest.TestCase):
         self.abrir("light")
         self.opcoes("apps")
         self.assertEqual(self.texto("#apps .app-l .le"), "Lê e muda.")
-        self.assertEqual(self.pg.locator("#apps .status").all_inner_texts()[0], "IA simulada (fora do Home Assistant).")
+        self.assertEqual(self.pg.locator("#ia .status").all_inner_texts()[0], "IA simulada (fora do Home Assistant).", "0.16.0: na seção da IA")
         app.chave = "outra"
         S.APPS._ferr.clear()
         self.pg.reload()
@@ -226,6 +226,47 @@ class Tela(unittest.TestCase):
         self.opcoes()
         self.assertEqual(self.texto(".abas .on"), "Apps", "a aba fica guardada")
         self.assertEqual(self.texto("#apps .app-l .le"), "O CronologIA recusou a chave. Confira se a opção do CorrerIA está ligada nele.")
+
+    # ---- 0.16.0: a IA para conversar, como nos outros apps (fora do Home Assistant, duas de exemplo)
+    def test_ia_para_conversar(self):
+        app = AppFalso("CronologIA")
+        self.addCleanup(app.fechar)
+        app.publicar(S.SHARE_DIR, "cronologia")
+        self.abrir()
+        self.opcoes("apps")
+        self.assertEqual(self.texto("#ia h2"), "IA do Home Assistant")
+        self.assertEqual([t.strip() for t in self.pg.locator("#ia .ia-op").all_inner_texts()], ["Padrão do Home Assistant", "IA de exemplo", "Outra IA"])
+        self.assertEqual(self.texto("#ia .ia-op.on"), "Padrão do Home Assistant", "de início, a padrão do Home Assistant")
+        ordem = self.pg.evaluate("[...document.querySelectorAll('#app section.card')].map(c => c.id)")
+        self.assertEqual(ordem.index("ia"), ordem.index("apps") + 1, f"logo depois dos apps, como nos outros: {ordem}")
+        self.pg.click('#ia .ia-op[data-v="ai_task.outra_ia"]')
+        self.pg.wait_for_selector('#ia .ia-op.on[data-v="ai_task.outra_ia"]')
+        self.assertEqual(S.ler_config()["ia_entidade"], "ai_task.outra_ia")
+        self.assertEqual(self.pg.get_attribute('#ia .ia-op[data-v="ai_task.outra_ia"]', "aria-checked"), "true")
+        self.pg.click('#ia .ia-op[data-v=""]')
+        self.pg.wait_for_selector('#ia .ia-op.on[data-v=""]')
+        self.assertEqual(S.ler_config()["ia_entidade"], "")
+
+    # ---- 0.16.0 (padrão da família): ícones nas seções, nas linhas, nos campos, nos botões, nas abas e nos títulos
+    def test_icones_em_tudo(self):
+        self.publicar_app()
+        S.salvar_config({"numero_id": "109876543210", "token": TOKEN, "segredo": "segredo-de-teste-1234", "endereco": "https://casa-exemplo.duckdns.org:8443", "mcp": True})
+        self.abrir()
+        confere = """() => { const vis = e => e && e.getClientRects().length, ruins = [];
+          for (const b of document.querySelectorAll('#app button, #app a.btn')) {
+            if (!vis(b) || !b.textContent.trim() || b.querySelector('svg') || b.matches('.conv-abrir, .linha, .uso-bar, .tsw')) continue;
+            ruins.push('botão sem ícone: ' + b.textContent.trim().slice(0, 30)); }
+          for (const t of document.querySelectorAll('#app .linha-sw b, #app .campo > label, #app .lbl, #app section.card > .rot h2, #app h1'))
+            if (vis(t) && !(t.querySelector('svg') || t.parentElement.querySelector(':scope > .rot-ic svg'))) ruins.push('título sem ícone: ' + t.textContent.trim().slice(0, 30));
+          return ruins; }"""
+        self.assertEqual(self.pg.evaluate(confere), [], "a conversa")
+        self.opcoes()
+        for aba in ("apps", "whatsapp", "mcp", "dados", "aparencia"):
+            self.pg.click(f'.abas [data-v="{aba}"]')
+            self.pg.wait_for_selector(f'.abas [data-v="{aba}"].on')
+            self.assertEqual(self.pg.evaluate(confere), [], aba)
+        self.assertEqual(self.pg.locator(".abas button svg").count(), self.pg.locator(".abas button").count(), "as abas com o ícone")
+        self.assertEqual(self.pg.evaluate("getComputedStyle(document.querySelector('.abas button svg')).display"), "none", "no celular, só o nome")
 
     # ---- o conector MCP (qualquer IA: na tela, sem nome de marca)
     def pedido(self):

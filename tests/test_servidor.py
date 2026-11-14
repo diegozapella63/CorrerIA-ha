@@ -960,6 +960,44 @@ class TestCasosRaros(Base):
         S.salvar_config({"cor_dia": True})
         self.assertTrue(S.ler_config()["cor_dia"])
 
+    def test_ia_para_conversar(self):
+        """0.16.0: a IA que conversa é a escolhida (o entity_id na chamada) e o nome dela aparece no estado, no erro de cota
+        (em português) e no Uso da IA. IAs inventadas: IA Azul e IA Verde."""
+        estados = [{"entity_id": "ai_task.ia_verde", "attributes": {"friendly_name": "IA Verde"}},
+                   {"entity_id": "ai_task.ia_azul", "attributes": {"friendly_name": "IA Azul"}}, {"entity_id": "person.ana", "attributes": {}}]
+        ha = ServidorFalso({"/api/states": (200, estados), "/api/services/ai_task/generate_data": lambda h, c: (200, {"service_response": {"data": {"resposta": "ok"}}})})
+        self.addCleanup(ha.fechar)
+        S._ias_cache.update(t=0.0, v=None)
+        self.addCleanup(lambda: S._ias_cache.update(t=0.0, v=None))
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            self.assertEqual(S.estado()["ias"], {"lista": [{"id": "ai_task.ia_azul", "nome": "IA Azul"}, {"id": "ai_task.ia_verde", "nome": "IA Verde"}], "escolhida": ""})
+            self.assertEqual(S.nome_da_ia(), "", "a padrão, com duas: não dá para saber qual")
+            S.chamar_ia("Pergunta")
+            self.assertNotIn("entity_id", ha.pedidos[-1][3], "a padrão: sem entity_id")
+            with self.assertRaisesRegex(ValueError, "IA desconhecida"):
+                S.salvar_config({"ia_entidade": "light.sala"})
+            S.salvar_config({"ia_entidade": "ai_task.ia_azul"})
+            S.chamar_ia("Pergunta")
+            self.assertEqual(ha.pedidos[-1][3], {"task_name": "CorrerIA", "instructions": "Pergunta", "entity_id": "ai_task.ia_azul"})
+            self.assertEqual((S.estado()["ia"]["nome"], S.estado()["ias"]["escolhida"]), ("IA Azul", "ai_task.ia_azul"))
+            ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "Error generating content: 429 RESOURCE_EXHAUSTED. You exceeded your current quota."})
+            with self.assertRaisesRegex(S.ia.ErroIA, r"^IA Azul ficou sem cota \(o limite de uso acabou\)\. Espere a cota voltar ou escolha outra em IA para conversar\.$"):
+                S.chamar_ia("x")
+            self.assertEqual(S.estado()["ia"]["erro"][:22], "IA Azul ficou sem cota")
+            ult = S.USO.resumo()["ultimas"][0]
+            self.assertEqual((ult["ia"], ult["resultado"]), ("IA Azul", "cota"), "o Uso da IA diz qual IA ficou sem cota")
+            ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "Pane na IA."})
+            with self.assertRaisesRegex(S.ia.ErroIA, "^IA Azul: Pane na IA\.$"):
+                S.chamar_ia("x")
+            S.salvar_config({"ia_entidade": ""})
+            self.assertIsNone(S.ESTADO["ia"], "trocar de IA esquece o que deu com a outra")
+            ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "quota exceeded"})
+            with self.assertRaisesRegex(S.ia.ErroIA, "^A IA padrão do Home Assistant ficou sem cota"):
+                S.chamar_ia("x")
+            S._ias_cache.update(t=0.0, v=None)
+            ha.rotas["/api/states"] = (200, estados[1:])
+            self.assertEqual(S.nome_da_ia(), "IA Azul", "a padrão, com uma só: é ela")
+
     def test_ia_que_responde_estranho(self):
         ha = ServidorFalso({"/api/services/ai_task/generate_data": (500, "pane geral")})
         self.addCleanup(ha.fechar)

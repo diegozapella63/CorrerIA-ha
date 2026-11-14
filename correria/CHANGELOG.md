@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.16.0
+
+- **IA para conversar** (em **Configurações › Apps › IA do Home Assistant**), como nos outros apps: escolha qual IA do Home Assistant responde no WhatsApp e na conversa. De início fica a padrão do Home Assistant.
+- O nome da IA aparece no que deu certo ("Claude AI Task respondeu hoje às 14:32"), nos erros e nas **Últimas chamadas** do Uso da IA. Sem cota, o aviso fica em português: "… ficou sem cota (o limite de uso acabou)".
+- **Ícones em tudo**, como nos outros apps: nas abas (no computador), no título das telas, nas linhas (Responder pelo WhatsApp, Ligar o conector, Criar os sensores, Cor do dia), nos campos (ID do número, Token, Endereço público…), nas Últimas chamadas e em todo botão com texto (Conferir, Salvar, Aprovar, Desconectar, Limpar, as sugestões da conversa). Os Sensores ganharam o seu ícone.
+- A lista das conversas não tem mais a linha depois da última.
+
 ## 0.15.0
 
 - **Últimas mensagens** foi para o fim da aba **WhatsApp**. O que as IAs conectadas mudaram fica na aba **MCP**, em **Últimas mudanças**, cada um com o seu **Limpar**.

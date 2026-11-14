@@ -117,6 +117,8 @@ def ler_config():
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
            "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True,
+           # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
+           "ia_entidade": str(c.get("ia_entidade") or "") if IA_RE.match(str(c.get("ia_entidade") or "")) else "",
            # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
            "cor": c.get("cor") if c.get("cor") in CORES else "", "cor_dia": c.get("cor_dia") is not False,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
@@ -126,6 +128,7 @@ def ler_config():
     return out
 
 
+IA_RE = re.compile(r"^(ai_task\.[a-z0-9_]+)?$")
 CORES = ("vermelho", "coral", "laranja", "ouro", "verde", "menta", "turquesa", "azul", "indigo", "lilas", "rosa", "grafite")
 
 
@@ -173,6 +176,12 @@ def salvar_config(corpo):
             c["mcp"] = corpo.get("mcp") is True
         if "sensores" in corpo:
             c["sensores"] = corpo.get("sensores") is True
+        if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
+            e = str(corpo.get("ia_entidade") or "")
+            if not IA_RE.match(e):
+                raise ValueError("IA desconhecida.")
+            c["ia_entidade"] = e
+            ESTADO["ia"] = None  # o que deu certo ou errado era da outra IA
         if "cor" in corpo:  # escolher uma cor desliga a Cor do dia (a tela manda os dois)
             if corpo.get("cor") not in CORES:
                 raise ValueError("Cor desconhecida.")
@@ -252,6 +261,35 @@ def pessoas_ha():
         return _pessoas_cache["v"] or []
     _pessoas_cache.update(t=time.time(), v=v)
     return v
+
+
+_ias_cache = {"t": 0.0, "v": None}
+
+
+def ias_ha():
+    """As IAs do Home Assistant que fazem tarefas (as entidades ai_task.*): [{id, nome}]. Fora dele, duas de exemplo."""
+    if not TOKEN:
+        return [{"id": "ai_task.ia_de_exemplo", "nome": "IA de exemplo"}, {"id": "ai_task.outra_ia", "nome": "Outra IA"}] if DEV else []
+    if _ias_cache["v"] is not None and time.time() - _ias_cache["t"] < 60:
+        return _ias_cache["v"]
+    try:
+        v = sorted(({"id": s["entity_id"], "nome": (s.get("attributes") or {}).get("friendly_name") or s["entity_id"][8:]}
+                    for s in ha_get("/states") if isinstance(s, dict) and str(s.get("entity_id", "")).startswith("ai_task.")),
+                   key=lambda x: x["nome"].lower())
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log("Não consegui ver as IAs do Home Assistant:", e)
+        return _ias_cache["v"] or []
+    _ias_cache.update(t=time.time(), v=v)
+    return v
+
+
+def nome_da_ia(c=None):
+    """O nome da IA que conversa: a escolhida ou, na padrão, a única que existe (com mais de uma, não dá para saber qual)."""
+    c = c or ler_config()
+    lista = ias_ha()
+    if c["ia_entidade"]:
+        return next((x["nome"] for x in lista if x["id"] == c["ia_entidade"]), c["ia_entidade"])
+    return lista[0]["nome"] if len(lista) == 1 else ""
 
 
 def pessoa_do_numero(numero, c=None):
@@ -365,30 +403,44 @@ def chamar_ia(instrucoes):
     try:
         dados = _chamar_ia(instrucoes)
     except ia.ErroIA as e:
-        USO.registrar(tipo, len(instrucoes), 0, time.time() - comeco, str(e))
+        USO.registrar(tipo, len(instrucoes), 0, time.time() - comeco, str(e), ia=(ESTADO["ia"] or {}).get("nome", ""))
         raise
-    USO.registrar(tipo, len(instrucoes), len(json.dumps(dados, ensure_ascii=False)), time.time() - comeco)
+    USO.registrar(tipo, len(instrucoes), len(json.dumps(dados, ensure_ascii=False)), time.time() - comeco, ia=(ESTADO["ia"] or {}).get("nome", ""))
     return dados
 
 
+def erro_da_ia(msg, nome):
+    """O erro da IA em português, dizendo qual IA (0.16.0): sem cota vira "A <IA> ficou sem cota…"."""
+    quem = nome or "A IA padrão do Home Assistant"
+    if uso.resultado(msg) == "cota":
+        return f"{quem} ficou sem cota (o limite de uso acabou). Espere a cota voltar ou escolha outra em IA para conversar."
+    return f"{quem}: {msg}" if nome else msg
+
+
 def _chamar_ia(instrucoes):
+    c = ler_config()
+    nome = nome_da_ia(c)
+    corpo = {"task_name": "CorrerIA", "instructions": instrucoes}
+    if c["ia_entidade"]:
+        corpo["entity_id"] = c["ia_entidade"]
+
+    def falhou(msg):
+        ESTADO["ia"] = {"ok": False, "erro": msg, "em": agora_iso(), "nome": nome}
+        return ia.ErroIA(msg)
     try:
-        r = ha_post("/services/ai_task/generate_data?return_response", {"task_name": "CorrerIA", "instructions": instrucoes}, timeout=150)
+        r = ha_post("/services/ai_task/generate_data?return_response", corpo, timeout=150)
     except urllib.error.HTTPError as e:
         try:
             msg = json.loads(e.read() or b"{}").get("message")
         except (ValueError, AttributeError):
             msg = None
-        ESTADO["ia"] = {"ok": False, "erro": msg or f"O Home Assistant respondeu {e.code}.", "em": agora_iso()}
-        raise ia.ErroIA(ESTADO["ia"]["erro"]) from None
+        raise falhou(erro_da_ia(msg or f"O Home Assistant respondeu {e.code}.", nome)) from None
     except (urllib.error.URLError, OSError, ValueError) as e:
-        ESTADO["ia"] = {"ok": False, "erro": f"Não consegui falar com o Home Assistant ({getattr(e, 'reason', e)}).", "em": agora_iso()}
-        raise ia.ErroIA(ESTADO["ia"]["erro"]) from None
+        raise falhou(f"Não consegui falar com o Home Assistant ({getattr(e, 'reason', e)}).") from None
     dados = ((r or {}).get("service_response") or {}).get("data")
     if dados is None:
-        ESTADO["ia"] = {"ok": False, "erro": "A IA não devolveu resposta.", "em": agora_iso()}
-        raise ia.ErroIA(ESTADO["ia"]["erro"])
-    ESTADO["ia"] = {"ok": True, "erro": "", "em": agora_iso()}
+        raise falhou(erro_da_ia("não devolveu resposta.", nome) if nome else "A IA não devolveu resposta.")
+    ESTADO["ia"] = {"ok": True, "erro": "", "em": agora_iso(), "nome": nome}
     return dados
 
 
@@ -973,7 +1025,8 @@ def estado():
                    "endereco": c["endereco"], "webhook": (c["endereco"] + "/webhook") if c["endereco"] else "", "ligado": c["ligado"]},
         "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
                 "conexoes": AUT.conexoes()},
-        "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada},
+        "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada, "nome": nome_da_ia(c)},
+        "ias": {"lista": ias_ha(), "escolhida": c["ia_entidade"]},
         "sensores": {"ligado": c["sensores"]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
