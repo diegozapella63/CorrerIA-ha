@@ -689,13 +689,23 @@
     marcarAbas();
   }
   // 0.16.1 (padrão da família): quando as abas não cabem, a ponta de onde há mais some aos poucos, com uma seta
+  // (0.16.2) as abas mudam de largura quando a fonte do app termina de carregar: o tamanho de cada uma é acompanhado
+  let olhoAbas = null;
   function marcarAbas() {
     const nav = document.querySelector('.abas-wrap > .abas');
     if (!nav) return;
     const w = nav.parentElement;
     w.classList.toggle('tem-esq', nav.scrollLeft > 2);
     w.classList.toggle('tem-dir', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+    if (window.ResizeObserver && (!olhoAbas || olhoAbas.nav !== nav)) {
+      if (olhoAbas) olhoAbas.ro.disconnect();
+      const ro = new ResizeObserver(() => marcarAbas());
+      ro.observe(nav);
+      nav.querySelectorAll('button').forEach(b => ro.observe(b));
+      olhoAbas = { nav, ro };
+    }
   }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => marcarAbas());
   document.addEventListener('scroll', ev => { if (ev.target.classList && ev.target.classList.contains('abas')) marcarAbas(); }, true);
   window.addEventListener('resize', marcarAbas);
 

@@ -1,5 +1,9 @@
 # Mudanças
 
+## 0.16.2
+
+- **Configurações**: a seta que mostra que há mais abas agora aparece (na 0.16.1 ela ficava escondida atrás das abas), e acompanha a largura delas quando a fonte do app termina de carregar.
+
 ## 0.16.1
 
 - **IA do Home Assistant** no padrão dos outros apps: o estado em verde quando está tudo certo ("Pronta para conversar · Usando…"), a **IA para conversar** numa caixa de seleção (a janela do app, como nos outros) e o **Verificar de novo**.

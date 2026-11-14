@@ -295,6 +295,9 @@ class Tela(unittest.TestCase):
         pontas = "[...document.querySelector('.abas-wrap').classList].filter(c => c.startsWith('tem-')).sort()"
         self.assertEqual(self.pg.evaluate(pontas), ["tem-dir"], "no começo: há mais à direita")
         self.assertTrue(self.pg.is_visible(".abas-fim.dir svg") and not self.pg.is_visible(".abas-fim.esq"))
+        # 0.16.2: a seta fica por cima das abas (antes, as abas cobriam a seta)
+        self.assertTrue(self.pg.evaluate("""(() => { const f = document.querySelector('.abas-fim.dir'), r = f.getBoundingClientRect(); f.style.pointerEvents = 'auto';
+          const e = document.elementFromPoint(r.right - 6, (r.top + r.bottom) / 2); f.style.pointerEvents = ''; return !!(e && e.closest('.abas-fim.dir')); })()"""), "a seta à vista, por cima das abas")
         self.pg.evaluate("(n => n.scrollLeft = n.scrollWidth)(document.querySelector('.abas'))")
         self.pg.wait_for_timeout(150)
         self.assertEqual(self.pg.evaluate(pontas), ["tem-esq"], "no fim: há mais à esquerda")

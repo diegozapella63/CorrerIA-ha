@@ -381,7 +381,7 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 42px; co
 
 /* 0.16.1 (padrão da família): as abas que não cabem mostram que há mais: a ponta some aos poucos, com uma seta */
 .abas-wrap { position: sticky; top: 0; z-index: 15; margin: 16px 0 18px; }
-.abas-wrap > .abas { position: relative; top: auto; margin: 0; }
+.abas-wrap > .abas { position: relative; top: auto; z-index: 0; margin: 0; }
 .abas-fim { position: absolute; top: 1px; bottom: 1px; z-index: 1; width: 52px; display: none; align-items: center; pointer-events: none; color: var(--text-2); }
 .abas-fim.dir { right: 1px; justify-content: flex-end; padding-right: 8px; border-radius: 0 13px 13px 0; background: linear-gradient(to right, transparent, var(--card-2) 62%); }
 .abas-fim.esq { left: 1px; justify-content: flex-start; padding-left: 8px; border-radius: 13px 0 0 13px; background: linear-gradient(to left, transparent, var(--card-2) 62%); }
