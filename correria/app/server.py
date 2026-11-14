@@ -1347,6 +1347,10 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/mcp/desconectar":
                 AUT.desconectar(c.get("id"))
                 return self.enviar(200, estado())
+            if p == "/api/ia/verificar":  # 0.16.1: as IAs do Home Assistant de novo; o erro da última chamada sai
+                _ias_cache.update(t=0.0, v=None)
+                ESTADO["ia"] = None
+                return self.enviar(200, estado())
             if p == "/api/registro/limpar":  # 0.15.0: só o da aba (WhatsApp ou MCP)
                 canal = "mcp" if c.get("canal") == "mcp" else "whatsapp"
                 with TRAVA:

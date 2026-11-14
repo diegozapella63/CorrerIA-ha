@@ -372,10 +372,18 @@ body[data-tela="conversa"] #toast { bottom: calc(96px + env(safe-area-inset-bott
 .chip > .ic-s { flex: none; color: var(--accent-text); }
 .uso-ult summary > .ic-s:first-child { transition: transform .15s; }
 .uso-ult summary .ic-s:not(:first-child) { color: var(--accent-text); }
-.ia-ops { display: grid; gap: 6px; margin: 4px 0 6px; }
-.ia-op { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--altura); padding: 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--text); font: 500 15px/1.25 var(--font); text-align: left; }
-.ia-op > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ia-op > .ic-s { flex: none; color: var(--muted); }
-.ia-op.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.ia-op.on > .ic-s { color: var(--accent-text); }
+/* a caixa de seleção fechada igual aos outros campos (a janela é a do selectsheet.js, como nos outros apps) */
+select.inp { appearance: none; -webkit-appearance: none; padding-right: 42px; color: var(--text); cursor: pointer;
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23939aa5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center / 18px; }
+#ia .status b { font-weight: 600; }
+#ia .btn.larga { margin-top: 2px; }
 .conv:last-child { border-bottom: 0; }
+
+/* 0.16.1 (padrão da família): as abas que não cabem mostram que há mais: a ponta some aos poucos, com uma seta */
+.abas-wrap { position: sticky; top: 0; z-index: 15; margin: 16px 0 18px; }
+.abas-wrap > .abas { position: relative; top: auto; margin: 0; }
+.abas-fim { position: absolute; top: 1px; bottom: 1px; z-index: 1; width: 52px; display: none; align-items: center; pointer-events: none; color: var(--text-2); }
+.abas-fim.dir { right: 1px; justify-content: flex-end; padding-right: 8px; border-radius: 0 13px 13px 0; background: linear-gradient(to right, transparent, var(--card-2) 62%); }
+.abas-fim.esq { left: 1px; justify-content: flex-start; padding-left: 8px; border-radius: 13px 0 0 13px; background: linear-gradient(to left, transparent, var(--card-2) 62%); }
+.abas-fim .ic-s { width: 18px; height: 18px; }
+.abas-wrap.tem-dir > .abas-fim.dir, .abas-wrap.tem-esq > .abas-fim.esq { display: flex; }

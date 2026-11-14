@@ -238,14 +238,16 @@
   function cardIA(e) {
     const i = e.ia || {}, L = (e.ias || {}).lista || [], sel = (e.ias || {}).escolhida || '';
     if (!e.apps.some(a => a.ferramentas) && !L.length) return '';
-    const op = (v, n) => `<button role="radio" aria-checked="${v === sel}" class="ia-op${v === sel ? ' on' : ''}" data-a="ia-ent" data-v="${esc(v)}">${ic('spark', 'ic-s')}<span>${esc(n)}</span>${v === sel ? ic('check', 'ic-s ia-ok') : ''}</button>`;
-    const st = i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
-      : i.ok === false ? `<div class="status erro">${esc(i.erro)}</div>`
-        : i.ok ? `<div class="status">${esc(i.nome || 'A IA padrão do Home Assistant')} respondeu ${quando(i.em)}.</div>` : '';
-    return `<section class="card" id="ia">${cab('spark', 'IA do Home Assistant')}
-      <div class="lbl" id="ia-l">${ic('spark', 'ic-s')}IA para conversar</div>
-      <div class="ia-ops" role="radiogroup" aria-labelledby="ia-l">${op('', 'Padrão do Home Assistant')}${L.map(x => op(x.id, x.nome)).join('')}</div>
-      ${st}</section>`;
+    // como nos outros apps: o estado (verde quando está tudo certo), a caixa de seleção da IA e o Verificar de novo
+    const saiu = sel && !L.some(x => x.id === sel), nome = i.nome || (L.find(x => x.id === sel) || {}).nome || (!sel && L.length === 1 ? L[0].nome : '');
+    const st = i.ok === false ? `<div class="status erro"><span><b>Não respondeu</b> · ${esc(i.erro)}</span></div>`
+        : !L.length ? '<div class="status manual"><span><b>Nenhuma IA</b> · Adicione no Home Assistant uma integração com tarefas de IA (Anthropic, Google Gemini, OpenAI ou Ollama).</span></div>'
+          : saiu ? '<div class="status manual"><span><b>A IA escolhida saiu do Home Assistant</b> · Usando a padrão.</span></div>'
+            : `<div class="status"><span><b>Pronta para conversar</b> · ${nome ? `Usando ${esc(nome)}` : 'Usando a IA padrão do Home Assistant'}${i.simulada ? ' (simulada, fora do Home Assistant)' : i.ok ? `, que respondeu ${quando(i.em)}` : ''}.</span></div>`;
+    return `<section class="card" id="ia">${cab('spark', 'IA do Home Assistant')}${st}
+      ${L.length ? `<div class="campo">${rotulo('f-ia', 'spark', 'IA para conversar')}<select id="f-ia" class="inp" data-ia-ent>
+        <option value=""${sel ? '' : ' selected'}>Padrão do Home Assistant</option>${L.map(x => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>` : ''}
+      <button class="btn out larga" data-a="ia-verificar">${ic('refresh', 'ic-s')}Verificar de novo</button></section>`;
   }
 
   // o conector MCP (para qualquer IA que aceite um, sem nome de marca na tela): o endereço, os pedidos esperando aprovação e quem está conectado
@@ -297,14 +299,13 @@
   }
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
-    const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e) + cardMensagens(e, true)
       : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardIA(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
-      ${aba === 'whatsapp' ? `<div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>` : ''}
       ${pendentes(e)}
-      <nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n, i]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${ic(i, 'ic-s')}<span>${n}</span></button>`).join('')}</nav>
+      <div class="abas-wrap"><nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n, i]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${ic(i, 'ic-s')}<span>${n}</span></button>`).join('')}</nav>
+        <span class="abas-fim esq" aria-hidden="true">${ic('back', 'ic-s')}</span><span class="abas-fim dir" aria-hidden="true">${ic('chev', 'ic-s')}</span></div>
       ${corpo}`;
   }
   // Mais, um menu como nos outros apps: Configurações e, por último, Sobre (cada um na sua tela)
@@ -685,7 +686,18 @@
       const nav = aba.parentElement, x = aba.offsetLeft - nav.offsetLeft;
       if (x < nav.scrollLeft || x + aba.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = Math.max(0, x - (nav.clientWidth - aba.offsetWidth) / 2);
     }
+    marcarAbas();
   }
+  // 0.16.1 (padrão da família): quando as abas não cabem, a ponta de onde há mais some aos poucos, com uma seta
+  function marcarAbas() {
+    const nav = document.querySelector('.abas-wrap > .abas');
+    if (!nav) return;
+    const w = nav.parentElement;
+    w.classList.toggle('tem-esq', nav.scrollLeft > 2);
+    w.classList.toggle('tem-dir', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+  }
+  document.addEventListener('scroll', ev => { if (ev.target.classList && ev.target.classList.contains('abas')) marcarAbas(); }, true);
+  window.addEventListener('resize', marcarAbas);
 
   /* ---------- telas: as Opções e o Sobre ocupam uma entrada no histórico cada (o Voltar do celular volta um passo) */
   function abrirTela(t) {
@@ -776,9 +788,8 @@
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
     } else if (a === 'mcp') {
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
-    } else if (a === 'ia-ent') {  // 0.16.0: a IA para conversar
-      const v = el.dataset.v, x = ((S.e.ias || {}).lista || []).find(o => o.id === v);
-      await acao('config', { ia_entidade: v }, 'IA para conversar: ' + (x ? x.nome : 'a padrão do Home Assistant'));
+    } else if (a === 'ia-verificar') {  // a lista das IAs de novo e esquece o erro da última chamada
+      await acao('ia/verificar', {}, 'Verificado');
     } else if (a === 'sensores') {
       const on = !!(S.e.sensores && S.e.sensores.ligado);
       await acao('config', { sensores: !on }, on ? 'Sensores desligados' : 'Sensores ligados');
@@ -886,6 +897,11 @@
       const b64 = await new Promise((ok2, erro) => { const r = new FileReader(); r.onload = () => ok2(r.result); r.onerror = erro; r.readAsDataURL(f); });
       S.ch.anexo = { nome: f.name || 'Foto', b64 };
       render();
+      return;
+    }
+    if (el.matches('[data-ia-ent]')) {  // 0.16.0: a IA para conversar
+      const x = ((S.e.ias || {}).lista || []).find(o => o.id === el.value);
+      await acao('config', { ia_entidade: el.value }, 'IA para conversar: ' + (x ? x.nome : 'a padrão do Home Assistant'));
       return;
     }
     if (el.dataset.f === 'endereco') {

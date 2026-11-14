@@ -104,7 +104,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência"])
         self.assertEqual(self.texto(".abas .on"), "Apps", "começa em Apps")
         self.pg.click('.abas [data-v="whatsapp"]')
-        self.assertEqual(self.texto(".sync"), "Falta terminar a configuração do WhatsApp")
+        self.assertEqual(self.pg.locator(".sync").count(), 0, "0.16.1: sem o \"Falta terminar a configuração\" no alto (o cartão já diz)")
         self.assertEqual(self.texto("#whatsapp .status"), "Falta configurar: o ID do número, o token e a chave secreta.")
         self.assertTrue(self.pg.is_disabled('[data-a="conferir"]'), "sem configurar, nada a conferir")
         self.assertEqual(self.pg.locator('[data-a="ligado"]').count(), 0)
@@ -218,7 +218,7 @@ class Tela(unittest.TestCase):
         self.abrir("light")
         self.opcoes("apps")
         self.assertEqual(self.texto("#apps .app-l .le"), "Lê e muda.")
-        self.assertEqual(self.pg.locator("#ia .status").all_inner_texts()[0], "IA simulada (fora do Home Assistant).", "0.16.0: na seção da IA")
+        self.assertEqual(self.pg.locator("#ia .status").all_inner_texts()[0], "Pronta para conversar · Usando a IA padrão do Home Assistant (simulada, fora do Home Assistant).", "0.16.0: na seção da IA")
         app.chave = "outra"
         S.APPS._ferr.clear()
         self.pg.reload()
@@ -229,23 +229,38 @@ class Tela(unittest.TestCase):
 
     # ---- 0.16.0: a IA para conversar, como nos outros apps (fora do Home Assistant, duas de exemplo)
     def test_ia_para_conversar(self):
+        """0.16.1: no padrão dos outros apps: o estado (verde quando está tudo certo), a caixa de seleção (a janela do app,
+        selectsheet.js) e o Verificar de novo."""
         app = AppFalso("CronologIA")
         self.addCleanup(app.fechar)
         app.publicar(S.SHARE_DIR, "cronologia")
         self.abrir()
         self.opcoes("apps")
         self.assertEqual(self.texto("#ia h2"), "IA do Home Assistant")
-        self.assertEqual([t.strip() for t in self.pg.locator("#ia .ia-op").all_inner_texts()], ["Padrão do Home Assistant", "IA de exemplo", "Outra IA"])
-        self.assertEqual(self.texto("#ia .ia-op.on"), "Padrão do Home Assistant", "de início, a padrão do Home Assistant")
         ordem = self.pg.evaluate("[...document.querySelectorAll('#app section.card')].map(c => c.id)")
         self.assertEqual(ordem.index("ia"), ordem.index("apps") + 1, f"logo depois dos apps, como nos outros: {ordem}")
-        self.pg.click('#ia .ia-op[data-v="ai_task.outra_ia"]')
-        self.pg.wait_for_selector('#ia .ia-op.on[data-v="ai_task.outra_ia"]')
+        self.assertEqual(self.pg.evaluate("[getComputedStyle(document.querySelector('#ia .status'), '::before').backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--good').trim()]")[0] != "", True)
+        self.assertEqual(self.pg.get_attribute("#ia .status", "class"), "status", "verde: tudo certo")
+        self.assertEqual(self.texto("#ia .campo > label"), "IA para conversar")
+        self.assertEqual([t.strip() for t in self.pg.locator("#f-ia option").all_inner_texts()], ["Padrão do Home Assistant", "IA de exemplo", "Outra IA"])
+        self.assertEqual(self.pg.locator("#f-ia").evaluate("s => getComputedStyle(s).pointerEvents"), "none", "a janela do celular não abre: a do app")
+        bx = self.pg.locator("#f-ia").bounding_box()
+        self.pg.mouse.click(bx["x"] + bx["width"] / 2, bx["y"] + bx["height"] / 2)
+        self.pg.wait_for_selector(".ss-wrap.in .ss-sheet")
+        self.assertEqual(self.texto(".ss-head b"), "IA para conversar")
+        self.pg.click(".ss-opt >> text=Outra IA")
+        self.pg.wait_for_function("document.querySelector('#f-ia') && document.querySelector('#f-ia').value === 'ai_task.outra_ia'")
+        self.pg.wait_for_function("!document.querySelector('.ss-wrap')")
         self.assertEqual(S.ler_config()["ia_entidade"], "ai_task.outra_ia")
-        self.assertEqual(self.pg.get_attribute('#ia .ia-op[data-v="ai_task.outra_ia"]', "aria-checked"), "true")
-        self.pg.click('#ia .ia-op[data-v=""]')
-        self.pg.wait_for_selector('#ia .ia-op.on[data-v=""]')
-        self.assertEqual(S.ler_config()["ia_entidade"], "")
+        self.assertIn("Usando Outra IA", self.texto("#ia .status"))
+        S.ESTADO["ia"] = {"ok": False, "erro": "Outra IA ficou sem cota (o limite de uso acabou).", "em": None, "nome": "Outra IA"}
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_selector("#ia .status.erro")
+        self.assertIn("ficou sem cota", self.texto("#ia .status"))
+        self.pg.click('#ia [data-a="ia-verificar"]')
+        self.pg.wait_for_selector("#ia .status:not(.erro)")
+        self.assertIsNone(S.ESTADO["ia"], "Verificar de novo esquece o erro da última chamada")
+        S.salvar_config({"ia_entidade": ""})
 
     # ---- 0.16.0 (padrão da família): ícones nas seções, nas linhas, nos campos, nos botões, nas abas e nos títulos
     def test_icones_em_tudo(self):
@@ -267,6 +282,25 @@ class Tela(unittest.TestCase):
             self.assertEqual(self.pg.evaluate(confere), [], aba)
         self.assertEqual(self.pg.locator(".abas button svg").count(), self.pg.locator(".abas button").count(), "as abas com o ícone")
         self.assertEqual(self.pg.evaluate("getComputedStyle(document.querySelector('.abas button svg')).display"), "none", "no celular, só o nome")
+        # 0.16.1: no celular, dentro do Home Assistant (com Opções), as abas não cabem; a ponta de onde há mais some aos
+        # poucos, com uma seta
+        self.addCleanup(mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}).stop)
+        mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}).start()
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_selector('.abas [data-v="opcoes"]')
+        self.pg.click('.abas [data-v="apps"]')
+        self.pg.wait_for_selector('.abas [data-v="apps"].on')
+        self.pg.evaluate("document.querySelector('.abas').scrollLeft = 0")
+        self.pg.wait_for_timeout(150)
+        pontas = "[...document.querySelector('.abas-wrap').classList].filter(c => c.startsWith('tem-')).sort()"
+        self.assertEqual(self.pg.evaluate(pontas), ["tem-dir"], "no começo: há mais à direita")
+        self.assertTrue(self.pg.is_visible(".abas-fim.dir svg") and not self.pg.is_visible(".abas-fim.esq"))
+        self.pg.evaluate("(n => n.scrollLeft = n.scrollWidth)(document.querySelector('.abas'))")
+        self.pg.wait_for_timeout(150)
+        self.assertEqual(self.pg.evaluate(pontas), ["tem-esq"], "no fim: há mais à esquerda")
+        self.pg.set_viewport_size({"width": 1100, "height": 900})
+        self.pg.wait_for_timeout(200)
+        self.assertEqual(self.pg.evaluate(pontas), [], "no computador, cabem todas: sem a seta")
 
     # ---- o conector MCP (qualquer IA: na tela, sem nome de marca)
     def pedido(self):
@@ -685,7 +719,7 @@ class Tela(unittest.TestCase):
         with mock.patch.object(S, "certificado", return_value=("/ssl/fullchain.pem", "/ssl/privkey.pem")):
             self.abrir()
             self.opcoes("whatsapp")
-            self.assertEqual(self.texto(".sync"), "Respondendo pelo WhatsApp")
+            self.assertEqual(self.pg.locator(".sync").count(), 0, "0.16.1: o estado fica só no cartão do WhatsApp")
             self.assertIn("Áudios do WhatsApp viram texto pelo Fala simulada (teste).", self.pg.locator("#whatsapp .status").all_inner_texts(),
                           "0.15.0: o áudio na aba do WhatsApp, escrito por extenso")
             self.assertIn("Certificado fullchain.pem · porta 8443", self.texto("#webhook"))

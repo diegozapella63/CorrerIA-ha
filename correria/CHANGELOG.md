@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.16.1
+
+- **IA do Home Assistant** no padrão dos outros apps: o estado em verde quando está tudo certo ("Pronta para conversar · Usando…"), a **IA para conversar** numa caixa de seleção (a janela do app, como nos outros) e o **Verificar de novo**.
+- **Configurações**: quando as abas não cabem, a ponta de onde há mais some aos poucos, com uma seta.
+- **WhatsApp**: saiu a linha "Falta terminar a configuração do WhatsApp" do alto; o cartão do WhatsApp já diz o que falta.
+
 ## 0.16.0
 
 - **IA para conversar** (em **Configurações › Apps › IA do Home Assistant**), como nos outros apps: escolha qual IA do Home Assistant responde no WhatsApp e na conversa. De início fica a padrão do Home Assistant.
