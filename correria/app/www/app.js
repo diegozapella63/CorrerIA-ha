@@ -153,11 +153,14 @@
     if (!e.pronto) st = '<div class="status manual">Falta configurar: o ID do número, o token e a chave secreta.</div>';
     else if (e.conta) st = `<div class="status">${esc(e.conta.numero)}${e.conta.nome ? ' · ' + esc(e.conta.nome) : ''}</div>`;
     else st = '<div class="status manual">Configurado. Toque em Conferir para testar com a Meta.</div>';
+    const f = e.fala || {};  // 0.15.0: o áudio é do WhatsApp (antes, em Apps, "ouve pela fala para texto")
+    const audio = !e.pronto ? '' : f.pronta ? `<div class="status">Áudios do WhatsApp viram texto pelo ${esc(f.nome)}.</div>`
+      : `<div class="status manual">Áudios do WhatsApp não viram texto. ${esc(f.motivo || 'Falta a fala para texto no Home Assistant.')}</div>`;
     return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
       <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>
       ${e.pronto ? `<div class="linha-sw"><div><b>Responder pelo WhatsApp</b><span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
         <button class="sw${c.ligado ? ' on' : ''}" data-a="ligado" role="switch" aria-checked="${c.ligado}" aria-label="Responder pelo WhatsApp"></button></div>` : ''}
-      ${st}
+      ${st}${audio}
       <div class="campo"><label for="f-numero">ID do número de telefone</label>
         <input id="f-numero" class="inp" inputmode="numeric" autocomplete="off" data-f="numero_id" value="${esc(S.form.numero_id != null ? S.form.numero_id : c.numero_id)}" placeholder="Ex.: 109876543210"></div>
       <div class="campo"><label for="f-token">Token de acesso</label>
@@ -206,16 +209,15 @@
     return f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '';
   }
   function cardApps(e) {
-    const A = e.apps, f = e.fala || {}, i = e.ia || {}, ft = e.fala_tela || {};
+    const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};
     const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
-    const audio = f.pronta ? `<div class="status">Áudio: ouve pela fala para texto ${esc(f.nome)}.</div>` : `<div class="status manual">Áudio: ${esc(f.motivo || 'sem fala para texto.')}</div>`;
     const comFerr = A.some(a => a.ferramentas);
     const ia = !comFerr ? '' : i.simulada ? '<div class="status">IA simulada (fora do Home Assistant).</div>'
       : i.ok === false ? `<div class="status erro">IA: ${esc(i.erro)}</div>` : '<div class="status">IA: a do Home Assistant (Configurações › Sistema › IA).</div>';
     const mic = ft.pronta === false ? `<div class="status manual">Falar na conversa: ${esc(ft.motivo || 'sem fala para texto.')}</div>` : '';
     return `<section class="card" id="apps">${cab('layers', 'Apps')}
-      ${lista}${ia}${A.length ? audio + mic : ''}
+      ${lista}${ia}${A.length ? mic : ''}
     </section>`;
   }
 
@@ -231,26 +233,32 @@
     const conexoes = (m.conexoes || []).map(c => `<div class="conexao"><span class="av">${esc((c.nome || '?').slice(0, 1).toUpperCase())}</span>
         <div class="conexao-t"><b>${esc(c.nome)}</b><span>${[c.pessoa, c.usado ? 'usou ' + quando(c.usado) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
         <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">Desconectar</button></div>`).join('');
+    const w = e.webhook || {};  // 0.15.0: o endereço público e o certificado aqui também (antes: "Escreva o endereço público na aba WhatsApp")
+    const publico = `<div class="campo"><label for="f-endereco-mcp">Endereço público</label>
+        <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : e.config.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
+      ${w.https ? `<div class="status">Certificado ${esc(w.certificado)} · porta ${w.porta}</div>` : `<div class="status manual">Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).</div>`}`;
     const endereco = m.url ? `<div class="campo"><label for="f-mcp">Endereço do conector</label><div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Na IA, adicione um <b>conector personalizado</b> com este endereço.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
-      : '<div class="status manual">Escreva o endereço público na aba WhatsApp.</div>';
+      : '';
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
-      <p class="lead">Os apps dentro de outras IAs, como um conector.</p>${sw}
-      ${pedidos}${endereco}
+      <p class="lead">Os apps dentro de outras IAs, como um conector. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>${sw}
+      ${pedidos}${publico}${endereco}
       ${conexoes ? `<div class="lbl">Conectados</div>${conexoes}` : ''}
     </section>`;
   }
 
   const TIPO = { recebida: ['entra', 'Recebida'], enviada: ['sai', 'Enviada'], bloqueada: ['ban', 'Número sem cadastro'], erro: ['alert', 'Erro'], mcp: ['plug', 'Conector MCP'] };
-  function cardMensagens(e) {
-    const R = e.registro;
-    return `<section class="card" id="mensagens">${cab('inbox', 'Últimas mensagens', R.length ? '<button class="btn peq" data-a="limpar">Limpar</button>' : '')}
+  function cardMensagens(e, mcp) {
+    const R = (mcp ? e.registro_mcp : e.registro) || [];
+    if (mcp && !R.length && !(e.mcp || {}).ligado) return '';
+    const vazio = mcp ? 'Nenhuma mudança ainda.' : 'Nenhuma mensagem ainda.';
+    return `<section class="card" id="${mcp ? 'mudancas' : 'mensagens'}">${cab(mcp ? 'plug' : 'inbox', mcp ? 'Últimas mudanças' : 'Últimas mensagens', R.length ? `<button class="btn peq" data-a="limpar" data-v="${mcp ? 'mcp' : 'whatsapp'}">Limpar</button>` : '')}
       ${R.length ? `<div class="msgs">${R.map(r => {
         const [icone, rot] = TIPO[r.tipo] || ['chat', r.tipo];
         return `<div class="msg ${esc(r.tipo)}"><span class="msg-ic" title="${rot}">${ic(icone, 'ic-s')}</span><div>
           <div class="msg-t"><b>${esc(r.quem)}${r.tipo === 'bloqueada' ? ' · sem cadastro' : ''}</b><time datetime="${esc(r.em)}">${horaCurta(r.em)}</time></div>
           <p>${esc(r.texto)}${r.app && r.tipo === 'mcp' ? ` <small>· ${esc(r.app)}</small>` : ''}</p></div></div>`;
-      }).join('')}</div>` : '<p class="vazio">Nenhuma mensagem ainda.</p>'}
+      }).join('')}</div>` : `<p class="vazio">${vazio}</p>`}
     </section>`;
   }
 
@@ -263,10 +271,11 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const pronto = e.pronto && e.webhook.https && (e.webhook.verificado_em || e.webhook.ultimo) && e.apps.length && e.pessoas.some(p => p.numero);
-    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardSensores(e) + cardMensagens(e);
+    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e) + cardMensagens(e, true)
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardUso(e) + cardSensores(e);
+    // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
-      <div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>
+      ${aba === 'whatsapp' ? `<div class="sync${pronto ? '' : ' manual'}"><span class="dot"></span>${pronto ? (e.config.ligado ? 'Respondendo pelo WhatsApp' : 'Respostas pausadas') : 'Falta terminar a configuração do WhatsApp'}</div>` : ''}
       ${pendentes(e)}
       <nav class="abas" role="tablist" aria-label="Configurações">${abasDe(e).map(([k, n]) => `<button role="tab" aria-selected="${k === aba}" class="${k === aba ? 'on' : ''}" data-a="aba" data-v="${k}">${n}</button>`).join('')}</nav>
       ${corpo}`;
@@ -308,25 +317,47 @@
       <div class="campo"><label for="f-atalho">Caminho</label><div class="copiar pilha"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
   }
 
-  /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados) */
+  /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
+     padrão dos outros apps (0.15.0): Hoje, 7 dias e Este mês; uma barra por dia (tocar mostra o dia); os tipos; Últimas chamadas recolhidas */
   const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa' };
+  const RES_USO = { cota: 'sem cota', formato: 'resposta fora do formato', erro: 'erro' };
   const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const chamadas = n => `${n} ${n === 1 ? 'chamada' : 'chamadas'}`;
   function cardUso(e) {
     const u = e.uso_ia;
-    if (!u || !u.hoje) return '';
+    if (!u || !u.hoje || !(u.dias || []).length) return '';
     const mil = n => n >= 1000 ? `${String(Math.round(n / 100) / 10).replace('.', ',')} mil` : String(Math.round(n || 0));
-    const tile = (k, t) => `<div class="uso-t"><span class="k">${k}</span><b>${t.chamadas || 0}</b><span class="s${t.erros || t.cota ? ' alerta' : ''}">${t.cota ? `${t.cota} sem cota` : t.erros ? `${t.erros} com erro` : `≈ ${mil(t.tokens)} tokens`}</span></div>`;
+    const sub = t => t.cota ? `<span class="s alerta">${t.cota} ${t.cota > 1 ? 'vezes' : 'vez'} sem cota</span>` : t.erros ? `<span class="s alerta">${t.erros} com erro</span>` : `<span class="s">≈ ${mil(t.tokens)} tokens</span>`;
+    const tile = (k, t) => `<div class="uso-t"><span class="k">${k}</span><b>${t.chamadas || 0}</b>${sub(t)}</div>`;
     const max = Math.max(1, ...u.dias.map(d => d.chamadas || 0));
-    const hoje = u.dias.length ? u.dias[u.dias.length - 1].dia : '';
+    const hoje = u.dias[u.dias.length - 1].dia;
+    if (!S.usoDia || !u.dias.some(d => d.dia === S.usoDia)) S.usoDia = hoje;
     const nomeDia = d => d === hoje ? 'hoje' : SEM[new Date(d + 'T12:00:00').getDay()];
-    const tipos = u.semana.tipos || {};
-    const ult = (u.ultimas || []).slice(0, 6);
+    const diaLongo = d => d === hoje ? 'Hoje' : `${nomeDia(d)[0].toUpperCase() + nomeDia(d).slice(1)}, ${d.slice(8, 10)}/${d.slice(5, 7)}`;
+    const resto = d => `${d.erros ? `, ${d.erros} com erro` : ''}${d.cota ? `, ${d.cota} sem cota` : ''}`;
+    const barras = u.dias.map(d => {
+      const lab = `${diaLongo(d.dia)}: ${chamadas(d.chamadas || 0)}${resto(d)}`;
+      return `<button class="uso-bar" data-a="uso-dia" data-v="${esc(d.dia)}" aria-pressed="${d.dia === S.usoDia}" aria-label="${esc(lab)}" title="${esc(lab)}"><i style="height:${d.chamadas ? Math.max(4, Math.round(d.chamadas / max * 100)) : 0}%"></i></button>`;
+    }).join('');
+    const sel = u.dias.find(d => d.dia === S.usoDia);
+    const tipos = Object.entries(u.semana.tipos || {}).sort((a, b) => b[1] - a[1]);
+    const ult = (u.ultimas || []).map(c => `<li><b>${esc(TIPO_USO[c.tipo] || c.tipo)}</b>${RES_USO[c.resultado] ? `<span class="r-erro">${RES_USO[c.resultado]}</span>` : ''}
+        <span class="t">${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(quandoCurto(c.quando))}</span>${c.erro ? `<span class="uso-motivo">${esc(c.erro)}</span>` : ''}</li>`).join('');
     return `<section class="card" id="uso">${cab('chart', 'Uso da IA')}<p class="lead">As chamadas do CorrerIA para a IA do Home Assistant. Os tokens são estimados.</p>
       <div class="uso-ts">${tile('Hoje', u.hoje)}${tile('7 dias', u.semana)}${tile('Este mês', u.mes)}</div>
-      <div class="uso-barras" aria-label="Chamadas nos últimos 7 dias">${u.dias.map(d => `<div class="uso-b${d.dia === hoje ? ' hoje' : ''}" title="${nomeDia(d.dia)}: ${d.chamadas}"><i style="height:${d.chamadas ? Math.max(4, Math.round(d.chamadas / max * 100)) : 0}%"></i><span>${nomeDia(d.dia)}</span></div>`).join('')}</div>
-      ${Object.keys(tipos).length ? `<p class="uso-tipos">${Object.keys(tipos).map(k => `${TIPO_USO[k] || esc(k)} <b>${tipos[k]}</b>`).join(' · ')}</p>` : ''}
-      ${ult.length ? `<div class="lbl">Últimas chamadas</div><ul class="uso-ult">${ult.map(c => `<li><b>${TIPO_USO[c.tipo] || esc(c.tipo)}</b>${c.resultado !== 'ok' ? `<span class="erro">${c.resultado === 'cota' ? 'sem cota' : c.resultado === 'formato' ? 'fora do formato' : 'erro'}</span>` : ''}<span>${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(horaCurta(c.quando))}</span></li>`).join('')}</ul>` : '<p class="vazio">Nenhuma chamada ainda.</p>'}
+      <div class="uso-chart" role="group" aria-label="Chamadas de IA nos últimos 7 dias">${barras}</div>
+      <div class="uso-dias" aria-hidden="true">${u.dias.map(d => `<span>${nomeDia(d.dia)}</span>`).join('')}</div>
+      <p class="uso-cap" aria-live="polite">${diaLongo(sel.dia)}: <b>${chamadas(sel.chamadas || 0)}</b>${resto(sel)}.</p>
+      ${tipos.length ? `<ul class="uso-tipos" aria-label="Nos últimos 7 dias">${tipos.map(([k, n]) => `<li>${esc(TIPO_USO[k] || k)} <b>${n}</b></li>`).join('')}</ul>` : ''}
+      <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}Últimas chamadas</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
     </section>`;
+  }
+  // 14:32 hoje; 11/11 14:32 nos outros dias (como nos outros apps)
+  function quandoCurto(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? 'hoje ' + hm : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`;
   }
 
   /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
@@ -792,10 +823,14 @@
     } else if (a === 'cam-galeria') {
       fecharCamera();
       const inp = $('#ch-foto'); if (inp) inp.click();
+    } else if (a === 'uso-dia') {  // Uso da IA: o dia da barra tocada
+      S.usoDia = el.dataset.v; render();
     } else if (a === 'limpar') {
-      await acao('registro/limpar', {}, 'Mensagens apagadas');
+      await acao('registro/limpar', { canal: el.dataset.v }, el.dataset.v === 'mcp' ? 'Mudanças apagadas' : 'Mensagens apagadas');
     }
   });
+  // Últimas chamadas aberta continua aberta quando a tela se redesenha (a cada poucos segundos)
+  document.addEventListener('toggle', ev => { if (ev.target.classList && ev.target.classList.contains('uso-ult')) S.usoAberto = ev.target.open; }, true);
   document.addEventListener('input', ev => {
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;

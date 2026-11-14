@@ -291,13 +291,20 @@ def ja_vista(msg_id):
         return False
 
 
-def registrar(tipo, quem, texto, app=""):
-    """O que a tela mostra em Últimas mensagens: recebida, enviada, bloqueada (número sem cadastro), erro."""
+def registrar(tipo, quem, texto, app="", canal="whatsapp"):
+    """O que a tela mostra em Últimas mensagens (aba WhatsApp: recebida, enviada, bloqueada, o número sem cadastro, erro)
+    e em Últimas mudanças (aba MCP, canal "mcp": o que as IAs conectadas mudaram). O canal "tela" (os erros da conversa
+    da tela, que ela mesma mostra) fica só no arquivo."""
     with TRAVA:
         c = ler_conversas()
-        c["registro"].insert(0, {"em": agora_iso(), "tipo": tipo, "quem": str(quem or "")[:60], "texto": str(texto or "")[:300], "app": app})
+        c["registro"].insert(0, {"em": agora_iso(), "tipo": tipo, "quem": str(quem or "")[:60], "texto": str(texto or "")[:300], "app": app, "canal": canal})
         c["registro"] = c["registro"][:MAX_REGISTRO]
         _gravar_conversas(c)
+
+
+def canal_de(r):
+    """O canal de uma linha do registro; as de antes da 0.15.0 não têm: pelo tipo."""
+    return r.get("canal") or ("mcp" if r.get("tipo") == "mcp" else "whatsapp")
 
 
 def historico(numero):
@@ -423,7 +430,7 @@ def executar(acoes, pessoa, cliente):
         if f["app"]["nome"] not in nomes:
             nomes.append(f["app"]["nome"])
         if erro:
-            registrar("erro", f["app"]["nome"], texto)
+            registrar("erro", f["app"]["nome"], texto, canal="whatsapp" if cliente == "WhatsApp" else "tela")
     ok = all(not x.startswith("- Não deu") for x in linhas)
     return ("Feito!\n" if ok else "") + "\n".join(linhas), nomes
 
@@ -734,7 +741,7 @@ def registrar_mcp(quem, f, args, texto, erro):
     """Uma mudança feita por uma IA conectada (MCP) vai para Últimas mensagens."""
     nome = (quem.get("pessoa") or {}).get("nome")
     registrar("erro" if erro else "mcp", quem.get("cliente") + (f" · {nome}" if nome else ""),
-              (texto.splitlines()[0] if texto else f["titulo"]), f["app"]["nome"])
+              (texto.splitlines()[0] if texto else f["titulo"]), f["app"]["nome"], canal="mcp")
 
 
 def avisar_pedido(p):
@@ -954,6 +961,7 @@ def estado():
     pessoas = [{"id": p["id"], "nome": p["nome"], "numero": nums.get(p["id"], "")} for p in pessoas_ha()]
     pessoas += [{"id": k, "nome": k[7:].replace("_", " ").title(), "numero": v, "fora": True} for k, v in nums.items() if k not in {p["id"] for p in pessoas}]
     cc = certificado()
+    reg = ler_conversas()["registro"]
     lista = APPS.publicos()
     todas = FERR.todas()
     for a in lista:  # o que cada app faz pelo CorrerIA: quantas ferramentas (e quantas gravam)
@@ -975,7 +983,8 @@ def estado():
         "apps": lista,
         "fala": FALA.status(),
         "fala_tela": FALA.status("wav"),
-        "registro": ler_conversas()["registro"][:30],
+        "registro": [r for r in reg if canal_de(r) == "whatsapp"][:30],
+        "registro_mcp": [r for r in reg if canal_de(r) == "mcp"][:30],
         "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
         "atalho": atalho(),
         "uso_ia": USO.resumo(),
@@ -1285,10 +1294,11 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/mcp/desconectar":
                 AUT.desconectar(c.get("id"))
                 return self.enviar(200, estado())
-            if p == "/api/registro/limpar":
+            if p == "/api/registro/limpar":  # 0.15.0: só o da aba (WhatsApp ou MCP)
+                canal = "mcp" if c.get("canal") == "mcp" else "whatsapp"
                 with TRAVA:
                     cv = ler_conversas()
-                    cv["registro"] = []
+                    cv["registro"] = [r for r in cv["registro"] if canal_de(r) != canal]
                     _gravar_conversas(cv)
                 return self.enviar(200, estado())
             return self.enviar(404, {"erro": "não encontrado"})

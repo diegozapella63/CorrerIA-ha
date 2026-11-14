@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.15.0
+
+- **Últimas mensagens** foi para o fim da aba **WhatsApp**. O que as IAs conectadas mudaram fica na aba **MCP**, em **Últimas mudanças**, cada um com o seu **Limpar**.
+- **MCP**: o **Endereço público** e o certificado aparecem na própria aba (antes, ela mandava escrever o endereço na aba WhatsApp). O estado do WhatsApp ("Falta terminar a configuração do WhatsApp") só aparece na aba dele.
+- **Uso da IA** no padrão dos outros apps: toque numa barra para ver o dia, os tipos em etiquetas e as **Últimas chamadas** recolhidas, com o motivo quando deu errado.
+- O áudio ficou mais claro: "Áudios do WhatsApp viram texto pelo Home Assistant Cloud.", na aba **WhatsApp**.
+
 ## 0.14.0
 
 - **Sensores no Home Assistant** (em **Configurações › Apps**, depois do Uso da IA; vem desligado): `sensor.correria_certificado`, com os dias até o certificado vencer, e `binary_sensor.correria_whatsapp`, ligado com o WhatsApp conectado (e o erro da Meta quando cai, como um token vencido). A aba **Documentação** traz um exemplo de automação.

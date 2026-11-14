@@ -832,8 +832,20 @@ class TestTela(Base):
 
     def test_limpar_e_rotas(self):
         S.registrar("recebida", "Ana", "oi")
+        S.registrar("mcp", "Claude · Ana", "Lançado: Feira", "GerencIA", canal="mcp")
+        S.registrar("erro", "GerencIA", "Não deu", canal="tela")
+        with S.TRAVA:  # uma linha de antes da 0.15.0, sem canal: pelo tipo
+            cv = S.ler_conversas()
+            cv["registro"].insert(0, {"em": S.agora_iso(), "tipo": "mcp", "quem": "Gemini · Beto", "texto": "Feito", "app": "ResolvIA"})
+            S._gravar_conversas(cv)
+        e = S.estado()
+        self.assertEqual([r["texto"] for r in e["registro"]], ["oi"], "a aba WhatsApp só com o WhatsApp")
+        self.assertEqual([r["texto"] for r in e["registro_mcp"]], ["Feito", "Lançado: Feira"], "a aba MCP com o que as IAs mudaram")
+        st, e = self.json("/api/registro/limpar", {"canal": "mcp"})
+        self.assertEqual((e["registro_mcp"], [r["texto"] for r in e["registro"]]), ([], ["oi"]), "Limpar na aba MCP só apaga as mudanças")
         st, e = self.json("/api/registro/limpar", {})
         self.assertEqual(e["registro"], [])
+        self.assertEqual([r["texto"] for r in S.ler_conversas()["registro"]], ["Não deu"], "o da conversa da tela fica só no arquivo")
         self.assertEqual(self.json("/api/nada", {})[0], 404)
         self.assertEqual(self.json("/api/config", [1])[0], 200, "um corpo que não é objeto vale como vazio")
 

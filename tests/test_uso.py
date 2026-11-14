@@ -37,6 +37,9 @@ class Uso(unittest.TestCase):
         self.assertEqual([d["chamadas"] for d in r["dias"]], [0, 0, 0, 0, 1, 0, 2])
         self.assertEqual(r["dias"][-1]["dia"], "2026-11-10")
         self.assertEqual([(c["tipo"], c["resultado"]) for c in r["ultimas"][:3]], [("whatsapp", "ok"), ("conversa", "erro"), ("conversa", "cota")])
+        self.assertEqual([d["cota"] for d in r["dias"]][-1], 1, "0.15.0: a cota de cada dia, para a legenda do dia tocado")
+        self.assertNotIn("erro", r["ultimas"][0], "deu certo: sem motivo")
+        self.assertEqual(r["ultimas"][1]["erro"], "O Home Assistant respondeu 500.", "0.15.0: o motivo, embaixo da chamada")
 
     def test_guarda_120_dias_e_40_chamadas(self):
         d0 = datetime(2026, 1, 1, 12)

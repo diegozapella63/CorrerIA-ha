@@ -56,7 +56,10 @@ class Uso:
                 del dias[velho]
             u["dias"] = dias
             ult = u["ultimas"] if isinstance(u.get("ultimas"), list) else []
-            u["ultimas"] = ([{"quando": agora.isoformat(timespec="seconds"), "tipo": tipo, "resultado": res, "segundos": round(segundos, 1), "tokens": tokens}] + ult)[:ULTIMAS]
+            nova = {"quando": agora.isoformat(timespec="seconds"), "tipo": tipo, "resultado": res, "segundos": round(segundos, 1), "tokens": tokens}
+            if res != "ok" and erro:
+                nova["erro"] = str(erro)[:200]  # o motivo, embaixo da chamada (como nos outros apps)
+            u["ultimas"] = ([nova] + ult)[:ULTIMAS]
             tmp = self.arquivo + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(u, f, ensure_ascii=False)
@@ -85,6 +88,6 @@ class Uso:
             "hoje": soma([hoje.isoformat()]),
             "semana": soma(semana),
             "mes": soma([k for k in dias if k[:7] == mes]),
-            "dias": [{"dia": k, "chamadas": (dias.get(k) or {}).get("chamadas", 0), "erros": (dias.get(k) or {}).get("erros", 0)} for k in semana],
+            "dias": [{"dia": k, **{c: (dias.get(k) or {}).get(c, 0) for c in ("chamadas", "erros", "cota")}} for k in semana],
             "ultimas": (u.get("ultimas") if isinstance(u.get("ultimas"), list) else [])[:12],
         }

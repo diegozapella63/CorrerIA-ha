@@ -184,12 +184,16 @@ class Tela(unittest.TestCase):
         self.assertEqual(S.ler_config()["pessoas"], {})
 
     def test_audio_sem_fala_para_texto(self):
+        """0.15.0: o áudio do WhatsApp na aba do WhatsApp, escrito por extenso (antes: "Áudio: ouve pela fala para texto")."""
         self.publicar_app()
+        S.salvar_config({"numero_id": MetaFalsa.NUMERO_ID, "token": TOKEN, "segredo": "segredo-do-app-123"})
         with mock.patch.object(S.FALA, "status", return_value={"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}):
             self.abrir()
             self.opcoes("apps")
-            self.assertEqual(self.texto("#apps .status"), "Áudio: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
-            self.assertTrue(self.pg.evaluate("document.querySelector('#apps .status').classList.contains('manual')"))
+            self.assertEqual(self.texto("#apps .status"), "Falar na conversa: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
+            self.pg.click('.abas [data-v="whatsapp"]')
+            st = self.pg.locator("#whatsapp .status.manual").all_inner_texts()
+            self.assertIn("Áudios do WhatsApp não viram texto. O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).", st)
 
     def test_sem_app_explica(self):
         self.abrir()
@@ -204,7 +208,8 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
         self.assertEqual(self.texto("#apps h2"), "Apps")
         self.assertEqual(self.texto("#apps .app-l .le"), "Responde; também lê fotos e PDF.")
-        self.assertEqual(self.texto("#apps .status"), "Áudio: ouve pela fala para texto Fala simulada (teste).")
+        self.assertEqual(self.pg.locator("#apps .status").count(), 0, "0.15.0: o áudio é do WhatsApp, fica na aba dele")
+        self.assertEqual(self.pg.locator(".sync").count(), 0, "o estado do WhatsApp só na aba dele")
 
     def test_apps_com_ferramentas(self):
         app = AppFalso("CronologIA")
@@ -240,13 +245,20 @@ class Tela(unittest.TestCase):
         self.pg.click('[data-a="mcp"]')
         self.aviso("Conector ligado")
         self.assertTrue(S.ler_config()["mcp"])
-        self.assertEqual(self.texto("#mcp .status"), "Escreva o endereço público na aba WhatsApp.")
-        self.pg.click('.abas [data-v="whatsapp"]')
-        self.pg.fill("#f-endereco", "casa-exemplo.duckdns.org:8443")
-        self.pg.press("#f-endereco", "Tab")
+        # 0.15.0: o endereço público e o certificado na própria aba (antes: "Escreva o endereço público na aba WhatsApp")
+        self.assertNotIn("aba WhatsApp", self.texto("#mcp"))
+        self.assertEqual(self.texto("#mcp .status"), "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).")
+        self.assertIn("No roteador, a porta 8443 vai para o Home Assistant.", self.texto("#mcp .lead"))
+        self.assertEqual(self.pg.locator("#f-mcp").count(), 0)
+        self.pg.fill("#f-endereco-mcp", "casa-exemplo.duckdns.org:8443")
+        self.pg.press("#f-endereco-mcp", "Tab")
         self.aviso("Endereço salvo")
-        self.pg.click('.abas [data-v="mcp"]')
+        self.assertEqual(self.texto(".abas .on"), "MCP", "salva sem sair da aba")
+        self.assertEqual(self.pg.input_value("#f-endereco-mcp"), "https://casa-exemplo.duckdns.org:8443")
         self.assertEqual(self.pg.input_value("#f-mcp"), "https://casa-exemplo.duckdns.org:8443/mcp")
+        self.pg.click('.abas [data-v="whatsapp"]')
+        self.assertEqual(self.pg.input_value("#f-endereco"), "https://casa-exemplo.duckdns.org:8443", "o mesmo endereço do webhook")
+        self.pg.click('.abas [data-v="mcp"]')
         self.assertEqual(self.texto("#mcp .passos"), "Na IA, adicione um conector personalizado com este endereço.\nAprove aqui o pedido com o código que aparece lá.")
         self.assertNotRegex(self.texto("#mcp"), "Claude|Gemini|ChatGPT")
         cli, v, p = self.pedido()
@@ -592,8 +604,13 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector(".mais-menu")
 
     def test_ultimas_mensagens(self):
+        """0.15.0: as Últimas mensagens ficam na aba WhatsApp; o que as IAs conectadas mudaram, na aba MCP."""
         self.abrir()
         self.opcoes("apps")
+        self.assertEqual(self.pg.locator("#mensagens").count(), 0, "não fica mais em Apps")
+        self.pg.click('.abas [data-v="whatsapp"]')
+        ids = self.pg.evaluate("[...document.querySelectorAll('.card')].map(c => c.id)")
+        self.assertEqual(ids[-2:], ["pessoas", "mensagens"], "depois de Quem conversa")
         self.assertEqual(self.texto("#mensagens .vazio"), "Nenhuma mensagem ainda.")
         S.registrar("bloqueada", "Desconhecido", "Olá")
         S.registrar("recebida", "Ana", "Quanto gastei?")
@@ -604,9 +621,20 @@ class Tela(unittest.TestCase):
         linhas = self.pg.evaluate("[...document.querySelectorAll('#mensagens .msg')].map(m => [m.className.replace('msg ', ''), m.querySelector('b').textContent, m.querySelector('p').textContent])")
         self.assertEqual(linhas, [["erro", "WhatsApp", "O token venceu."], ["enviada", "Ana", "Você gastou *R$ 123,45*."],
                                   ["recebida", "Ana", "Quanto gastei?"], ["bloqueada", "Desconhecido · sem cadastro", "Olá"]])
-        self.pg.click('[data-a="limpar"]')
+        S.registrar("mcp", "Claude · Ana", "Lançado: Feira · R$ 12", "GerencIA", canal="mcp")
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_timeout(200)
+        self.assertEqual(self.pg.locator("#mensagens .msg").count(), 4, "a mudança de uma IA não entra nas mensagens do WhatsApp")
+        self.pg.click('#mensagens [data-a="limpar"]')
         self.aviso("Mensagens apagadas")
         self.assertEqual(self.texto("#mensagens .vazio"), "Nenhuma mensagem ainda.")
+        self.pg.click('.abas [data-v="mcp"]')
+        self.assertEqual(self.texto("#mudancas h2"), "Últimas mudanças")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#mudancas .msg')].map(m => [m.querySelector('b').textContent, m.querySelector('p').textContent])"),
+                         [["Claude · Ana", "Lançado: Feira · R$ 12 · GerencIA"]])
+        self.pg.click('#mudancas [data-a="limpar"]')
+        self.aviso("Mudanças apagadas")
+        self.assertEqual(self.pg.locator("#mudancas").count(), 0, "sem mudanças e com o conector desligado, o cartão some")
 
     def test_tudo_pronto(self):
         self.publicar_app()
@@ -617,6 +645,8 @@ class Tela(unittest.TestCase):
             self.abrir()
             self.opcoes("whatsapp")
             self.assertEqual(self.texto(".sync"), "Respondendo pelo WhatsApp")
+            self.assertIn("Áudios do WhatsApp viram texto pelo Fala simulada (teste).", self.pg.locator("#whatsapp .status").all_inner_texts(),
+                          "0.15.0: o áudio na aba do WhatsApp, escrito por extenso")
             self.assertIn("Certificado fullchain.pem · porta 8443", self.texto("#webhook"))
             self.assertRegex(self.texto("#webhook"), r"A Meta confirmou o endereço hoje às \d\d:\d\d\.")
 
@@ -714,17 +744,32 @@ class Tela(unittest.TestCase):
     def test_uso_da_ia(self):
         self.abrir()
         self.opcoes("apps")
-        self.assertEqual(self.texto("#uso .vazio"), "Nenhuma chamada ainda.")
+        self.assertEqual(self.pg.eval_on_selector("#uso .uso-ult li", "e => e.textContent"), "Nenhuma chamada ainda.")
+        self.assertEqual(self.texto("#uso .uso-cap"), "Hoje: 0 chamadas.")
         S.USO.registrar("whatsapp", 4000, 400, 3.2)
         S.USO.registrar("conversa", 800, 0, 1.0, "HTTP 429 Too Many Requests")
         self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
-        self.pg.wait_for_selector("#uso .uso-ult li")
+        self.pg.wait_for_selector("#uso .uso-tipos")
         tiles = [" ".join(t.split()) for t in self.pg.locator("#uso .uso-t").all_inner_texts()]
-        self.assertEqual(tiles[0], "HOJE 2 1 sem cota")
-        self.assertEqual(self.pg.locator("#uso .uso-b").count(), 7)
-        self.assertEqual(self.texto("#uso .uso-tipos"), "WhatsApp 1 · Conversa 1")
+        self.assertEqual(tiles[0], "HOJE 2 1 vez sem cota")
+        # 0.15.0: no padrão dos outros apps: uma barra por dia que mostra o dia, os tipos em etiquetas e as Últimas chamadas recolhidas
+        self.assertEqual(self.pg.locator("#uso .uso-bar").count(), 7)
+        self.assertEqual(self.texto("#uso .uso-cap"), "Hoje: 2 chamadas, 1 sem cota.")
+        self.pg.click("#uso .uso-bar >> nth=0")
+        self.assertRegex(self.texto("#uso .uso-cap"), r"^[A-Z][a-zá]{2}, \d\d/\d\d: 0 chamadas\.$")
+        self.assertEqual(self.pg.locator('#uso .uso-bar[aria-pressed="true"]').count(), 1)
+        self.assertEqual(self.pg.locator("#uso .uso-tipos li").all_inner_texts(), ["WhatsApp 1", "Conversa 1"])
+        self.assertFalse(self.pg.eval_on_selector("#uso .uso-ult", "d => d.open"), "Últimas chamadas começa recolhida")
+        self.assertEqual(self.texto("#uso .uso-ult summary"), "Últimas chamadas")
+        self.pg.click("#uso .uso-ult summary")
         ult = self.pg.locator("#uso .uso-ult li").all_inner_texts()
         self.assertTrue(ult[0].startswith("Conversa") and "sem cota" in ult[0] and ult[1].startswith("WhatsApp"), ult)
+        self.assertIn("HTTP 429 Too Many Requests", ult[0], "o motivo embaixo")
+        self.assertRegex(ult[1], r"3,2 s · ≈ 1,1 mil tokens · hoje \d\d:\d\d$")
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.wait_for_timeout(200)
+        self.assertTrue(self.pg.eval_on_selector("#uso .uso-ult", "d => d.open"), "aberta, continua aberta quando a tela se redesenha")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
 
     def test_sensores(self):
         """0.14.0: Sensores no Home Assistant, depois do Uso da IA, desligado até ligar."""

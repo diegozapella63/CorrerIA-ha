@@ -34,9 +34,9 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 
 ### 3. No CorrerIA
 
-O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o áudio, o **Uso da IA**, os **Sensores no Home Assistant** e as últimas mensagens), **WhatsApp** (a conta, o webhook e quem conversa), **MCP**, **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
+O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o **Uso da IA** e os **Sensores no Home Assistant**), **WhatsApp** (a conta, o áudio, o webhook, quem conversa e as **Últimas mensagens**), **MCP** (o conector, o endereço público e as **Últimas mudanças**), **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
 
-**Uso da IA** (na aba Apps): quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia, os tipos (WhatsApp e Conversa) e as últimas chamadas, com o tempo e os tokens estimados. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
+**Uso da IA** (na aba Apps), como nos outros apps: quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia (toque numa barra para ver aquele dia), os tipos (WhatsApp e Conversa) e, recolhidas, as **Últimas chamadas**, com o tempo, os tokens estimados e, quando deu errado, o motivo. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
 
 **Aparência**: o **tema** (Sistema, Claro ou Escuro) vale só para o aparelho e começa em **Sistema**, que segue o do Home Assistant. A **cor do app** vale para a casa toda: são as 12 cores da família, com os mesmos nomes dos outros apps. Com a **Cor do dia** ligada (vem assim), a cor muda todo dia, a mesma em todos os apps; escolher uma cor desliga.
 
@@ -83,24 +83,24 @@ actions:
 - **Para mudar algo** ("lança 32,50 de feira", "paguei a internet"), o CorrerIA responde o que vai fazer ("Vou fazer isto: Lançar R$ 32,50 de Feira hoje. Responda *sim* para confirmar") e só faz depois do **sim** (também vale "pode", "ok", "confirmo"). **Não** cancela; outra pergunta também. O pedido espera até 30 minutos.
 - A conversa de cada pessoa vai junto com a pergunta (as últimas mensagens de até 12 horas atrás), para a IA lembrar do que se falou. Depois disso, recomeça.
 - **Fotos e PDFs**: mande a foto de uma nota, um print ou a fatura em PDF (com ou sem uma pergunta na legenda). O CorrerIA passa para o app do assunto que lê aquele tipo (na aba **Apps** aparece o que cada um lê). No GerencIA, a IA lê como no Ler com IA: o que ela achar fica para conferir nos **Avisos do Início** ("Enviado por Ana · Pelo WhatsApp · 4 lançamentos") e a resposta lista o que foi lido; nada é lançado sozinho. A fatura em PDF com senha abre com as **Senhas dos PDFs** do GerencIA; se nenhuma abrir, a resposta pede para cadastrar e mandar de novo. Com uma pergunta junto ("quanto deu essa nota?"), a resposta vem com o que foi lido. Até 20 MB.
-- **Áudio**: o CorrerIA ouve pela fala para texto do Home Assistant (Configurações › Assistentes de voz; a do Home Assistant Cloud primeiro) e manda o texto para o app, como se a pessoa tivesse escrito. O WhatsApp grava em OGG: na aba **Apps**, a linha **Áudio** diz se a fala para texto aceita esse formato. Se não aceitar, a resposta pede para escrever.
+- **Áudio**: o CorrerIA ouve pela fala para texto do Home Assistant (Configurações › Assistentes de voz; a do Home Assistant Cloud primeiro) e manda o texto para o app, como se a pessoa tivesse escrito. O WhatsApp grava em OGG: na aba **WhatsApp**, a linha "Áudios do WhatsApp viram texto pelo …" mostra qual fala para texto é usada (ou por que os áudios não viram texto). Se não aceitar, a resposta pede para escrever.
 - Vídeo, figurinha e localização recebem "Por enquanto eu entendo texto, áudio, foto e PDF".
 - Pelo WhatsApp, a IA fala só dos apps: é a regra do WhatsApp para contatos de empresas (assistente para qualquer assunto não é permitido).
 - Sem nenhuma IA no Home Assistant, as perguntas vão para o GerencIA, que responde com a IA dele (só responde).
 - **Responder pelo WhatsApp**, no cartão WhatsApp, pausa as respostas sem desligar nada.
 - Fotos e PDFs vão para o app que lê aquele tipo (hoje, o GerencIA); áudio vira texto antes.
-- **Últimas mensagens** (aba Apps) mostra o que chegou, o que foi respondido, os números sem cadastro e os erros (como "Passaram mais de 24 horas": o WhatsApp só deixa responder até 24 horas depois da última mensagem da pessoa).
+- **Últimas mensagens** (aba WhatsApp, no fim) mostra o que chegou, o que foi respondido, os números sem cadastro e os erros (como "Passaram mais de 24 horas": o WhatsApp só deixa responder até 24 horas depois da última mensagem da pessoa).
 
 ## Conector MCP
 
 A aba **MCP** (em Configurações) liga os apps em outras IAs, como um conector: o padrão MCP, com login. Serve para qualquer IA que aceite um conector personalizado remoto (como Claude, ChatGPT e Gemini). A IA vê as ferramentas de todos os apps ligados e lê e muda os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, ela mostra o que vai fazer.
 
-1. Ligue **Ligar o conector** e confira o **Endereço público** (na aba WhatsApp, cartão Webhook). Ele usa a mesma porta (8443) e o mesmo certificado do WhatsApp; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
+1. Ligue **Ligar o conector** e escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`), ali mesmo na aba MCP. É o mesmo endereço do webhook do WhatsApp (mudar num muda no outro), com a mesma porta (8443) e o mesmo certificado, que o cartão também mostra; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
 2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org:8443/mcp`).
 3. Na IA, nas configurações de conectores (ou apps conectados), adicione um **conector personalizado**: dê um nome (CorrerIA), cole o endereço e conecte. Em geral isso é feito no site da IA e passa a valer também no app do celular; algumas pedem um plano pago ou um modo de desenvolvedor ligado.
 4. Abre uma página do CorrerIA com um **código**. Abra o CorrerIA no Home Assistant: o pedido aparece no alto da Conversa (e no sino do Home Assistant), com o mesmo código: toque nele e em **Aprovar**. A página volta sozinha para a IA.
 
-A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mensagens**. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
+A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mudanças**, embaixo do conector. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
 
 O que a IA lê vai para a empresa dela, como qualquer conversa com ela.
 
