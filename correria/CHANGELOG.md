@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.1.0
+
+- **Conversa › Clipe**: um botão só com **Tirar foto**, **Escolher fotos** (a galeria do celular) e **Escolher arquivo** (uma foto ou um PDF).
+- **Conversa › Perguntas prontas**: as sugestões viram suas. **Editar perguntas** tira (✕) e acrescenta as que você quiser; **Padrão** volta às dos apps. Ficam guardadas no aparelho.
+- **Conversa**: o botão ✨ ao lado da caixa abre as perguntas prontas a qualquer momento, não só na conversa vazia.
+
 ## 1.0.0
 
 - **Primeira versão completa** do CorrerIA: os apps da casa (CronologIA, ResolvIA, GerencIA, InventarIA, MemorIA) num lugar só, para perguntar e pedir:

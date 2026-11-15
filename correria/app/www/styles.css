@@ -249,6 +249,22 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 /* ouvindo: o botão fica vermelho e a borda cresce com a voz */
 .ch-bt.pri.gravando { background: var(--danger); color: #fff; box-shadow: 0 0 0 calc(var(--nivel, 0) * 9px) color-mix(in srgb, var(--danger) 30%, transparent); transition: box-shadow .12s; }
 .ch-barra.ouvindo .inp::placeholder { color: var(--danger); }
+/* 0.40.0: o menu do anexo e as perguntas prontas, acima da caixa */
+.ch-bt.on { background: color-mix(in srgb, var(--accent) 18%, var(--card-2)); color: var(--accent-text); }
+.ch-menu { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; padding: 6px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.ch-op { display: flex; align-items: center; gap: 12px; min-height: var(--altura, 50px); padding: 0 12px; border-radius: 12px; font: 500 16px/1.2 var(--font); color: var(--text); text-align: left; }
+.ch-op:active { background: var(--card-2); }
+.ch-op .ic-s { color: var(--accent-text); width: 20px; height: 20px; }
+.ch-rapidas { max-height: 42vh; overflow-y: auto; margin-bottom: 8px; padding: 10px 6px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); text-align: center; }
+.ch-ed-abrir { display: inline-flex; align-items: center; gap: 7px; margin-top: 12px; padding: 6px 10px; color: var(--accent-text); font: 600 14px/1.2 var(--font); }
+.ch-ed { text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.ch-ed-h { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; color: var(--text); }
+.ch-ed-h .ic-s, .ch-ed-abrir .ic-s { color: var(--accent-text); }
+.ch-ed-lin { display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 12px; border-radius: 12px; background: var(--card-2); color: var(--text); }
+.ch-ed-lin span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ch-ed-x { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+.ch-ed-nova { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.ch-ed-bts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ch-prev { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 6px 6px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
 .ch-prev span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-prev button { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }

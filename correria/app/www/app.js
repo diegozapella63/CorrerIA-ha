@@ -47,6 +47,9 @@
     moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
     chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    sparkles: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4L2.4 12.5a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4M22 5h-4"/>',
+    arquivo: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
     spark: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4L2.4 12.5a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2"/>',
@@ -465,6 +468,37 @@
   }
   const SUGESTOES = { gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?'], cronologia: ['O que tem na agenda amanhã?'],
     resolvia: ['Quais tarefas vencem hoje?'], inventario: ['Quanto valem os itens da sala?'], memoria: ['O que eu anotei esta semana?'] };
+  /* 1.1.0: Perguntas prontas: as dos apps ligados até a pessoa editar (Editar perguntas, guardadas no aparelho em
+     correria-perguntas); na conversa vazia ficam à vista, e o ✨ ao lado da caixa abre as mesmas a qualquer momento */
+  const PERG = 'correria-perguntas';
+  function perguntas(e) {
+    const pad = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
+    try {
+      const v = JSON.parse(localStorage.getItem(PERG) || 'null');
+      if (Array.isArray(v)) return { lista: v.filter(x => typeof x === 'string' && x.trim()), pad };
+    } catch (x) { /* sem o armazenamento do aparelho: as dos apps */ }
+    return { lista: pad, pad };
+  }
+  function guardarPerguntas(lista) {
+    try { if (lista == null) localStorage.removeItem(PERG); else localStorage.setItem(PERG, JSON.stringify(lista)); } catch (x) { /* modo privado */ }
+  }
+  function perguntaNova() {
+    const ed = S.ch.editando, t = ed && (ed.rascunho || '').trim();
+    if (!t) return;
+    ed.lista.push(t); ed.rascunho = ''; render();
+    const inp = $('#ch-ed-txt'); if (inp) inp.focus();
+  }
+  function blocoPerguntas(e) {
+    const ed = S.ch.editando;
+    if (ed) return `<div class="ch-ed"><p class="ch-ed-h">${ic('nova', 'ic-s')}Perguntas prontas</p>
+        ${ed.lista.map((q, i) => `<div class="ch-ed-lin"><span>${esc(q)}</span><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
+        <div class="ch-ed-nova"><input id="ch-ed-txt" class="inp" maxlength="120" placeholder="Nova pergunta" aria-label="Nova pergunta" enterkeyhint="done" value="${esc(ed.rascunho || '')}">
+          <button class="btn out" data-a="ch-ed-add">${ic('plus', 'ic-s')}Adicionar</button></div>
+        <div class="ch-ed-bts"><button class="btn out" data-a="ch-ed-padrao">${ic('refresh', 'ic-s')}Padrão</button><button class="btn pri" data-a="ch-ed-pronto">${ic('check', 'ic-s')}Pronto</button></div></div>`;
+    const { lista } = perguntas(e);
+    return `${lista.length ? `<div class="ch-sug">${lista.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${ic('sparkles', 'ic-s')}${esc(t)}</button>`).join('')}</div>` : ''}
+      <button class="ch-ed-abrir" data-a="ch-ed-abrir">${ic('nova', 'ic-s')}Editar perguntas</button>`;
+  }
   function conversa(e) {
     const c = S.ch, M = c.msgs;
     let corpo;
@@ -472,9 +506,8 @@
     else if (!M.length && !c.enviando) {
       if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Configurações</button></div>`;
       else {
-        const sug = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
         corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
-          ${sug.length ? `<div class="ch-sug">${sug.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${ic('chat', 'ic-s')}${esc(t)}</button>`).join('')}</div>` : ''}</div>`;
+          ${blocoPerguntas(e)}</div>`;
       }
     } else {
       corpo = M.map(m => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
@@ -482,8 +515,15 @@
     }
     const le = e.apps.some(a => (a.anexos || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
     const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Escreva a sua pergunta';
+    // 1.1.0: um botão só para o anexo (Tirar foto, Escolher fotos, Escolher arquivo), e o ✨ das perguntas prontas
     const esquerda = ouvindo ? `<button class="ch-bt" data-a="ch-falar-x" aria-label="Cancelar" title="Cancelar">${ic('x')}</button>`
-      : le ? `<button class="ch-bt" data-a="ch-camera" aria-label="Tirar foto" title="Tirar foto"${f ? ' disabled' : ''}>${ic('camera')}</button><button class="ch-bt" data-a="ch-anexar" aria-label="Mandar uma foto ou um PDF" title="Mandar uma foto ou um PDF"${f ? ' disabled' : ''}>${ic('clip')}</button>` : '';
+      : le ? `<button class="ch-bt${c.menu ? ' on' : ''}" data-a="ch-menu" aria-label="Anexar" title="Anexar" aria-expanded="${c.menu ? 'true' : 'false'}"${f ? ' disabled' : ''}>${ic('clip')}</button>` : '';
+    const rap = !ouvindo && M && M.length && e.apps.length;
+    const aberto = rap && (c.rapidas || c.editando);
+    const menu = le && c.menu && !ouvindo ? `<div class="ch-menu" role="menu">
+        <button class="ch-op" role="menuitem" data-a="ch-camera">${ic('camera', 'ic-s')}Tirar foto</button>
+        <button class="ch-op" role="menuitem" data-a="ch-galeria">${ic('image', 'ic-s')}Escolher fotos</button>
+        <button class="ch-op" role="menuitem" data-a="ch-anexar">${ic('arquivo', 'ic-s')}Escolher arquivo</button></div>` : '';
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
@@ -491,9 +531,11 @@
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
+        ${aberto ? `<div class="ch-rapidas">${blocoPerguntas(e)}</div>` : ''}${menu}
         ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
         <div class="ch-barra${ouvindo ? ' ouvindo' : ''}">${esquerda}
           <textarea id="ch-txt" class="inp" rows="1" data-size="off" placeholder="${lugar}" enterkeyhint="send"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
+          ${rap ? `<button class="ch-bt ch-qbt${aberto ? ' on' : ''}" data-a="ch-rapidas" aria-label="Perguntas prontas" title="Perguntas prontas" aria-expanded="${aberto ? 'true' : 'false'}">${ic('sparkles')}</button>` : ''}
           ${botaoPri(e)}</div>
       </div>`;
   }
@@ -871,8 +913,30 @@
     } else if (a === 'ch-falar-x') {
       pararFala(); render();
     } else if (a === 'ch-sug') {
+      Object.assign(S.ch, { rapidas: false, editando: null });
       enviarConversa(el.dataset.v);
+    } else if (a === 'ch-rapidas') {
+      Object.assign(S.ch, { rapidas: !(S.ch.rapidas || S.ch.editando), editando: null, menu: false }); render();
+    } else if (a === 'ch-ed-abrir') {
+      Object.assign(S.ch, { editando: { lista: perguntas(S.e).lista.slice(), rascunho: '' }, menu: false }); render();
+    } else if (a === 'ch-ed-tirar') {
+      S.ch.editando.lista.splice(Number(el.dataset.v), 1); render();
+    } else if (a === 'ch-ed-add') {
+      perguntaNova();
+    } else if (a === 'ch-ed-padrao') {
+      guardarPerguntas(null);
+      S.ch.editando = { lista: perguntas(S.e).pad.slice(), rascunho: '' }; render();
+    } else if (a === 'ch-ed-pronto') {
+      const ed = S.ch.editando, t = (ed.rascunho || '').trim(), lista = ed.lista.concat(t ? [t] : []);
+      guardarPerguntas(lista.join('\n') === perguntas(S.e).pad.join('\n') ? null : lista);  // as dos apps: seguem os apps
+      S.ch.editando = null; render();
+    } else if (a === 'ch-menu') {
+      S.ch.menu = !S.ch.menu; if (S.ch.menu) S.ch.rapidas = false; render();
+    } else if (a === 'ch-galeria') {
+      S.ch.menu = false; render();
+      $('#ch-galeria').click();
     } else if (a === 'ch-anexar') {
+      S.ch.menu = false; render();
       $('#ch-arquivo').click();
     } else if (a === 'ch-anexo-rm') {
       S.ch.anexo = null; render();
@@ -884,7 +948,7 @@
       pararFala();
       try {
         const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v });
-        Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null });
+        Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null, rapidas: false, menu: false });
         if (S.tela === 'conversas') voltar(); else render();
         if (a === 'ch-nova') setTimeout(() => { const t = $('#ch-txt'); if (t) t.focus(); }, 60);
       } catch (err) { toast(err.message); if (a === 'conv-abrir') carregarLista(); }
@@ -895,6 +959,7 @@
         render(); toast('Conversa apagada');
       } catch (err) { toast(err.message); }
     } else if (a === 'ch-camera') {
+      S.ch.menu = false; render();
       abrirCamera();
     } else if (a === 'cam-fechar') {
       fecharCamera();
@@ -918,6 +983,7 @@
   document.addEventListener('input', ev => {
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;
+    if (el.id === 'ch-ed-txt' && S.ch.editando) S.ch.editando.rascunho = el.value;
     if (el.id === 'ch-txt') {
       S.ch.texto = el.value; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';
       const b = $('#ch-pri'), novo = botaoPri(S.e);  // o microfone vira Enviar ao escrever (e volta com a caixa vazia)
@@ -928,10 +994,11 @@
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.rot[data-dobra]')) { ev.preventDefault(); return dobrar(ev.target); }
     // no computador, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && matchMedia('(hover: hover)').matches) { ev.preventDefault(); enviarConversa(); }
+    if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'ch-ed-txt') { ev.preventDefault(); perguntaNova(); }
   });
   document.addEventListener('change', async ev => {
     const el = ev.target;
-    if (el.id === 'ch-arquivo' || el.id === 'ch-foto') {  // a foto ou o PDF da conversa
+    if (el.id === 'ch-arquivo' || el.id === 'ch-foto' || el.id === 'ch-galeria') {  // a foto ou o PDF da conversa
       const f = el.files && el.files[0];
       el.value = '';
       if (!f) return;
