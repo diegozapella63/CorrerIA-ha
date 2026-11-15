@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.17.0
+
+- **WhatsApp liga e desliga**, como o conector MCP: **Usar o WhatsApp**, em Configurações › WhatsApp. Desligado, só aparece a chave e o CorrerIA não responde nem guarda as mensagens. Ligado, o resto (o estado, Responder pelo WhatsApp, os campos e o Conferir) fica num quadro embaixo da chave. Quem já tinha configurado continua ligado.
+- **Sem o botão Salvar**: o ID do número, o token e a chave secreta se salvam ao sair do campo, como o endereço; com os três, o CorrerIA confere com a Meta sozinho.
+- **Contrair e expandir**: um toque no cabeçalho de uma seção fecha ou abre (a seta no canto); o aparelho lembra as que ficaram fechadas.
+- **Últimas mudanças** (no Conector MCP) ficam recolhidas, com a contagem.
+
 ## 0.16.3
 
 - **Conector MCP**: o que depende do conector (os pedidos para conectar, o endereço público e o do conector, os conectados e as **Últimas mudanças**) fica num quadro embaixo de **Ligar o conector**, dentro do cartão dele. Com o conector desligado, nada disso aparece.

@@ -34,7 +34,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 
 ### 3. No CorrerIA
 
-O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o **Uso da IA** e os **Sensores no Home Assistant**), **WhatsApp** (a conta, o áudio, o webhook, quem conversa e as **Últimas mensagens**), **MCP** (o conector, o endereço público e as **Últimas mudanças**), **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. O Voltar do celular volta um passo de cada vez.
+O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um menu como nos outros apps: **Configurações** e, por último, **Sobre**. **Configurações** tem as abas **Apps** (os apps ligados, a IA, o **Uso da IA** e os **Sensores no Home Assistant**), **WhatsApp** (a conta, o áudio, o webhook, quem conversa e as **Últimas mensagens**), **MCP** (o conector, o endereço público e as **Últimas mudanças**), **Dados** (onde ficam os dados), **Aparência** (o tema e a cor do app) e **Opções** (o **Atalho no celular**; só dentro do Home Assistant). A aba escolhida fica guardada. Um toque no cabeçalho de uma seção fecha ou abre (o aparelho lembra). O Voltar do celular volta um passo de cada vez.
 
 **Uso da IA** (na aba Apps), como nos outros apps: quantas vezes o CorrerIA chamou a IA do Home Assistant hoje, em 7 dias e no mês, uma barra por dia (toque numa barra para ver aquele dia), os tipos (WhatsApp e Conversa) e, recolhidas, as **Últimas chamadas**, com o tempo, os tokens estimados e, quando deu errado, o motivo. O Home Assistant não informa o consumo exato: ele fica no painel do provedor da IA.
 
@@ -42,7 +42,7 @@ O CorrerIA abre na **Conversa**. Os três pontos no alto abrem o **Mais**, um me
 
 **Dados**: tudo fica na pasta `/data` do app, que entra no backup do Home Assistant: `config.json` (o WhatsApp, o endereço e o número de cada pessoa), `conversas.json`, `mcp.json` (as IAs conectadas, com os tokens só em código) e `uso_ia.json`. O token e a chave secreta nunca voltam para a tela.
 
-1. **WhatsApp** (aba WhatsApp): cole o ID do número, o token e a chave secreta e toque em **Salvar**. O app confere com a Meta e mostra o número e o nome. O token e a chave não aparecem mais (só o fim, como ••••1234); para trocar, cole outro.
+1. **WhatsApp** (aba WhatsApp): ligue **Usar o WhatsApp** e cole o ID do número, o token e a chave secreta (cada um se salva ao sair do campo). Com os três, o app confere com a Meta e mostra o número e o nome; **Conferir com a Meta** confere de novo. Desligado, o CorrerIA não responde nem guarda as mensagens do WhatsApp. O token e a chave não aparecem mais (só o fim, como ••••1234); para trocar, cole outro.
 2. **Webhook na Meta**: escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`). Na Meta, em **WhatsApp › Configuração › Webhook**, toque em Editar, cole a **URL de retorno** e o **Token de verificação** que o CorrerIA mostra e toque em **Verificar e salvar**. Depois, em Campos do webhook, assine **messages**. O cartão mostra quando a Meta confirmou o endereço e a última mensagem que chegou.
 3. **Quem conversa**: escreva o WhatsApp de cada pessoa da casa (as pessoas do Home Assistant). Só esses números recebem resposta; os outros aparecem em Últimas mensagens como "sem cadastro", sem resposta.
 4. Em cada app, ligue **Mais › Configurações › Integrações › CorrerIA**. Eles aparecem na aba **Apps**, com o que fazem ("Lê e muda").
@@ -100,7 +100,7 @@ A aba **MCP** (em Configurações) liga os apps em outras IAs, como um conector:
 3. Na IA, nas configurações de conectores (ou apps conectados), adicione um **conector personalizado**: dê um nome (CorrerIA), cole o endereço e conecte. Em geral isso é feito no site da IA e passa a valer também no app do celular; algumas pedem um plano pago ou um modo de desenvolvedor ligado.
 4. Abre uma página do CorrerIA com um **código**. Abra o CorrerIA no Home Assistant: o pedido aparece no alto da Conversa (e no sino do Home Assistant), com o mesmo código: toque nele e em **Aprovar**. A página volta sozinha para a IA.
 
-A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mudanças**, embaixo do conector. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
+A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mudanças** (recolhidas), embaixo do conector. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
 
 O que a IA lê vai para a empresa dela, como qualquer conversa com ela.
 

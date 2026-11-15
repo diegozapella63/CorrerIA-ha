@@ -987,7 +987,7 @@ class TestCasosRaros(Base):
             ult = S.USO.resumo()["ultimas"][0]
             self.assertEqual((ult["ia"], ult["resultado"]), ("IA Azul", "cota"), "o Uso da IA diz qual IA ficou sem cota")
             ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "Pane na IA."})
-            with self.assertRaisesRegex(S.ia.ErroIA, "^IA Azul: Pane na IA\.$"):
+            with self.assertRaisesRegex(S.ia.ErroIA, r"^IA Azul: Pane na IA\.$"):
                 S.chamar_ia("x")
             S.salvar_config({"ia_entidade": ""})
             self.assertIsNone(S.ESTADO["ia"], "trocar de IA esquece o que deu com a outra")
@@ -997,6 +997,26 @@ class TestCasosRaros(Base):
             S._ias_cache.update(t=0.0, v=None)
             ha.rotas["/api/states"] = (200, estados[1:])
             self.assertEqual(S.nome_da_ia(), "IA Azul", "a padrão, com uma só: é ela")
+
+    def test_whatsapp_liga_e_desliga(self):
+        """0.17.0: o WhatsApp liga e desliga como o conector MCP: sem escolha, ligado se já está configurado; desligado,
+        o CorrerIA não responde nem guarda as mensagens."""
+        S.salvar_config({"numero_id": "", "token": ""})
+        self.assertFalse(S.wa_ligado(S.ler_config()), "nada configurado: desligado")
+        S.salvar_config({"numero_id": "109876543210", "token": "EAAtoken-de-teste-0000-1234"})
+        self.assertTrue(S.wa_ligado(S.ler_config()), "já configurado (quem atualizou): continua ligado")
+        self.assertIsNone(S.ler_config()["whatsapp"], "a escolha não foi gravada: vale a do configurado")
+        S.salvar_config({"whatsapp": False})
+        c = S.ler_config()
+        self.assertFalse(S.wa_ligado(c))
+        self.assertFalse(S.estado()["config"]["whatsapp"])
+        antes = len(S.ler_conversas()["registro"])
+        with mock.patch.object(S, "pessoa_do_numero", return_value={"id": "person.ana", "nome": "Ana"}), mock.patch.object(S, "conta") as conta:
+            S.tratar({"id": "wamid.teste-desligado", "from": "5511999990001", "type": "text", "text": {"body": "oi"}}, "Ana", c)
+            conta.assert_not_called()
+        self.assertEqual(len(S.ler_conversas()["registro"]), antes, "desligado: nada guardado nem respondido")
+        S.salvar_config({"whatsapp": True})
+        self.assertTrue(S.wa_ligado(S.ler_config()))
 
     def test_ia_que_responde_estranho(self):
         ha = ServidorFalso({"/api/services/ai_task/generate_data": (500, "pane geral")})

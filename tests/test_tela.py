@@ -105,18 +105,32 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto(".abas .on"), "Apps", "começa em Apps")
         self.pg.click('.abas [data-v="whatsapp"]')
         self.assertEqual(self.pg.locator(".sync").count(), 0, "0.16.1: sem o \"Falta terminar a configuração\" no alto (o cartão já diz)")
+        # 0.17.0: o WhatsApp liga e desliga como o conector MCP; desligado de início (nada configurado), só a chave
+        self.assertIn("Desligado.", self.texto("#whatsapp"))
+        self.assertEqual(self.pg.locator("#f-numero, #webhook, #pessoas, #mensagens").count(), 0, "desligado: sem os campos nem as outras seções")
+        self.pg.click('[data-a="whatsapp"]')
+        self.aviso("WhatsApp ligado")
+        self.assertTrue(S.ler_config()["whatsapp"])
+        self.assertEqual(self.pg.locator("#whatsapp .sub-box #f-numero").count(), 1, "ligado: os campos no quadro embaixo da chave")
+        self.assertEqual(self.pg.locator('[data-a="salvar"]').count(), 0, "0.17.0: sem o botão Salvar (cada campo se salva sozinho)")
         self.assertEqual(self.texto("#whatsapp .status"), "Falta configurar: o ID do número, o token e a chave secreta.")
         self.assertTrue(self.pg.is_disabled('[data-a="conferir"]'), "sem configurar, nada a conferir")
         self.assertEqual(self.pg.locator('[data-a="ligado"]').count(), 0)
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela no celular")
 
     def test_salvar_confere_com_a_meta_e_o_token_nao_volta(self):
+        S.salvar_config({"whatsapp": True})
         self.abrir()
         self.opcoes("whatsapp")
+        # 0.17.0: cada campo se salva ao sair dele; com os três, confere com a Meta sozinho
         self.pg.fill("#f-numero", MetaFalsa.NUMERO_ID)
+        self.pg.press("#f-numero", "Tab")
+        self.aviso("Salvo")
         self.pg.fill("#f-token", TOKEN)
+        self.pg.press("#f-token", "Tab")
+        self.aviso("Salvo")
         self.pg.fill("#f-segredo", "segredo-do-app-123")
-        self.pg.click('[data-a="salvar"]')
+        self.pg.press("#f-segredo", "Tab")
         self.aviso("Conferido com a Meta")
         self.assertEqual(self.texto("#whatsapp .status"), "+55 11 4000-0000 · CorrerIA Code")
         self.assertEqual(self.pg.input_value("#f-token"), "", "o campo volta vazio")
@@ -142,12 +156,13 @@ class Tela(unittest.TestCase):
         self.pg.click('[data-a="ligado"]')
         self.aviso("Respostas pausadas")
         self.assertFalse(S.ler_config()["ligado"])
-        self.assertIn("Pausado", self.texto("#whatsapp .linha-sw"))
+        self.assertIn("Pausado", self.texto("#whatsapp .sub-box .linha-sw"))
         self.pg.click('[data-a="ligado"]')
         self.aviso("Respondendo")
         self.assertTrue(S.ler_config()["ligado"])
 
     def test_webhook_endereco_e_copiar(self):
+        S.salvar_config({"whatsapp": True})
         self.abrir()
         self.opcoes("whatsapp")
         self.assertEqual(self.pg.locator("#f-url").count(), 0, "sem o endereço, nada para colar na Meta")
@@ -167,6 +182,7 @@ class Tela(unittest.TestCase):
         self.aviso("Endereço inválido. Ex.: https://casa-exemplo.duckdns.org:8443")
 
     def test_quem_conversa(self):
+        S.salvar_config({"whatsapp": True})
         self.abrir()
         self.opcoes("whatsapp")
         self.assertEqual(self.pg.locator("#pessoas .pessoa b").all_inner_texts(), ["Ana", "Beto"])
@@ -262,6 +278,23 @@ class Tela(unittest.TestCase):
         self.assertIsNone(S.ESTADO["ia"], "Verificar de novo esquece o erro da última chamada")
         S.salvar_config({"ia_entidade": ""})
 
+    # ---- 0.17.0 (padrão da família): toda seção contrai e expande no cabeçalho; o aparelho lembra
+    def test_secoes_contraem(self):
+        self.abrir()
+        self.opcoes("apps")
+        self.assertEqual(self.pg.get_attribute("#apps .rot", "aria-expanded"), "true")
+        self.assertEqual(self.pg.locator("#apps .rot .dobra-ic svg").count(), 1, "a seta no canto")
+        self.pg.click("#apps .rot h2")
+        self.pg.wait_for_selector("#apps.fechada")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#apps > :not(.rot)')].filter(e => e.getClientRects().length).length"), 0, "fechada: só o cabeçalho")
+        self.assertEqual(self.pg.get_attribute("#apps .rot", "aria-expanded"), "false")
+        self.pg.reload()
+        self.pg.wait_for_selector("#ch-txt")
+        self.opcoes("apps")
+        self.assertEqual(self.pg.locator("#apps.fechada").count(), 1, "o aparelho lembra")
+        self.pg.click("#apps .rot")
+        self.pg.wait_for_selector("#apps:not(.fechada)")
+
     # ---- 0.16.0 (padrão da família): ícones nas seções, nas linhas, nos campos, nos botões, nas abas e nos títulos
     def test_icones_em_tudo(self):
         self.publicar_app()
@@ -314,6 +347,7 @@ class Tela(unittest.TestCase):
         return cli, v, p
 
     def test_claude_e_gemini(self):
+        S.salvar_config({"whatsapp": True})
         self.abrir()
         self.opcoes("mcp")
         self.assertEqual(self.texto("#mcp h2"), "Conector MCP")
@@ -683,6 +717,7 @@ class Tela(unittest.TestCase):
 
     def test_ultimas_mensagens(self):
         """0.15.0: as Últimas mensagens ficam na aba WhatsApp; o que as IAs conectadas mudaram, na aba MCP."""
+        S.salvar_config({"whatsapp": True})
         self.abrir()
         self.opcoes("apps")
         self.assertEqual(self.pg.locator("#mensagens").count(), 0, "não fica mais em Apps")
@@ -711,7 +746,9 @@ class Tela(unittest.TestCase):
         S.salvar_config({"mcp": True})
         self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
         self.pg.wait_for_selector("#mcp .sub-box #mudancas")
-        self.assertEqual(self.texto("#mcp .sub-box #mudancas span"), "Últimas mudanças", "0.16.3: no quadro do Conector MCP, embaixo de Ligar o conector")
+        self.assertEqual(self.texto("#mcp .sub-box #mudancas summary"), "Últimas mudanças (1)", "0.16.3: no quadro do Conector MCP, embaixo de Ligar o conector")
+        self.assertFalse(self.pg.evaluate("document.querySelector('#mudancas').open"), "0.17.0: recolhidas de início")
+        self.pg.click("#mudancas summary")
         self.assertEqual(self.pg.locator("section#mudancas").count(), 0, "sem um cartão à parte")
         self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#mcp .sub-box .msg')].map(m => [m.querySelector('b').textContent, m.querySelector('p').textContent])"),
                          [["Claude · Ana", "Lançado: Feira · R$ 12 · GerencIA"]])

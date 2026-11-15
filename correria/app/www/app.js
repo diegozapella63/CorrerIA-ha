@@ -160,7 +160,15 @@
   // 0.16.0 (padrão da família): toda linha com título tem um ícone pequeno antes dele; todo campo também
   const tituloLinha = (icone, titulo) => `<b>${ic(icone, 'ic-s')}${titulo}</b>`;
   const rotulo = (para, icone, titulo) => `<label for="${para}">${ic(icone, 'ic-s')}${titulo}</label>`;
-  const cab = (icone, titulo, extra = '') => `<div class="rot"><span class="rot-ic">${ic(icone)}</span><h2>${titulo}</h2>${extra}</div>`;
+  const cab = (icone, titulo, extra = '') => `<div class="rot" role="button" tabindex="0" data-dobra="${esc(titulo)}" aria-expanded="${!fechadas().has(titulo)}"><span class="rot-ic">${ic(icone)}</span><h2>${titulo}</h2>${extra}<span class="dobra-ic" aria-hidden="true">${ic('chev', 'ic-s')}</span></div>`;
+  // 0.17.0 (padrão da família): toda seção (cartão) contrai e expande num toque no cabeçalho; o aparelho lembra as fechadas
+  const fechadas = () => { try { return new Set(JSON.parse(guardada('correria-fechadas') || '[]')); } catch (e) { return new Set(); } };
+  function dobrar(rot) {
+    const t = rot.dataset.dobra, F = fechadas(), fechar = !F.has(t);
+    if (fechar) F.add(t); else F.delete(t);
+    guardar('correria-fechadas', JSON.stringify([...F]));
+    render();
+  }
 
   function cardWhatsApp(e) {
     const c = e.config;
@@ -171,9 +179,15 @@
     const f = e.fala || {};  // 0.15.0: o áudio é do WhatsApp (antes, em Apps, "ouve pela fala para texto")
     const audio = !e.pronto ? '' : f.pronta ? `<div class="status">Áudios do WhatsApp viram texto pelo ${esc(f.nome)}.</div>`
       : `<div class="status manual">Áudios do WhatsApp não viram texto. ${esc(f.motivo || 'Falta a fala para texto no Home Assistant.')}</div>`;
+    // 0.17.0: liga e desliga como o conector MCP; ligado, o resto fica no quadro embaixo da chave
+    const usar = `<div class="linha-sw"><div>${tituloLinha('chat', 'Usar o WhatsApp')}<span>${c.whatsapp ? 'Ligado: as pessoas da casa conversam com os apps pelo WhatsApp.' : 'Desligado.'}</span></div>
+        <button class="sw${c.whatsapp ? ' on' : ''}" data-a="whatsapp" role="switch" aria-checked="${!!c.whatsapp}" aria-label="Usar o WhatsApp"></button></div>`;
+    if (!c.whatsapp) return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
+      <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>${usar}</section>`;
     return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
-      <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>
-      ${e.pronto ? `<div class="linha-sw"><div>${tituloLinha('chat', 'Responder pelo WhatsApp')}<span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
+      <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>${usar}
+      <div class="sub-op"><div class="sub-box">
+      ${e.pronto ? `<div class="linha-sw"><div>${tituloLinha('send', 'Responder pelo WhatsApp')}<span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
         <button class="sw${c.ligado ? ' on' : ''}" data-a="ligado" role="switch" aria-checked="${c.ligado}" aria-label="Responder pelo WhatsApp"></button></div>` : ''}
       ${st}${audio}
       <div class="campo">${rotulo('f-numero', 'hash', 'ID do número de telefone')}
@@ -182,7 +196,8 @@
         <input id="f-token" class="inp" type="password" autocomplete="off" data-f="token" value="${esc(S.form.token || '')}" placeholder="${c.token ? esc(c.token) + ' · cole outro para trocar' : 'Do Usuário do sistema, que não vence'}"></div>
       <div class="campo">${rotulo('f-segredo', 'lock', 'Chave secreta do aplicativo')}
         <input id="f-segredo" class="inp" type="password" autocomplete="off" data-f="segredo" value="${esc(S.form.segredo || '')}" placeholder="${c.segredo ? esc(c.segredo) + ' · cole outra para trocar' : 'Configurações do app › Básico'}"></div>
-      <div class="btns"><button class="btn out" data-a="conferir"${e.pronto ? '' : ' disabled'}>${ic('refresh', 'ic-s')}Conferir</button><button class="btn pri" data-a="salvar"${S.salvando ? ' disabled' : ''}>${ic('check', 'ic-s')}Salvar</button></div>
+      <button class="btn out larga" data-a="conferir"${e.pronto ? '' : ' disabled'}>${ic('refresh', 'ic-s')}Conferir com a Meta</button>
+      </div></div>
     </section>`;
   }
 
@@ -272,8 +287,8 @@
     // 0.16.3: tudo o que depende do conector (os pedidos, os endereços, os conectados e as Últimas mudanças) fica num
     // quadro recuado logo abaixo de Ligar o conector, dentro do cartão dele
     const R = e.registro_mcp || [];
-    const mudancas = `<div class="lbl sub-t" id="mudancas">${ic('clock', 'ic-s')}<span>Últimas mudanças</span>${R.length ? `<button class="btn peq" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</div>
-      ${listaMsgs(R, 'Nenhuma mudança ainda.')}`;
+    const mudancas = `<details class="uso-ult mudancas" id="mudancas"${S.mudAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas mudanças (${R.length})</summary>
+      ${listaMsgs(R, 'Nenhuma mudança ainda.')}${R.length ? `<button class="btn peq out" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</details>`;
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
       <p class="lead">Os apps dentro de outras IAs, como um conector. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>${sw}
       <div class="sub-op"><div class="sub-box">${pedidos}${publico}${endereco}
@@ -307,7 +322,7 @@
   }
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
-    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : aba === 'mcp' ? cardMcp(e)
+    const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
       : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardIA(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
@@ -695,6 +710,8 @@
       if (x < nav.scrollLeft || x + aba.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = Math.max(0, x - (nav.clientWidth - aba.offsetWidth) / 2);
     }
     marcarAbas();
+    const F = fechadas();
+    document.querySelectorAll('#app section.card > .rot[data-dobra]').forEach(r => r.parentElement.classList.toggle('fechada', F.has(r.dataset.dobra)));
   }
   // 0.16.1 (padrão da família): quando as abas não cabem, a ponta de onde há mais some aos poucos, com uma seta
   // (0.16.2) as abas mudam de largura quando a fonte do app termina de carregar: o tamanho de cada uma é acompanhado
@@ -789,21 +806,18 @@
 
   /* ---------- toques */
   document.addEventListener('click', async ev => {
+    const rot = ev.target.closest('.rot[data-dobra]');
+    if (rot && !ev.target.closest('button, a, input')) return dobrar(rot);
     const el = ev.target.closest('[data-a]');
     if (!el || el.disabled) return;
     const a = el.dataset.a;
-    if (a === 'salvar') {
-      const corpo = { numero_id: $('#f-numero').value, token: $('#f-token').value, segredo: $('#f-segredo').value };
-      S.salvando = true; render();
-      const r = await acao('config', corpo, 'Salvo');
-      S.salvando = false;
-      if (r) { S.form.numero_id = null; S.form.token = ''; S.form.segredo = ''; if (r.pronto) await acao('conferir', {}, null).then(x => x && x.conta && toast('Conferido com a Meta')); }
-      render();
-    } else if (a === 'conferir') {
+    if (a === 'conferir') {
       const r = await acao('conferir', {}, null);
       if (r && r.conta) toast('Conferido com a Meta');
     } else if (a === 'ligado') {
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
+    } else if (a === 'whatsapp') {  // 0.17.0: liga e desliga o WhatsApp, como o conector MCP
+      await acao('config', { whatsapp: !S.e.config.whatsapp }, S.e.config.whatsapp ? 'WhatsApp desligado' : 'WhatsApp ligado');
     } else if (a === 'mcp') {
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
     } else if (a === 'ia-verificar') {  // a lista das IAs de novo e esquece o erro da última chamada
@@ -891,7 +905,11 @@
     }
   });
   // Últimas chamadas aberta continua aberta quando a tela se redesenha (a cada poucos segundos)
-  document.addEventListener('toggle', ev => { if (ev.target.classList && ev.target.classList.contains('uso-ult')) S.usoAberto = ev.target.open; }, true);
+  document.addEventListener('toggle', ev => {
+    if (!ev.target.classList) return;
+    if (ev.target.classList.contains('mudancas')) S.mudAberto = ev.target.open;
+    else if (ev.target.classList.contains('uso-ult')) S.usoAberto = ev.target.open;
+  }, true);
   document.addEventListener('input', ev => {
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;
@@ -902,6 +920,7 @@
     }
   });
   document.addEventListener('keydown', ev => {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.rot[data-dobra]')) { ev.preventDefault(); return dobrar(ev.target); }
     // no computador, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && matchMedia('(hover: hover)').matches) { ev.preventDefault(); enviarConversa(); }
   });
@@ -920,6 +939,12 @@
     if (el.matches('[data-ia-ent]')) {  // 0.16.0: a IA para conversar
       const x = ((S.e.ias || {}).lista || []).find(o => o.id === el.value);
       await acao('config', { ia_entidade: el.value }, 'IA para conversar: ' + (x ? x.nome : 'a padrão do Home Assistant'));
+      return;
+    }
+    if (['numero_id', 'token', 'segredo'].includes(el.dataset.f)) {  // 0.17.0: salva ao sair do campo (sem o botão Salvar)
+      if (el.dataset.f !== 'numero_id' && !el.value.trim()) return;  // o token e a chave vazios: fica o que estava
+      const r = await acao('config', { [el.dataset.f]: el.value }, 'Salvo');
+      if (r) { S.form[el.dataset.f] = el.dataset.f === 'numero_id' ? null : ''; render(); if (r.pronto) await acao('conferir', {}, null).then(x => x && x.conta && toast('Conferido com a Meta')); }
       return;
     }
     if (el.dataset.f === 'endereco') {

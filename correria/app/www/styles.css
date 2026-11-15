@@ -399,3 +399,13 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 42px; co
 .sub-box .sub-t > span { flex: 1; }
 .sub-box .sub-t .btn.peq { margin: 0; }
 @media (max-width: 360px) { .sub-op { padding-left: 10px; } .sub-box { padding: 10px; } }
+
+/* 0.17.0: toda seção contrai e expande num toque no cabeçalho (a seta no canto); o aparelho lembra as fechadas */
+.rot[data-dobra] { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.rot .dobra-ic { margin-left: auto; flex: none; width: 20px; height: 20px; color: var(--muted); transform: rotate(90deg); transition: transform .15s; }
+.card.fechada > .rot .dobra-ic { transform: none; }
+.card.fechada > :not(.rot) { display: none !important; }
+.card.fechada > .rot { margin-bottom: 0; }
+.rot[data-dobra]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 12px; }
+.sub-box .mudancas { margin-top: 14px; }
+.sub-box .mudancas > .btn { margin-top: 10px; }

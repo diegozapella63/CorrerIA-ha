@@ -117,6 +117,8 @@ def ler_config():
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
            "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True,
+           # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
+           "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
            "ia_entidade": str(c.get("ia_entidade") or "") if IA_RE.match(str(c.get("ia_entidade") or "")) else "",
            # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
@@ -129,6 +131,11 @@ def ler_config():
 
 
 IA_RE = re.compile(r"^(ai_task\.[a-z0-9_]+)?$")
+def wa_ligado(c):
+    """0.17.0: o WhatsApp ligado no CorrerIA: o que a pessoa escolheu ou, sem escolha, ligado se já está configurado."""
+    return c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else bool(c["numero_id"] and c["token"])
+
+
 CORES = ("vermelho", "coral", "laranja", "ouro", "verde", "menta", "turquesa", "azul", "indigo", "lilas", "rosa", "grafite")
 
 
@@ -174,6 +181,8 @@ def salvar_config(corpo):
             c["ligado"] = corpo.get("ligado") is not False
         if "mcp" in corpo:
             c["mcp"] = corpo.get("mcp") is True
+        if "whatsapp" in corpo:
+            c["whatsapp"] = corpo.get("whatsapp") is True
         if "sensores" in corpo:
             c["sensores"] = corpo.get("sensores") is True
         if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
@@ -549,6 +558,8 @@ def tratar(m, nome_perfil, c):
         registrar("bloqueada", nome_perfil or mascarar(de), texto if texto is not None else f"[{m.get('type')}]")
         log("WhatsApp: mensagem de um número sem cadastro (", mascarar(de), ")")
         return
+    if not wa_ligado(c):  # 0.17.0: o WhatsApp desligado no CorrerIA: nada é respondido nem guardado
+        return
     if not c["ligado"]:
         registrar("recebida", pessoa["nome"], (texto or f"[{m.get('type')}]") + " (respostas pausadas)")
         return
@@ -709,7 +720,7 @@ def estados_sensores(agora=None):
         "vence": vence.astimezone().isoformat(timespec="minutes") if vence else None, "dominio": dominio or None,
         "arquivo": os.path.basename(cc[0]) if cc else None}}
     pronto = bool(c["numero_id"] and c["token"] and c["segredo"])
-    on = pronto and bool(ESTADO["conta"])
+    on = pronto and wa_ligado(c) and bool(ESTADO["conta"])
     erro = "" if on else ("Falta configurar o WhatsApp." if not pronto else ESTADO.get("conta_erro") or "Ainda não conferido.")
     wpp = {"state": "on" if on else "off", "attributes": {
         "friendly_name": "CorrerIA: WhatsApp", "device_class": "connectivity", "icon": "mdi:whatsapp",
@@ -1022,7 +1033,7 @@ def estado():
     return {
         "versao": VERSAO,
         "config": {"numero_id": c["numero_id"], "token": _fim(c["token"]), "segredo": _fim(c["segredo"]), "verificacao": c["verificacao"],
-                   "endereco": c["endereco"], "webhook": (c["endereco"] + "/webhook") if c["endereco"] else "", "ligado": c["ligado"]},
+                   "endereco": c["endereco"], "webhook": (c["endereco"] + "/webhook") if c["endereco"] else "", "ligado": c["ligado"], "whatsapp": wa_ligado(c)},
         "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
                 "conexoes": AUT.conexoes()},
         "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada, "nome": nome_da_ia(c)},
