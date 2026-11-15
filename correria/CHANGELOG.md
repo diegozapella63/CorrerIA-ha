@@ -1,5 +1,14 @@
 # Mudanças
 
+## 1.0.0
+
+- **Primeira versão completa** do CorrerIA: os apps da casa (CronologIA, ResolvIA, GerencIA, InventarIA, MemorIA) num lugar só, para perguntar e pedir:
+  - na **Conversa** do próprio app, com a IA do Home Assistant;
+  - no **WhatsApp**, pelo contato da CorrerIA Code (a API oficial da Meta), com foto, PDF e áudio;
+  - no **Claude**, no **Gemini** e em qualquer IA que aceite um conector personalizado, pelo **conector MCP**, com o login aprovado aqui.
+- As mudanças só acontecem depois do **sim** da pessoa; as do conector ficam em **Últimas mudanças**.
+- No padrão da família: ícones em tudo, seções que contraem, sub-opções num quadro, **Uso da IA**, **Sensores no Home Assistant**, **Aparência** (tema e cor) e **Sobre**.
+
 ## 0.17.1
 
 - **Sensores no Home Assistant** como no ResolvIA: a chave **Criar sensores** e, num quadro embaixo dela, cada sensor numa linha com o que mostra.
