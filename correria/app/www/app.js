@@ -400,7 +400,7 @@
       <div class="uso-dias" aria-hidden="true">${u.dias.map(d => `<span>${nomeDia(d.dia)}</span>`).join('')}</div>
       <p class="uso-cap" aria-live="polite">${diaLongo(sel.dia)}: <b>${chamadas(sel.chamadas || 0)}</b>${resto(sel)}.</p>
       ${tipos.length ? `<ul class="uso-tipos" aria-label="Nos últimos 7 dias">${tipos.map(([k, n]) => `<li>${esc(TIPO_USO[k] || k)} <b>${n}</b></li>`).join('')}</ul>` : ''}
-      <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas chamadas</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
+      <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas chamadas${(u.ultimas || []).length ? ` (${u.ultimas.length})` : ''}</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
     </section>`;
   }
   // 14:32 hoje; 11/11 14:32 nos outros dias (como nos outros apps)
@@ -414,9 +414,14 @@
   /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
   function cardSensores(e) {
     const on = !!(e.sensores && e.sensores.ligado);
-    return `<section class="card" id="sensores">${cab('gauge', 'Sensores no Home Assistant')}<p class="lead">Para painéis e automações.</p>
-      <div class="linha-sw"><div>${tituloLinha('gauge', 'Criar os sensores')}<span>${on ? 'Ligado: <code>sensor.correria_certificado</code> (os dias até o certificado vencer) e <code>binary_sensor.correria_whatsapp</code> (o WhatsApp conectado).' : 'Desligado: nenhum sensor no Home Assistant.'}</span></div>
-        <button class="sw${on ? ' on' : ''}" data-a="sensores" role="switch" aria-checked="${on}" aria-label="Criar os sensores"></button></div></section>`;
+    const lista = [
+      ['sensor.correria_certificado', 'os dias até o certificado vencer'],
+      ['binary_sensor.correria_whatsapp', 'ligado com o WhatsApp conectado, com o nome e o erro'],
+    ];
+    return `<section class="card" id="sensores">${cab('gauge', 'Sensores no Home Assistant')}<p class="lead">Para usar em painéis e automações do Home Assistant.</p>
+      <div class="linha-sw"><div>${tituloLinha('gauge', 'Criar sensores')}<span>${on ? 'Ligado.' : 'Desligado: nenhum sensor no Home Assistant.'}</span></div>
+        <button class="sw${on ? ' on' : ''}" data-a="sensores" role="switch" aria-checked="${on}" aria-label="Criar sensores"></button></div>
+      ${on ? `<div class="sub-op"><div class="sub-box sensor-list">${lista.map(([id, o]) => `<div class="sensor-row"><code>${id}</code><span>${o}</span></div>`).join('')}</div></div>` : ''}</section>`;
   }
 
   /* ---------- Sobre: quem faz os apps (CorrerIA Code), os apps da família e o GitHub (a mesma página dos outros apps) */

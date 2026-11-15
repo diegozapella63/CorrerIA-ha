@@ -52,7 +52,7 @@ Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.
 
 ## Sensores no Home Assistant
 
-Com **Criar os sensores** ligado (em **Configurações › Apps › Sensores no Home Assistant**; vem desligado, e desligar tira os sensores), o CorrerIA cria:
+Com **Criar sensores** ligado (em **Configurações › Apps › Sensores no Home Assistant**; vem desligado, e desligar tira os sensores), o CorrerIA cria:
 
 - `sensor.correria_certificado`: quantos dias faltam para o certificado de `/ssl` vencer (o do Duck DNS, que renova sozinho), com `vence`, `dominio` e `arquivo`; sem certificado, fica desconhecido. Um certificado vencido derruba o WhatsApp e o conector.
 - `binary_sensor.correria_whatsapp`: ligado com a conta do WhatsApp conferida na Meta (a cada 30 minutos), com `nome`, `respondendo` (o **Responder pelo WhatsApp** ligado), `erro` (o que a Meta disse, como um token vencido), `conferido_em` e `ultima_mensagem`.

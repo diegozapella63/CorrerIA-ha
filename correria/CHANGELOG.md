@@ -1,5 +1,10 @@
 # Mudanças
 
+## 0.17.1
+
+- **Sensores no Home Assistant** como no ResolvIA: a chave **Criar sensores** e, num quadro embaixo dela, cada sensor numa linha com o que mostra.
+- **Últimas chamadas** (Uso da IA) com quantas são.
+
 ## 0.17.0
 
 - **WhatsApp liga e desliga**, como o conector MCP: **Usar o WhatsApp**, em Configurações › WhatsApp. Desligado, só aparece a chave e o CorrerIA não responde nem guarda as mensagens. Ligado, o resto (o estado, Responder pelo WhatsApp, os campos e o Conferir) fica num quadro embaixo da chave. Quem já tinha configurado continua ligado.
