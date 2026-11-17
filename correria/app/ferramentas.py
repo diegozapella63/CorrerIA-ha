@@ -4,18 +4,28 @@ responde com a IA dele (rota, sem ferramentas) vira uma ferramenta <app>_pergunt
 import re
 
 import apps as A
+import casa as C
 
 PERGUNTAR = "__perguntar"
 
 
 class Ferramentas:
-    def __init__(self, apps, log):
+    def __init__(self, apps, log, casa=None):
         self._apps, self.log = apps, log  # apps: um apps.Apps (ou uma função que o devolve)
+        self._casa = casa  # 1.5.0: a casa do Home Assistant (casa.Casa), ou uma função que a devolve (None: desligada)
         self.erros = {}  # app -> a última falha ao listar (para a tela)
 
     @property
     def apps(self):
         return self._apps() if callable(self._apps) else self._apps
+
+    @property
+    def casa(self):
+        return self._casa() if callable(self._casa) else self._casa
+
+    def tem(self):
+        """Alguma ferramenta: um app com ferramentas ou a casa ligada."""
+        return bool(self.casa) or any(a["ferramentas"] for a in self.apps.lista())
 
     def todas(self):
         """[{id: "gerencia_lancar", app: {...}, nome, titulo, descricao, entrada, grava, apaga}] de todos os apps ligados."""
@@ -35,6 +45,8 @@ class Ferramentas:
                             "descricao": f"Faz uma pergunta ao {app['nome']} ({app['assunto'] or 'um app da CorrerIA Code'}); ele responde com a IA dele, com os dados dele.",
                             "entrada": {"type": "object", "properties": {"pergunta": {"type": "string"}}, "required": ["pergunta"], "additionalProperties": False},
                             "grava": False, "apaga": False})
+        if self.casa:
+            out += [dict(f, id=f"{C.ID}_{f['nome']}", app=C.APP) for f in C.FERRAMENTAS]
         return out
 
     def instrucoes(self):
@@ -50,6 +62,8 @@ class Ferramentas:
             elif not app["rota"]:
                 continue
             linhas.append(f"- {app['nome']}" + (f" ({app['assunto']})" if app["assunto"] else "") + (f": {dica}" if dica else ""))
+        if self.casa:
+            linhas.append(f"- {C.APP['nome']} ({C.APP['assunto']}): {C.INSTRUCOES}")
         return "\n".join(linhas)
 
     def achar(self, fid, lista=None):
@@ -58,6 +72,14 @@ class Ferramentas:
     def usar(self, f, argumentos, pessoa, cliente):
         """Chama a ferramenta; devolve (texto, erro). erro: o app recusou (argumento inválido) ou não respondeu."""
         args = argumentos if isinstance(argumentos, dict) else {}
+        if f["app"]["app"] == C.ID:
+            casa = self.casa
+            if not casa:
+                return "A casa do Home Assistant está desligada no CorrerIA.", True
+            try:
+                return casa.usar(f["nome"], args), False
+            except C.ErroCasa as e:
+                return str(e), True
         try:
             if f["nome"] == PERGUNTAR:
                 return self.apps.perguntar(f["app"], str(args.get("pergunta") or "").strip()[:2000] or "Oi", [], pessoa or {}, canal="correria"), False

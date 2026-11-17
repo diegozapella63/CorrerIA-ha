@@ -476,11 +476,11 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
         self.assertEqual(self.pg.get_attribute("#painel", "data-marca"), "1", "o painel não recarrega com a conversa")
         self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-tela-cheia.png"))
-        # 5 minutos sem uso: recolhe sozinha (usar antes conta o tempo de novo)
-        self.pg.clock.fast_forward("04:00")
+        # 3 minutos sem uso (1.5.0; antes, 5): recolhe sozinha (usar antes conta o tempo de novo)
+        self.pg.clock.fast_forward("02:00")
         self.pg.click("#ch-txt")
-        self.pg.clock.fast_forward("04:00")
-        self.assertEqual(self.pg.locator("body.recolhida").count(), 0, "usada há 4 minutos: continua aberta")
+        self.pg.clock.fast_forward("02:00")
+        self.assertEqual(self.pg.locator("body.recolhida").count(), 0, "usada há 2 minutos: continua aberta")
         self.pg.clock.fast_forward("01:05")
         self.pg.wait_for_selector("body.recolhida .trilho")
         self.assertEqual(self.pg.get_attribute("#painel", "data-marca"), "1", "recolher não recarrega o painel")
@@ -508,6 +508,31 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector("body.cheia", state="attached")
         self.pg.set_viewport_size({"width": 900, "height": 900})
         self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('[data-a=\\'cheia\\']')")
+
+    def test_opcoes_tela_cheia_e_casa(self):
+        """1.5.0: Configurações › Opções › Tela cheia (com a CronologIA): em quanto tempo a Conversa recolhe sozinha, 3
+        minutos de início; Configurações › Apps › Casa: mexer na casa pelo Assist, ligado de início."""
+        self.publicar_app()
+        os.makedirs(os.path.join(S.SHARE_DIR, "cronologia"), exist_ok=True)
+        with open(os.path.join(S.SHARE_DIR, "cronologia", "integracao.json"), "w") as f:
+            json.dump({"app": "cronologia", "nome": "CronologIA", "versao": "1.99.0", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
+        self.abrir()
+        self.opcoes()
+        self.assertEqual(self.pg.locator("#casa .sw").get_attribute("aria-checked"), "true")
+        self.assertIn("Só dentro do Home Assistant.", self.texto("#casa"))
+        self.pg.click("#casa .sw")
+        self.pg.wait_for_selector('#casa .sw[aria-checked="false"]')
+        self.assertFalse(S.ler_config()["casa"])
+        self.pg.click('.abas [data-v="opcoes"]')
+        self.pg.wait_for_selector("#tela-cheia")
+        self.assertEqual(self.pg.locator("#tela-cheia .chip").all_inner_texts(), ["1 min", "3 min", "5 min", "10 min"])
+        self.assertEqual(self.pg.locator('#tela-cheia .chip[aria-checked="true"]').inner_text(), "3 min")
+        self.pg.click('#tela-cheia .chip[data-v="5"]')
+        self.pg.wait_for_selector('#tela-cheia .chip[data-v="5"][aria-checked="true"]')
+        self.assertEqual(S.ler_config()["recolher"], 5)
+        caixas = self.pg.evaluate("[...document.querySelectorAll('#tela-cheia .chip')].map((b) => Math.round(b.getBoundingClientRect().width))")
+        self.assertEqual(len(set(caixas)), 1, f"os quatro do mesmo tamanho ({caixas})")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
 
     PAINEL_FALSO = """<!doctype html><body style="margin:0">
 <button id="conv" onclick="parent.postMessage({painel: 'conversa'}, location.origin)">Conversa</button>
@@ -566,7 +591,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         # Ctrl+Espaço: recolhe e abre de novo
         self.pg.keyboard.press("Control+Space")
         self.pg.wait_for_selector("body.cab-painel.recolhida", state="attached")
-        self.assertEqual(fr.evaluate("window.__c.at(-1).aberta"), False)
+        fr.wait_for_function("() => window.__c.at(-1).aberta === false")
         self.assertTrue(quadro.locator("#folha").is_visible(), "a folha volta")
         self.pg.keyboard.press("Control+Space")
         self.pg.wait_for_selector("body.cab-painel:not(.recolhida) #ch-txt")

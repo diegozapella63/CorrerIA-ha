@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import apps
+import casa
 import fala
 import ferramentas
 import ia
@@ -117,6 +118,9 @@ def ler_config():
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
            "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True,
+           # 1.5.0: a casa do Home Assistant (o Assist) como um app, ligada de início; a Conversa da tela cheia recolhe
+           # sozinha depois de recolher minutos sem uso (1, 3, 5 ou 10; 3 de início)
+           "casa": c.get("casa") is not False, "recolher": c.get("recolher") if c.get("recolher") in RECOLHER else 3,
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
@@ -131,6 +135,7 @@ def ler_config():
 
 
 IA_RE = re.compile(r"^(ai_task\.[a-z0-9_]+)?$")
+RECOLHER = (1, 3, 5, 10)
 def wa_ligado(c):
     """0.17.0: o WhatsApp ligado no CorrerIA: o que a pessoa escolheu ou, sem escolha, ligado se já está configurado."""
     return c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else bool(c["numero_id"] and c["token"])
@@ -185,6 +190,12 @@ def salvar_config(corpo):
             c["whatsapp"] = corpo.get("whatsapp") is True
         if "sensores" in corpo:
             c["sensores"] = corpo.get("sensores") is True
+        if "casa" in corpo:
+            c["casa"] = corpo.get("casa") is not False
+        if "recolher" in corpo:
+            if corpo.get("recolher") not in RECOLHER:
+                raise ValueError("Tempo desconhecido.")
+            c["recolher"] = corpo.get("recolher")
         if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
             e = str(corpo.get("ia_entidade") or "")
             if not IA_RE.match(e):
@@ -390,7 +401,9 @@ SO_TEXTO = "Por enquanto eu entendo texto, áudio, foto e PDF."
 NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
 ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
-FERR = ferramentas.Ferramentas(lambda: APPS, log)  # o APPS de agora (os testes trocam)
+CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log)
+# 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Apps › Casa)
+FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None)  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
 NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
 
@@ -505,7 +518,7 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
             return executar(pend, pessoa, cliente)
         if NAO_RE.match(texto):
             return "Tudo bem, não mudei nada.", []
-    if not any(a["ferramentas"] for a in APPS.lista()):
+    if not FERR.tem():
         return None
     CANAL.tipo = "whatsapp" if canal == "whatsapp" else "conversa"
     try:
@@ -1066,6 +1079,9 @@ def estado():
         "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada, "nome": nome_da_ia(c)},
         "ias": {"lista": ias_ha(), "escolhida": c["ia_entidade"]},
         "sensores": {"ligado": c["sensores"]},
+        # 1.5.0: a casa do Home Assistant (o Assist); disponivel: só dentro do Home Assistant
+        "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},
+        "recolher": c["recolher"],
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,

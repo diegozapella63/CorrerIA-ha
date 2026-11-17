@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.5.0
+
+- **Casa**: o Home Assistant entrou como mais um app. Na Conversa, no WhatsApp e no Claude dá para pedir "liga a luz da entrada", "fecha a cortina da sala" ou "põe o ar em 23 graus". O pedido vai para o Assist do Home Assistant, que só mexe no que está exposto a ele. Dá também para perguntar como está ("a luz da sala está ligada?", "qual a temperatura?"). Cada mudança espera o seu **sim**, como nos outros apps. Liga e desliga em **Configurações › Apps › Casa** (vem ligada).
+- **Tela cheia**: a Conversa recolhe sozinha depois de **3 minutos** sem uso (antes, 5). O tempo muda em **Configurações › Opções › Tela cheia** (1, 3, 5 ou 10 minutos).
+
 ## 1.4.1
 
 - **Conversa**: com um teclado (o computador, a TV), **Enter** envia e **Shift+Enter** quebra a linha, como no WhatsApp Web. Antes, numa tela de toque com teclado, o Enter só quebrava a linha. No celular, o Enter do teclado da tela continua quebrando a linha.

@@ -117,6 +117,32 @@ class TestConfig(Base):
             e = S.estado()
             self.assertEqual((e["painel"], e["painel_cabecalho"]), ("/api/hassio_ingress/AbC123_-xyz/?painel=1" + ("&conversa=1" if cab else ""), cab), versao)
 
+    def test_casa_do_home_assistant(self):
+        # 1.5.0: a casa (o Assist) como mais um app, ligada de início; só dentro do Home Assistant
+        c = S.ler_config()
+        self.assertEqual((c["casa"], c["recolher"]), (True, 3))
+        self.assertEqual((S.estado()["casa"], S.estado()["recolher"]), ({"ligado": True, "disponivel": False}, 3))
+        self.assertFalse(any(f["id"].startswith("casa_") for f in S.FERR.todas()), "fora do Home Assistant, sem a casa")
+        resposta = {"response": {"response_type": "action_done", "speech": {"plain": {"speech": "Luz da entrada ligada"}}, "data": {"success": [{"type": "entity", "name": "Luz da entrada"}]}}}
+        ha = ServidorFalso({"/api/conversation/process": (200, resposta), "/api/states": (200, [{"entity_id": "light.entrada", "state": "off", "attributes": {"friendly_name": "Luz da entrada"}}])})
+        self.addCleanup(ha.fechar)
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            self.assertTrue(S.FERR.tem())
+            self.assertEqual([f["id"] for f in S.FERR.todas()], ["casa_comando", "casa_estado"])
+            texto, nomes = S.executar([{"ferramenta": "casa_comando", "argumentos": {"pedido": "liga a luz da entrada"}, "resumo": "Ligar a luz da entrada"}], {"id": "person.ana", "nome": "Ana"}, "WhatsApp")
+            self.assertEqual((texto, nomes), ("Feito!\n- Luz da entrada ligada", ["Casa"]))
+            metodo, caminho, cab, corpo = ha.pedidos[-1]
+            self.assertEqual((metodo, caminho, cab["Authorization"], corpo), ("POST", "/api/conversation/process", "Bearer t", {"text": "liga a luz da entrada", "language": "pt-BR", "agent_id": "conversation.home_assistant"}))
+            texto, _ = S.FERR.usar(S.FERR.achar("casa_estado"), {"busca": "entrada"}, {}, "Claude")
+            self.assertEqual(texto, "- Luz da entrada: desligado (light.entrada)")
+            S.salvar_config({"casa": False})
+            self.assertEqual(S.estado()["casa"], {"ligado": False, "disponivel": True})
+            self.assertFalse(S.FERR.tem())
+        S.salvar_config({"recolher": 5})
+        self.assertEqual(S.ler_config()["recolher"], 5)
+        with self.assertRaises(ValueError):
+            S.salvar_config({"recolher": 7})
+
     def test_token_de_verificacao_criado_uma_vez(self):
         v = S.ler_config()["verificacao"]
         self.assertGreaterEqual(len(v), 16)

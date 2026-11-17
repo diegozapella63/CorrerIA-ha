@@ -491,3 +491,9 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 @supports not selector(::-webkit-scrollbar) {
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
 }
+/* 1.5.0: Configurações › Opções › Tela cheia: o tempo para a Conversa recolher sozinha (quatro botões iguais, lado a lado) */
+.chips-tempo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.chips-tempo .chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border-radius: 12px; font-weight: 600; }
+.chips-tempo .chip.on { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.chips-tempo .chip.on > .ic-s { color: inherit; }
+.dica { display: block; margin-top: 8px; font-size: 13.5px; color: var(--muted); }

@@ -66,6 +66,8 @@
     recolher: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/>',
     maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
     minimize: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
+    casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    luz: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
@@ -74,7 +76,7 @@
   // aba: a de Configurações (fica guardada neste aparelho)
   // Opções (0.13.0): o Atalho no celular, como nos outros apps; só dentro do Home Assistant (fora dele, a aba some)
   const ABAS = [['apps', 'Apps', 'layers'], ['whatsapp', 'WhatsApp', 'chat'], ['mcp', 'MCP', 'plug'], ['dados', 'Dados', 'database'], ['aparencia', 'Aparência', 'palette'], ['opcoes', 'Opções', 'toggle']];
-  const abasDe = (e) => ABAS.filter(([k]) => k !== 'opcoes' || (e && e.atalho));
+  const abasDe = (e) => ABAS.filter(([k]) => k !== 'opcoes' || (e && (e.atalho || e.painel)));
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps', tema: guardada('correria-tema') || 'auto',
@@ -330,7 +332,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardAtalho(e) : cardApps(e) + cardIA(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -416,6 +418,26 @@
     if (isNaN(d)) return '';
     const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     return d.toDateString() === new Date().toDateString() ? 'hoje ' + hm : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`;
+  }
+
+  /* ---------- 1.5.0: Configurações › Apps › Casa: o Home Assistant como mais um app (o Assist liga e desliga o que está
+     exposto a ele; ver como está, sem mexer), ligada de início; as mudanças, como as dos apps, depois do sim */
+  function cardCasa(e) {
+    const c = e.casa || {}, on = !!c.ligado;
+    return `<section class="card" id="casa">${cab('casa', 'Casa')}<p class="lead">Luzes, tomadas, cortinas, ar e cenas, pelo Assist do Home Assistant.</p>
+      <div class="linha-sw"><div>${tituloLinha('luz', 'Mexer na casa')}<span>${!c.disponivel ? 'Só dentro do Home Assistant.' : on ? 'Ligado: "liga a luz da entrada".' : 'Desligado.'}</span></div>
+        <button class="sw${on ? ' on' : ''}" data-a="casa" role="switch" aria-checked="${on}" aria-label="Mexer na casa"></button></div>
+      ${on ? `<div class="sub-op"><div class="sub-box"><p class="lead">Só o que está exposto ao Assist (no Home Assistant, <b>Configurações › Assistentes de voz › Expor</b>). Cada mudança espera o seu <b>sim</b>.</p></div></div>` : ''}</section>`;
+  }
+
+  /* ---------- 1.5.0: Configurações › Opções › Tela cheia: em quanto tempo sem uso a Conversa recolhe sozinha */
+  function cardTelaCheia(e) {
+    if (!e.painel) return '';
+    const m = RECOLHER.includes(e.recolher) ? e.recolher : 3;
+    return `<section class="card" id="tela-cheia">${cab('maximize', 'Tela cheia')}
+      <div class="campo">${tituloLinha('hourglass', 'Recolher a Conversa sozinha')}
+        <div class="chips-tempo" role="radiogroup" aria-label="Recolher a Conversa sozinha">${RECOLHER.map(n => `<button role="radio" aria-checked="${m === n}" class="chip${m === n ? ' on' : ''}" data-a="recolher" data-v="${n}">${ic('hourglass', 'ic-s')}${n} min</button>`).join('')}</div>
+        <span class="dica">Depois desse tempo sem uso. Fixada (o alfinete), nunca.</span></div></section>`;
   }
 
   /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
@@ -598,7 +620,9 @@
   /* 1.3.0: na Tela cheia, a Conversa começa recolhida (uma faixa fina à direita, com o botão de abrir) e o painel fica com
      quase a tela toda; aberta, recolhe sozinha depois de 5 minutos sem uso, ou no Recolher. Fixada (o alfinete, guardado
      no aparelho), fica aberta e nunca recolhe. */
-  const RECOLHE_MS = 5 * 60 * 1000;
+  // 1.5.0: 3 minutos de início; Configurações › Opções › Tela cheia muda (1, 3, 5 ou 10)
+  const RECOLHER = [1, 3, 5, 10];
+  const recolheMs = () => (S.e && RECOLHER.includes(S.e.recolher) ? S.e.recolher : 3) * 60 * 1000;
   const fixa = () => guardada('correria-conversa-fixa') === '1';
   let timerRecolhe = null;
   function armarRecolher() {
@@ -608,7 +632,7 @@
       if (!S.cheia || !S.aberta || fixa()) return;
       if (S.ch.enviando || S.ch.fala || CAM) return armarRecolher();  // no meio de algo: espera mais
       recolher();
-    }, RECOLHE_MS);
+    }, recolheMs());
   }
   function abrirConversa() {
     S.aberta = true;
@@ -1019,6 +1043,11 @@
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
     } else if (a === 'ia-verificar') {  // a lista das IAs de novo e esquece o erro da última chamada
       await acao('ia/verificar', {}, 'Verificado');
+    } else if (a === 'casa') {
+      const on = !!(S.e.casa && S.e.casa.ligado);
+      await acao('config', { casa: !on }, on ? 'Casa desligada' : 'Casa ligada');
+    } else if (a === 'recolher') {
+      await acao('config', { recolher: Number(el.dataset.v) }, 'Salvo');
     } else if (a === 'sensores') {
       const on = !!(S.e.sensores && S.e.sensores.ligado);
       await acao('config', { sensores: !on }, on ? 'Sensores desligados' : 'Sensores ligados');
