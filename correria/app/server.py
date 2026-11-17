@@ -1018,6 +1018,21 @@ def atalho(host=None):
     return "/app/" + host.replace("-", "_") if re.fullmatch(r"[a-z0-9]+-correria", host or "") else None
 
 
+PAINEL_RE = re.compile(r"^/api/hassio_ingress/[A-Za-z0-9_-]{8,128}$")
+
+
+def painel():
+    """1.2.0: o painel da Tela cheia da CronologIA (o A seguir, as Tarefas do dia, o placar, a folha do MemorIA), para a Tela
+    cheia daqui, ao lado da Conversa: o endereço da CronologIA no navegador (share/cronologia/integracao.json: tela, da
+    CronologIA 1.95.0 ou mais nova) com ?painel=1. Sem a CronologIA (ou sem o endereço ainda), None: sem o botão."""
+    try:
+        with open(os.path.join(SHARE_DIR, "cronologia", "integracao.json"), encoding="utf-8") as f:
+            tela = str(json.load(f).get("tela") or "").rstrip("/")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return tela + "/?painel=1" if PAINEL_RE.fullmatch(tela) else None
+
+
 def estado():
     c = ler_config()
     nums = c["pessoas"]
@@ -1052,6 +1067,7 @@ def estado():
         "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
         "atalho": atalho(),
         "uso_ia": USO.resumo(),
+        "painel": painel(),
     }
 
 

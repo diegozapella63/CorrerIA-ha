@@ -429,6 +429,53 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.text_content(".cab .eyebrow"), "CorrerIA · Olá, Ana", "como nos outros apps: o primeiro nome da pessoa")
         self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-ola.png"))
 
+    def test_tela_cheia_com_o_painel_da_cronologia(self):
+        """1.2.0: numa tela grande, com a CronologIA 1.95.0 (o endereço dela no navegador em share/cronologia/integracao.json),
+        a Tela cheia põe o painel dela à esquerda e a Conversa à direita; sai pelo botão, pelo Esc e pelo Voltar."""
+        self.publicar_app()
+        self.abrir()
+        self.pg.set_viewport_size({"width": 1440, "height": 900})
+        self.pg.wait_for_timeout(200)
+        self.assertEqual(self.pg.locator('[data-a="cheia"]').count(), 0, "sem a CronologIA: sem o botão")
+        os.makedirs(os.path.join(S.SHARE_DIR, "cronologia"), exist_ok=True)
+        with open(os.path.join(S.SHARE_DIR, "cronologia", "integracao.json"), "w") as f:
+            json.dump({"app": "CronologIA", "nome": "CronologIA", "versao": "1.95.0", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
+        # o monitor todo do navegador fica de mentira (o Chromium dos testes não muda de tamanho nele): só conta os pedidos
+        self.pg.add_init_script("window.__fs = 0; Element.prototype.requestFullscreen = function () { window.__fs++; return Promise.resolve(); };")
+        self.pg.reload()
+        self.pg.wait_for_selector('[data-a="cheia"]')
+        self.assertEqual(self.pg.get_attribute('[data-a="cheia"]', "aria-label"), "Tela cheia")
+        self.pg.click('[data-a="cheia"]')
+        self.pg.wait_for_selector("body.cheia #painel")
+        self.assertEqual(self.pg.get_attribute("#painel", "src"), "/api/hassio_ingress/AbC123_-xyz/?painel=1")
+        caixa = lambda sel: self.pg.locator(sel).bounding_box()
+        painel, app, pe = caixa("#painel"), caixa("#app"), caixa(".ch-pe")
+        self.assertEqual(painel["x"], 0)
+        self.assertGreater(painel["width"], 900, "o painel com a maior parte da tela")
+        self.assertAlmostEqual(app["x"], painel["width"], delta=2, msg="a Conversa logo à direita do painel")
+        self.assertAlmostEqual(pe["x"], app["x"], delta=2, msg="a caixa de escrever na coluna da Conversa")
+        self.assertTrue(self.pg.is_visible("#ch-txt"), "dá para escrever a qualquer momento")
+        self.assertEqual(self.pg.get_attribute('[data-a="cheia"]', "aria-label"), "Sair da tela cheia")
+        self.assertEqual(self.pg.evaluate("window.__fs"), 1, "pede o monitor todo")
+        # a conversa continua funcionando ao lado do painel, sem redesenhar o painel
+        self.pg.evaluate("document.querySelector('#painel').dataset.marca = '1'")
+        self.pg.fill("#ch-txt", "Quanto gastei?")
+        self.pg.click('[data-a="ch-enviar"]')
+        self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
+        self.assertEqual(self.pg.get_attribute("#painel", "data-marca"), "1", "o painel não recarrega com a conversa")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-tela-cheia.png"))
+        self.pg.keyboard.press("Escape")
+        self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('#painel')")
+        # o Voltar do celular também sai; numa tela estreita, o botão some e a Tela cheia termina
+        self.pg.click('[data-a="cheia"]')
+        self.pg.wait_for_selector("body.cheia")
+        self.pg.go_back()
+        self.pg.wait_for_function("() => !document.body.classList.contains('cheia')")
+        self.pg.click('[data-a="cheia"]')
+        self.pg.wait_for_selector("body.cheia")
+        self.pg.set_viewport_size({"width": 900, "height": 900})
+        self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('[data-a=\\'cheia\\']')")
+
     def test_conversar_com_a_ia(self):
         self.abrir_conversa()
         self.assertEqual(self.texto(".cab h1"), "Conversa")

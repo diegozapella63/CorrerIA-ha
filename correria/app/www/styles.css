@@ -431,3 +431,14 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 42px; co
 .sensor-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
 .sensor-row:first-child { border-top: 0; }
 .sensor-row code { font-size: 13px; padding: 1px 6px; border-radius: 6px; background: var(--bg); color: var(--text); overflow-wrap: anywhere; }
+
+/* ---------- Tela cheia (1.2.0, telas de 1100 px ou mais): o painel da CronologIA à esquerda e a Conversa à direita */
+body.cheia { --cw: clamp(400px, 28vw, 520px); }
+#painel { position: fixed; top: 0; left: 0; width: calc(100% - var(--cw)); height: 100%; border: 0; border-right: 1px solid var(--line); background: var(--bg); z-index: 1; display: block; }
+body.cheia #app { max-width: none; width: var(--cw); margin: 0 0 0 auto; }
+body.cheia .cab h1 { font-size: 34px; }
+body.cheia .ch-pe { left: auto; width: var(--cw); }
+body.cheia .ch-pe > * { max-width: none; }
+body.cheia #toast { left: auto; right: calc(var(--cw) / 2); transform: translate(50%, 20px); max-width: calc(var(--cw) - 32px); }
+body.cheia #toast.on { transform: translate(50%, 0); }
+.bt-icone.on { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }

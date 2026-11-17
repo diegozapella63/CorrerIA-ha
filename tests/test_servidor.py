@@ -93,6 +93,23 @@ class TestConfig(Base):
         with mock.patch.dict(os.environ, {"CORRERIA_HOST": "e5f6a7b8-correria"}):
             self.assertEqual(S.estado()["atalho"], "/app/e5f6a7b8_correria")
 
+    def test_painel_da_cronologia(self):
+        # 1.2.0: o endereço da CronologIA no navegador (o tela do integracao.json dela) com ?painel=1; sem ele ou estranho, nada
+        arq = os.path.join(S.SHARE_DIR, "cronologia", "integracao.json")
+        self.assertIsNone(S.painel())
+        os.makedirs(os.path.dirname(arq), exist_ok=True)
+        for tela, esperado in (("/api/hassio_ingress/AbC123_-xyz/", "/api/hassio_ingress/AbC123_-xyz/?painel=1"), ("/api/hassio_ingress/../../x", None),
+                               ("https://outro.site/api/hassio_ingress/AbC123_-xyz", None), ("", None), (None, None)):
+            with open(arq, "w") as f:
+                json.dump({"app": "CronologIA", "tela": tela}, f)
+            self.assertEqual(S.painel(), esperado, tela)
+        with open(arq, "w") as f:
+            f.write("não é json")
+        self.assertIsNone(S.painel())
+        with open(arq, "w") as f:
+            json.dump({"app": "CronologIA", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
+        self.assertEqual(S.estado()["painel"], "/api/hassio_ingress/AbC123_-xyz/?painel=1")
+
     def test_token_de_verificacao_criado_uma_vez(self):
         v = S.ler_config()["verificacao"]
         self.assertGreaterEqual(len(v), 16)

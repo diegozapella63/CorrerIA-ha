@@ -62,6 +62,8 @@
     refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12A9 9 0 0 1 18.5 5.8L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
     toggle: '<rect x="2" y="6" width="20" height="12" rx="6"/><circle cx="16" cy="12" r="3"/>',
     unlink: '<path d="m18.8 13.4 1.8-1.8a5 5 0 0 0-7.1-7.1l-1.8 1.8M5.2 10.6l-1.8 1.8a5 5 0 0 0 7.1 7.1l1.8-1.8M8 2v3M2 8h3M16 22v-3M22 16h-3"/>',
+    maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    minimize: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
@@ -527,7 +529,7 @@
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
-          <button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
+          ${botaoCheia(e)}<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
@@ -539,6 +541,55 @@
           ${botaoPri(e)}</div>
       </div>`;
   }
+  /* ---------- Tela cheia (1.2.0): numa tela grande (1100 px ou mais, como nos outros apps), o painel da CronologIA (o A
+     seguir, as Tarefas do dia, o placar, a folha do MemorIA) toma a tela e a Conversa fica à direita, sempre à mão, para
+     pedir qualquer coisa aos apps. O painel é a própria CronologIA (?painel=1), num quadro que não é redesenhado com a
+     conversa. Sai pelo mesmo botão, pelo Esc, pelo Voltar do celular ou quando a tela fica estreita. */
+  const LARGA = window.matchMedia ? matchMedia('(min-width: 1100px)') : null;
+  const podeCheia = e => !!(e && e.painel && LARGA && LARGA.matches);
+  function botaoCheia(e) {
+    if (!podeCheia(e)) return '';
+    const t = S.cheia ? 'Sair da tela cheia' : 'Tela cheia';
+    return `<button class="bt-icone${S.cheia ? ' on' : ''}" data-a="cheia" aria-label="${t}" title="${t}">${ic(S.cheia ? 'minimize' : 'maximize')}</button>`;
+  }
+  let fsDoc = null, fsLigada = false;
+  function aoTelaCheiaDoNavegador() {  // saiu da tela cheia do navegador (o Esc dele): sai daqui também
+    if (fsDoc && fsDoc.fullscreenElement) fsLigada = true;
+    else if (fsLigada) { fsLigada = false; if (S.cheia) cheia(false); }
+  }
+  function cheia(on, voltou) {
+    if (!!S.cheia === on || (on && !podeCheia(S.e))) return;
+    S.cheia = on;
+    document.body.classList.toggle('cheia', on);
+    let quadro = $('#painel');
+    if (on && !quadro) {
+      quadro = document.createElement('iframe');
+      quadro.id = 'painel';
+      quadro.title = 'Painel da CronologIA';
+      quadro.src = S.e.painel;
+      document.body.insertBefore(quadro, $('#app'));
+    } else if (!on && quadro) quadro.remove();
+    if (on) history.pushState({ ...(history.state || {}), cheia: 1 }, '');
+    else if (!voltou && history.state && history.state.cheia) history.back();
+    // o quadro do Home Assistant (a mesma origem) ocupa o monitor todo, quando o navegador deixa
+    let el = document.documentElement;
+    try { if (window.frameElement) el = window.frameElement; } catch (err) { /* outra origem: só esta página */ }
+    const doc = el.ownerDocument;
+    if (fsDoc !== doc) {
+      if (fsDoc) fsDoc.removeEventListener('fullscreenchange', aoTelaCheiaDoNavegador);
+      fsDoc = doc;
+      doc.addEventListener('fullscreenchange', aoTelaCheiaDoNavegador);
+    }
+    try {
+      if (on && !doc.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(() => {});
+      if (!on && doc.fullscreenElement && doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+    } catch (err) { /* o navegador não deixa: o painel e a conversa, sem o monitor todo */ }
+    render();
+  }
+  if (LARGA) {
+    try { LARGA.addEventListener('change', () => { if (!LARGA.matches && S.cheia) cheia(false); else render(); }); } catch (err) { /* antigo */ }
+  }
+
   // o botão redondo da conversa: com a caixa vazia, o microfone (Falar); ouvindo, o Pronto; com texto ou arquivo, o Enviar
   function botaoPri(e) {
     const c = S.ch, f = c.fala;
@@ -680,7 +731,7 @@
   async function abrirCamera() {
     fecharCamera(true);
     CAM = { status: 'abrindo' };
-    history.pushState({ tela: S.tela || '', cam: true }, '');
+    history.pushState({ tela: S.tela || '', cam: true, ...(S.cheia ? { cheia: 1 } : {}) }, '');
     pintarCamera();
     if (!camOk()) {
       CAM.status = 'erro';
@@ -785,7 +836,7 @@
   function abrirTela(t) {
     if (S.tela === t) return;
     pararFala();
-    history.pushState({ tela: t }, '');
+    history.pushState({ tela: t, ...(S.cheia ? { cheia: 1 } : {}) }, '');
     S.tela = t;
     window.scrollTo(0, 0);
     render();
@@ -796,6 +847,7 @@
   }
   window.addEventListener('popstate', () => {
     if (CAM && !(history.state && history.state.cam)) { fecharCamera(true); return; }  // o Voltar do celular fecha a câmera
+    if (S.cheia && !(history.state && history.state.cheia)) { cheia(false, true); return; }  // e sai da Tela cheia
     S.tela = (history.state && history.state.tela) || '';
     window.scrollTo(0, 0);
     render();
@@ -827,7 +879,7 @@
   }
 
   // na conversa, só redesenha quando muda o que ela mostra (um pedido para conectar, os apps): assim a lista não pula
-  const assinatura = e => (S.tela ? JSON.stringify(e) : JSON.stringify([(e.mcp || {}).pedidos, e.apps.map(a => [a.app, a.anexos])]));
+  const assinatura = e => (S.tela ? JSON.stringify(e) : JSON.stringify([(e.mcp || {}).pedidos, e.apps.map(a => [a.app, a.anexos]), e.painel]));
   async function carregar() {
     try {
       const e = await api.get();
@@ -890,6 +942,8 @@
       } catch (e) {
         toast('Toque e segure no texto para copiar');  // em http, o navegador não deixa copiar sozinho
       }
+    } else if (a === 'cheia') {
+      cheia(!S.cheia);
     } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {
       abrirTela(a);
     } else if (a === 'tema') {
@@ -991,6 +1045,8 @@
     }
   });
   document.addEventListener('keydown', ev => {
+    // Tela cheia: o Esc sai (a câmera e o menu do anexo fecham antes, pelo Esc deles)
+    if (ev.key === 'Escape' && S.cheia && !CAM && !S.ch.menu) { cheia(false); return; }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.rot[data-dobra]')) { ev.preventDefault(); return dobrar(ev.target); }
     // no computador, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && matchMedia('(hover: hover)').matches) { ev.preventDefault(); enviarConversa(); }

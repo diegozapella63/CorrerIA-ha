@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.2.0
+
+- **Tela cheia** (telas de 1100 px ou mais, para a TV ou o tablet na parede): o botão no alto da Conversa põe o painel da tela cheia da CronologIA à esquerda (o **A seguir**, o que vem **Depois**, as **Tarefas do dia**, o placar e a folha do MemorIA) e a **Conversa** à direita, sempre à mão para pedir qualquer coisa aos apps. O painel se atualiza sozinho com o que você pede na Conversa. Sai pelo mesmo botão, pelo **Esc** ou pelo **Voltar** do celular. Precisa da CronologIA 1.95.0 ou mais nova (abra a CronologIA uma vez depois de atualizar).
+
 ## 1.1.0
 
 - **Conversa › Clipe**: um botão só com **Tirar foto**, **Escolher fotos** (a galeria do celular) e **Escolher arquivo** (uma foto ou um PDF).
