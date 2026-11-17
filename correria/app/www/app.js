@@ -1150,6 +1150,12 @@
       if (b && !novo.includes(`data-a="${b.dataset.a}"`)) b.outerHTML = novo;
     }
   });
+  /* 1.4.1: o Enter envia (o Shift+Enter quebra a linha, como no WhatsApp Web, no Telegram e no Slack) quando há um
+     teclado de verdade: um computador (um mouse ou um touchpad), ou uma tecla de letra que não veio do teclado da tela
+     (o do Android manda 229). No celular, o Enter do teclado da tela quebra a linha. */
+  let teclaDeVerdade = false;
+  document.addEventListener('keydown', ev => { if (ev.key && ev.key.length === 1 && ev.keyCode !== 229 && !ev.isComposing) teclaDeVerdade = true; }, true);
+  const comTeclado = () => teclaDeVerdade || matchMedia('(any-hover: hover), (any-pointer: fine)').matches;
   document.addEventListener('keydown', ev => {
     // 1.4.0: Ctrl+Espaço abre a Conversa e, aberta, recolhe (na Tela cheia; fora dela, o cursor vai para a caixa)
     if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.code === 'Space' || ev.key === ' ')) {
@@ -1161,8 +1167,8 @@
     // Tela cheia: o Esc sai (a câmera e o menu do anexo fecham antes, pelo Esc deles)
     if (ev.key === 'Escape' && S.cheia && !CAM && !S.ch.menu) { cheia(false); return; }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.rot[data-dobra]')) { ev.preventDefault(); return dobrar(ev.target); }
-    // no computador, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
-    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && matchMedia('(hover: hover)').matches) { ev.preventDefault(); enviarConversa(); }
+    // com teclado, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && comTeclado()) { ev.preventDefault(); enviarConversa(); }
     if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'ch-ed-txt') { ev.preventDefault(); perguntaNova(); }
   });
   document.addEventListener('change', async ev => {

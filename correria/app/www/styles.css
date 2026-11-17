@@ -221,6 +221,7 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-msg.ia { align-self: flex-start; }
 .ch-bolha { padding: 10px 14px; border-radius: 18px; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
 .ch-msg.eu .ch-bolha { background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 6px; }
+.ch-msg.eu .ch-bolha p { white-space: pre-wrap; }
 .ch-msg.ia .ch-bolha { background: var(--card-2); border-bottom-left-radius: 6px; }
 .ch-bolha p { margin: 0; }
 .ch-bolha p + p, .ch-bolha p + ul, .ch-bolha ul + p { margin-top: 8px; }

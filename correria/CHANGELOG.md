@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.4.1
+
+- **Conversa**: com um teclado (o computador, a TV), **Enter** envia e **Shift+Enter** quebra a linha, como no WhatsApp Web. Antes, numa tela de toque com teclado, o Enter só quebrava a linha. No celular, o Enter do teclado da tela continua quebrando a linha.
+- O que você escreveu em mais de uma linha aparece assim no balão.
+
 ## 1.4.0
 
 - **Tela cheia** (com a CronologIA 1.97.0 ou mais nova): sem a faixa do lado. Os botões da Conversa e do **Sair da tela cheia** ficam no alto do painel, ao lado do relógio, e o painel fica com a tela toda. Aberta, a Conversa toma o lugar da folha do MemorIA; o resto do painel fica onde estava. O ponto de resposta nova aparece no botão do alto.

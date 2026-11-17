@@ -597,6 +597,36 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.meta.pedidos, [], "não passa pela Meta")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
 
+    def test_enter_envia(self):
+        """1.4.1: com teclado, o Enter envia e o Shift+Enter quebra a linha (como no WhatsApp Web); no celular, o Enter do
+        teclado da tela quebra a linha, até chegar uma tecla de um teclado de verdade."""
+        self.abrir_conversa()
+        self.pg.click("#ch-txt")
+        self.pg.keyboard.type("Quanto")
+        self.pg.keyboard.press("Shift+Enter")
+        self.pg.keyboard.type("gastei?")
+        self.assertEqual(self.pg.input_value("#ch-txt"), "Quanto\ngastei?", "Shift+Enter: outra linha")
+        self.pg.keyboard.press("Enter")
+        self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
+        self.assertEqual(self.texto(".ch-msg.eu .ch-bolha"), "Quanto\ngastei?")
+        self.assertEqual(self.pg.input_value("#ch-txt"), "")
+        # um celular (sem mouse): o Enter quebra a linha; uma tecla de verdade (um teclado ligado) e ele passa a enviar
+        ctx = self.nav.new_context(viewport={"width": 390, "height": 760}, is_mobile=True, has_touch=True)
+        self.addCleanup(ctx.close)
+        pg = ctx.new_page()
+        pg.goto(self.pg.url)
+        pg.wait_for_selector(".ch-msg.ia")  # a conversa de antes (a mesma da tela)
+        n = pg.locator(".ch-msg.eu").count()
+        self.assertFalse(pg.evaluate("matchMedia('(any-hover: hover), (any-pointer: fine)').matches"))
+        pg.fill("#ch-txt", "Oi")
+        pg.press("#ch-txt", "Enter")
+        self.assertEqual(pg.input_value("#ch-txt"), "Oi\n", "teclado da tela: outra linha")
+        self.assertEqual(pg.locator(".ch-msg.eu").count(), n)
+        pg.keyboard.type("x")
+        pg.keyboard.press("Enter")
+        pg.wait_for_function(f"() => document.querySelectorAll('.ch-msg.eu').length > {n}")
+        self.assertEqual(pg.input_value("#ch-txt"), "")
+
     def test_falar(self):
         """O microfone da conversa (um microfone de mentira do Chromium): com a caixa vazia, o botão redondo é o Falar;
         ouvindo, fica vermelho com o Pronto e o Cancelar no lugar da câmera; o Pronto manda o que foi entendido."""
