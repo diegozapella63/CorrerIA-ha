@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.4.0
+
+- **Tela cheia** (com a CronologIA 1.97.0 ou mais nova): sem a faixa do lado. Os botões da Conversa e do **Sair da tela cheia** ficam no alto do painel, ao lado do relógio, e o painel fica com a tela toda. Aberta, a Conversa toma o lugar da folha do MemorIA; o resto do painel fica onde estava. O ponto de resposta nova aparece no botão do alto.
+- **Ctrl+Espaço** abre a Conversa e, aberta, recolhe (fora da tela cheia, leva o cursor para a caixa de escrever).
+
 ## 1.3.0
 
 - **Tela cheia**: a Conversa começa **recolhida**, numa faixa fina à direita, e o painel da CronologIA fica com quase a tela toda. Um toque no botão da faixa abre a Conversa. Aberta, ela recolhe sozinha depois de **5 minutos sem uso**, ou quando você toca em **Recolher**. Se uma resposta chegar com ela recolhida, aparece um ponto no botão.

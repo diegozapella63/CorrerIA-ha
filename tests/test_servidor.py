@@ -109,6 +109,13 @@ class TestConfig(Base):
         with open(arq, "w") as f:
             json.dump({"app": "CronologIA", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
         self.assertEqual(S.estado()["painel"], "/api/hassio_ingress/AbC123_-xyz/?painel=1")
+        self.assertFalse(S.estado()["painel_cabecalho"])
+        # 1.4.0: da CronologIA 1.97.0 em diante, &conversa=1 (os botões no alto do painel, sem a faixa daqui)
+        for versao, cab in (("1.96.1", False), ("1.97.0", True), ("1.100.2", True), ("2.0.0", True), ("1.97", False), ("x", False)):
+            with open(arq, "w") as f:
+                json.dump({"app": "cronologia", "versao": versao, "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
+            e = S.estado()
+            self.assertEqual((e["painel"], e["painel_cabecalho"]), ("/api/hassio_ingress/AbC123_-xyz/?painel=1" + ("&conversa=1" if cab else ""), cab), versao)
 
     def test_token_de_verificacao_criado_uma_vez(self):
         v = S.ler_config()["verificacao"]

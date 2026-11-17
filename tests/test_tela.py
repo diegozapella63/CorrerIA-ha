@@ -509,6 +509,75 @@ class Tela(unittest.TestCase):
         self.pg.set_viewport_size({"width": 900, "height": 900})
         self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('[data-a=\\'cheia\\']')")
 
+    PAINEL_FALSO = """<!doctype html><body style="margin:0">
+<button id="conv" onclick="parent.postMessage({painel: 'conversa'}, location.origin)">Conversa</button>
+<button id="sair" onclick="parent.postMessage({painel: 'sair'}, location.origin)">Sair</button>
+<div id="folha" style="position: absolute; left: 900px; top: 70px; width: 500px; height: 780px">Folha</div>
+<script>
+window.__c = [];
+addEventListener('message', (e) => {
+  if (!e.data || !e.data.conversa) return;
+  __c.push(e.data.conversa);
+  const a = e.data.conversa.aberta;
+  document.getElementById('folha').style.display = a ? 'none' : '';
+  parent.postMessage(a ? {painel: 'lugar', x: 900, y: 70, w: 500, h: 780} : {painel: 'lugar', x: 0, y: 0, w: 0, h: 0}, location.origin);
+});
+parent.postMessage({painel: 'pronto'}, location.origin);
+</script></body>"""
+
+    def test_tela_cheia_com_os_botoes_no_painel(self):
+        """1.4.0: com a CronologIA 1.97.0 ou mais nova (&conversa=1), os botões da Conversa e do Sair ficam no alto do painel
+        dela, sem a faixa daqui: o painel com a tela toda, e a Conversa aberta no lugar da folha (o painel diz onde). Aqui se
+        conta ao painel se ela está aberta; Ctrl+Espaço abre e recolhe. Mensagens de outra janela não valem."""
+        self.publicar_app()
+        os.makedirs(os.path.join(S.SHARE_DIR, "cronologia"), exist_ok=True)
+        with open(os.path.join(S.SHARE_DIR, "cronologia", "integracao.json"), "w") as f:
+            json.dump({"app": "cronologia", "nome": "CronologIA", "versao": "1.97.0", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
+        self.abrir()
+        self.pg.set_viewport_size({"width": 1440, "height": 900})
+        self.pg.route("**/api/hassio_ingress/**", lambda r: r.fulfill(body=self.PAINEL_FALSO, content_type="text/html"))
+        self.pg.add_init_script("Element.prototype.requestFullscreen = function () { return Promise.resolve(); };")
+        self.pg.reload()
+        self.pg.click('[data-a="cheia"]')
+        self.pg.wait_for_selector("body.cheia.cab-painel.recolhida #painel", state="attached")
+        self.assertEqual(self.pg.get_attribute("#painel", "src"), "/api/hassio_ingress/AbC123_-xyz/?painel=1&conversa=1")
+        quadro = self.pg.frame_locator("#painel")
+        fr = self.pg.frame(url=lambda u: "hassio_ingress" in u)
+        fr.wait_for_function("() => window.__c.length >= 1")
+        self.assertEqual(fr.evaluate("window.__c.at(-1)"), {"aberta": False, "novidade": False}, "conta ao painel: recolhida")
+        caixa = lambda sel: self.pg.locator(sel).bounding_box()
+        self.assertEqual(self.pg.locator(".trilho").count(), 0, "sem a faixa")
+        self.assertEqual(caixa("#painel")["width"], 1440, "o painel com a tela toda")
+        self.assertFalse(self.pg.locator("#app").is_visible())
+        # o botão do painel abre a Conversa no lugar da folha
+        quadro.locator("#conv").click()
+        self.pg.wait_for_selector("body.cab-painel:not(.recolhida):not(.espera-lugar) #ch-txt")
+        app, pe = caixa("#app"), caixa(".ch-pe")
+        for k, v in (("x", 900), ("y", 70), ("width", 500), ("height", 780)):
+            self.assertAlmostEqual(app[k], v, delta=1, msg=f"no lugar da folha ({k})")
+        self.assertTrue(pe["x"] >= 900 and pe["y"] + pe["height"] <= 70 + 780 + 1, "a caixa de escrever dentro do quadro")
+        self.assertEqual(fr.evaluate("window.__c.at(-1).aberta"), True)
+        self.assertEqual(self.pg.locator('.cab-bts [data-a="cheia"]').count(), 0, "o Sair fica no painel")
+        self.pg.fill("#ch-txt", "Quanto gastei?")
+        self.pg.click('[data-a="ch-enviar"]')
+        self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
+        self.assertAlmostEqual(caixa("#app")["y"], 70, delta=1, msg="a conversa rola dentro do quadro, que não sai do lugar")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-tela-cheia-no-lugar-da-folha.png"))
+        # Ctrl+Espaço: recolhe e abre de novo
+        self.pg.keyboard.press("Control+Space")
+        self.pg.wait_for_selector("body.cab-painel.recolhida", state="attached")
+        self.assertEqual(fr.evaluate("window.__c.at(-1).aberta"), False)
+        self.assertTrue(quadro.locator("#folha").is_visible(), "a folha volta")
+        self.pg.keyboard.press("Control+Space")
+        self.pg.wait_for_selector("body.cab-painel:not(.recolhida) #ch-txt")
+        # só as mensagens do quadro valem
+        self.pg.evaluate("postMessage({painel: 'sair'}, location.origin)")
+        self.pg.wait_for_timeout(200)
+        self.assertEqual(self.pg.locator("body.cheia").count(), 1, "de outra janela: nada")
+        quadro.locator("#sair").click()
+        self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('#painel')")
+        self.assertEqual(self.pg.evaluate("document.body.style.getPropertyValue('--lx')"), "", "saindo, o lugar some")
+
     def test_conversar_com_a_ia(self):
         self.abrir_conversa()
         self.assertEqual(self.texto(".cab h1"), "Conversa")

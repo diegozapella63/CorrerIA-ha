@@ -1024,13 +1024,25 @@ PAINEL_RE = re.compile(r"^/api/hassio_ingress/[A-Za-z0-9_-]{8,128}$")
 def painel():
     """1.2.0: o painel da Tela cheia da CronologIA (o A seguir, as Tarefas do dia, o placar, a folha do MemorIA), para a Tela
     cheia daqui, ao lado da Conversa: o endereço da CronologIA no navegador (share/cronologia/integracao.json: tela, da
-    CronologIA 1.95.0 ou mais nova) com ?painel=1. Sem a CronologIA (ou sem o endereço ainda), None: sem o botão."""
+    CronologIA 1.95.0 ou mais nova) com ?painel=1. Sem a CronologIA (ou sem o endereço ainda), None: sem o botão.
+    1.4.0: da CronologIA 1.97.0 em diante, também &conversa=1: os botões da Conversa e do Sair ficam no alto do painel
+    (sem a faixa daqui) e a Conversa aberta fica no lugar da folha."""
     try:
         with open(os.path.join(SHARE_DIR, "cronologia", "integracao.json"), encoding="utf-8") as f:
-            tela = str(json.load(f).get("tela") or "").rstrip("/")
+            d = json.load(f)
+            tela = str(d.get("tela") or "").rstrip("/")
+            versao = str(d.get("versao") or "")
     except (OSError, ValueError, AttributeError):
         return None
-    return tela + "/?painel=1" if PAINEL_RE.fullmatch(tela) else None
+    if not PAINEL_RE.fullmatch(tela):
+        return None
+    return tela + "/?painel=1" + ("&conversa=1" if versao_tupla(versao) >= (1, 97, 0) else "")
+
+
+def versao_tupla(v):
+    """"1.97.0" → (1, 97, 0); o que não é versão, (0,)."""
+    m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", str(v).strip())
+    return tuple(int(x) for x in m.groups()) if m else (0,)
 
 
 def estado():
@@ -1067,7 +1079,8 @@ def estado():
         "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
         "atalho": atalho(),
         "uso_ia": USO.resumo(),
-        "painel": painel(),
+        "painel": (pn := painel()),
+        "painel_cabecalho": bool(pn and pn.endswith("&conversa=1")),
     }
 
 

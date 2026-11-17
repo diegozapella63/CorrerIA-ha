@@ -556,8 +556,45 @@
     const f = fixa(), tf = f ? 'Soltar a Conversa' : 'Fixar a Conversa aberta';
     return `<button class="bt-icone${f ? ' on' : ''}" data-a="conversa-fixar" aria-pressed="${f}" aria-label="${tf}" title="${tf}">${ic('pin')}</button>`
       + (f ? '' : `<button class="bt-icone" data-a="conversa-recolher" aria-label="Recolher a Conversa" title="Recolher a Conversa">${ic('recolher')}</button>`)
-      + `<button class="bt-icone on" data-a="cheia" aria-label="Sair da tela cheia" title="Sair da tela cheia">${ic('minimize')}</button>`;
+      + (cabPainel() ? '' : `<button class="bt-icone on" data-a="cheia" aria-label="Sair da tela cheia" title="Sair da tela cheia">${ic('minimize')}</button>`);
   }
+  /* 1.4.0: com a CronologIA 1.97.0 ou mais nova (painel_cabecalho), os botões da Conversa e do Sair ficam no alto do
+     painel, sem a faixa daqui: o painel fica com a tela toda e a Conversa aberta toma o lugar da folha (o painel diz onde,
+     {painel: 'lugar', x, y, w, h}); ele avisa o toque nos botões ({painel: 'conversa' | 'sair'}) e aqui se conta se a
+     Conversa está aberta ou tem resposta nova ({conversa: {aberta, novidade}}). Só as mensagens do quadro, da mesma origem. */
+  const cabPainel = () => !!(S.cheia && S.e && S.e.painel_cabecalho);
+  let esperaLugar = null;
+  function contarAoPainel() {
+    const q = $('#painel');
+    if (!cabPainel() || !q || !q.contentWindow) return;
+    try { q.contentWindow.postMessage({ conversa: { aberta: !!S.aberta, novidade: !!S.ch.novidade } }, location.origin); } catch (err) { /* fechou */ }
+  }
+  function aplicarLugar(l) {
+    const st = document.body.style, q = $('#painel'), r = q ? q.getBoundingClientRect() : { left: 0, top: 0 };
+    if (l && l.w > 0 && l.h > 0) {
+      st.setProperty('--lx', Math.round(r.left + l.x) + 'px'); st.setProperty('--ly', Math.round(r.top + l.y) + 'px');
+      st.setProperty('--lw', Math.round(l.w) + 'px'); st.setProperty('--lh', Math.round(l.h) + 'px');
+    } else ['--lx', '--ly', '--lw', '--lh'].forEach(k => st.removeProperty(k));
+    if (l && l.w > 0) { clearTimeout(esperaLugar); document.body.classList.remove('espera-lugar'); }
+  }
+  function esperarLugar() {  // abrindo: a Conversa aparece já no lugar da folha (ou, sem resposta, à direita)
+    if (!cabPainel()) return;
+    document.body.classList.add('espera-lugar');
+    clearTimeout(esperaLugar);
+    esperaLugar = setTimeout(() => document.body.classList.remove('espera-lugar'), 700);
+  }
+  function alternarConversa() {
+    if (!S.cheia) return;
+    if (S.aberta) recolher(); else abrirConversa();
+  }
+  window.addEventListener('message', ev => {
+    const q = $('#painel'), d = ev.data;
+    if (!S.cheia || !q || ev.source !== q.contentWindow || ev.origin !== location.origin || !d || typeof d !== 'object') return;
+    if (d.painel === 'conversa') alternarConversa();
+    else if (d.painel === 'sair') cheia(false);
+    else if (d.painel === 'pronto') contarAoPainel();
+    else if (d.painel === 'lugar') aplicarLugar(d);
+  });
   /* 1.3.0: na Tela cheia, a Conversa começa recolhida (uma faixa fina à direita, com o botão de abrir) e o painel fica com
      quase a tela toda; aberta, recolhe sozinha depois de 5 minutos sem uso, ou no Recolher. Fixada (o alfinete, guardado
      no aparelho), fica aberta e nunca recolhe. */
@@ -576,6 +613,7 @@
   function abrirConversa() {
     S.aberta = true;
     S.ch.novidade = false;
+    esperarLugar();
     document.body.classList.remove('recolhida');
     render();
     armarRecolher();
@@ -610,12 +648,16 @@
     clearTimeout(timerRecolhe);
     document.body.classList.toggle('cheia', on);
     document.body.classList.toggle('recolhida', on && !S.aberta);
+    document.body.classList.toggle('cab-painel', cabPainel());
+    if (on && S.aberta) esperarLugar();
+    if (!on) { aplicarLugar(null); document.body.classList.remove('espera-lugar'); }
     let quadro = $('#painel');
     if (on && !quadro) {
       quadro = document.createElement('iframe');
       quadro.id = 'painel';
       quadro.title = 'Painel da CronologIA';
       quadro.src = S.e.painel;
+      quadro.addEventListener('load', contarAoPainel);
       document.body.insertBefore(quadro, $('#app'));
     } else if (!on && quadro) quadro.remove();
     if (on) history.pushState({ ...(history.state || {}), cheia: 1 }, '');
@@ -847,9 +889,14 @@
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
     aplicarCor();
-    $('#app').innerHTML = S.cheia && !S.aberta ? trilho() : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
-    if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
+    if (!S.tela) {
+      window.scrollTo(0, document.body.scrollHeight);
+      const l = cabPainel() && $('#ch-lista');  // 1.4.0: no lugar da folha, a lista rola dentro do quadro
+      if (l) l.scrollTop = l.scrollHeight;
+    }
+    contarAoPainel();
     // as abas não cabem num celular estreito e rolam para o lado: a escolhida fica à vista (a tela é redesenhada)
     const aba = document.querySelector('.abas .on');
     if (aba && aba.parentElement) {
@@ -1104,6 +1151,13 @@
     }
   });
   document.addEventListener('keydown', ev => {
+    // 1.4.0: Ctrl+Espaço abre a Conversa e, aberta, recolhe (na Tela cheia; fora dela, o cursor vai para a caixa)
+    if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.code === 'Space' || ev.key === ' ')) {
+      ev.preventDefault();
+      if (S.cheia) return alternarConversa();
+      const t = $('#ch-txt'); if (t) t.focus();
+      return;
+    }
     // Tela cheia: o Esc sai (a câmera e o menu do anexo fecham antes, pelo Esc deles)
     if (ev.key === 'Escape' && S.cheia && !CAM && !S.ch.menu) { cheia(false); return; }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.rot[data-dobra]')) { ev.preventDefault(); return dobrar(ev.target); }
