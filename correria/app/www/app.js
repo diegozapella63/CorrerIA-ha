@@ -62,6 +62,8 @@
     refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12A9 9 0 0 1 18.5 5.8L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
     toggle: '<rect x="2" y="6" width="20" height="12" rx="6"/><circle cx="16" cy="12" r="3"/>',
     unlink: '<path d="m18.8 13.4 1.8-1.8a5 5 0 0 0-7.1-7.1l-1.8 1.8M5.2 10.6l-1.8 1.8a5 5 0 0 0 7.1 7.1l1.8-1.8M8 2v3M2 8h3M16 22v-3M22 16h-3"/>',
+    pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    recolher: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/>',
     maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
     minimize: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
@@ -549,9 +551,53 @@
   const podeCheia = e => !!(e && e.painel && LARGA && LARGA.matches);
   function botaoCheia(e) {
     if (!podeCheia(e)) return '';
-    const t = S.cheia ? 'Sair da tela cheia' : 'Tela cheia';
-    return `<button class="bt-icone${S.cheia ? ' on' : ''}" data-a="cheia" aria-label="${t}" title="${t}">${ic(S.cheia ? 'minimize' : 'maximize')}</button>`;
+    if (!S.cheia) return `<button class="bt-icone" data-a="cheia" aria-label="Tela cheia" title="Tela cheia">${ic('maximize')}</button>`;
+    // 1.3.0: Fixar (a Conversa não recolhe mais) e Recolher (só solta)
+    const f = fixa(), tf = f ? 'Soltar a Conversa' : 'Fixar a Conversa aberta';
+    return `<button class="bt-icone${f ? ' on' : ''}" data-a="conversa-fixar" aria-pressed="${f}" aria-label="${tf}" title="${tf}">${ic('pin')}</button>`
+      + (f ? '' : `<button class="bt-icone" data-a="conversa-recolher" aria-label="Recolher a Conversa" title="Recolher a Conversa">${ic('recolher')}</button>`)
+      + `<button class="bt-icone on" data-a="cheia" aria-label="Sair da tela cheia" title="Sair da tela cheia">${ic('minimize')}</button>`;
   }
+  /* 1.3.0: na Tela cheia, a Conversa começa recolhida (uma faixa fina à direita, com o botão de abrir) e o painel fica com
+     quase a tela toda; aberta, recolhe sozinha depois de 5 minutos sem uso, ou no Recolher. Fixada (o alfinete, guardado
+     no aparelho), fica aberta e nunca recolhe. */
+  const RECOLHE_MS = 5 * 60 * 1000;
+  const fixa = () => guardada('correria-conversa-fixa') === '1';
+  let timerRecolhe = null;
+  function armarRecolher() {
+    clearTimeout(timerRecolhe);
+    if (!S.cheia || !S.aberta || fixa()) return;
+    timerRecolhe = setTimeout(() => {
+      if (!S.cheia || !S.aberta || fixa()) return;
+      if (S.ch.enviando || S.ch.fala || CAM) return armarRecolher();  // no meio de algo: espera mais
+      recolher();
+    }, RECOLHE_MS);
+  }
+  function abrirConversa() {
+    S.aberta = true;
+    S.ch.novidade = false;
+    document.body.classList.remove('recolhida');
+    render();
+    armarRecolher();
+    setTimeout(() => { const t = $('#ch-txt'); if (t) t.focus(); }, 60);
+  }
+  function recolher() {
+    clearTimeout(timerRecolhe);
+    pararFala();
+    S.aberta = false;
+    S.ch.menu = false;
+    document.body.classList.add('recolhida');
+    render();
+  }
+  function trilho() {
+    return `<div class="trilho">
+      <button class="tr-bt pri${S.ch.novidade ? ' novo' : ''}" data-a="conversa-abrir" aria-label="Abrir a Conversa" title="Abrir a Conversa">${ic('chat')}</button>
+      <span class="tr-nome" aria-hidden="true">Conversa</span><span class="tr-esp"></span>
+      <button class="tr-bt" data-a="cheia" aria-label="Sair da tela cheia" title="Sair da tela cheia">${ic('minimize')}</button></div>`;
+  }
+  // usar a Conversa (tocar, escrever, rolar) conta o tempo de novo
+  ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart'].forEach(t => document.addEventListener(t, ev => { if (S.cheia && S.aberta && ev.target && ev.target.closest && ev.target.closest('#app')) armarRecolher(); }, { passive: true }));
+  window.addEventListener('scroll', () => { if (S.cheia && S.aberta) armarRecolher(); }, { passive: true });
   let fsDoc = null, fsLigada = false;
   function aoTelaCheiaDoNavegador() {  // saiu da tela cheia do navegador (o Esc dele): sai daqui também
     if (fsDoc && fsDoc.fullscreenElement) fsLigada = true;
@@ -560,7 +606,10 @@
   function cheia(on, voltou) {
     if (!!S.cheia === on || (on && !podeCheia(S.e))) return;
     S.cheia = on;
+    S.aberta = on && fixa();
+    clearTimeout(timerRecolhe);
     document.body.classList.toggle('cheia', on);
+    document.body.classList.toggle('recolhida', on && !S.aberta);
     let quadro = $('#painel');
     if (on && !quadro) {
       quadro = document.createElement('iframe');
@@ -798,7 +847,7 @@
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
     aplicarCor();
-    $('#app').innerHTML = S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    $('#app').innerHTML = S.cheia && !S.aberta ? trilho() : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
     if (!S.tela) window.scrollTo(0, document.body.scrollHeight);
     // as abas não cabem num celular estreito e rolam para o lado: a escolhida fica à vista (a tela é redesenhada)
@@ -875,7 +924,9 @@
       toast(err.message);
     }
     c.enviando = false;
+    if (S.cheia && !S.aberta) c.novidade = true;  // chegou com a Conversa recolhida: o ponto no botão de abrir
     render();
+    armarRecolher();
   }
 
   // na conversa, só redesenha quando muda o que ela mostra (um pedido para conectar, os apps): assim a lista não pula
@@ -944,6 +995,14 @@
       }
     } else if (a === 'cheia') {
       cheia(!S.cheia);
+    } else if (a === 'conversa-abrir') {
+      abrirConversa();
+    } else if (a === 'conversa-recolher') {
+      recolher();
+    } else if (a === 'conversa-fixar') {
+      guardar('correria-conversa-fixa', fixa() ? '' : '1');
+      armarRecolher();
+      render();
     } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {
       abrirTela(a);
     } else if (a === 'tema') {

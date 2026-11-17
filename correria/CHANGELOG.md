@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.3.0
+
+- **Tela cheia**: a Conversa começa **recolhida**, numa faixa fina à direita, e o painel da CronologIA fica com quase a tela toda. Um toque no botão da faixa abre a Conversa. Aberta, ela recolhe sozinha depois de **5 minutos sem uso**, ou quando você toca em **Recolher**. Se uma resposta chegar com ela recolhida, aparece um ponto no botão.
+- **Fixar** (o alfinete, no alto da Conversa): a Conversa fica aberta e não recolhe mais, nem da próxima vez. Toque de novo para soltar.
+- **Barras de rolagem** finas e arredondadas, sem as setinhas.
+
 ## 1.2.0
 
 - **Tela cheia** (telas de 1100 px ou mais, para a TV ou o tablet na parede): o botão no alto da Conversa põe o painel da tela cheia da CronologIA à esquerda (o **A seguir**, o que vem **Depois**, as **Tarefas do dia**, o placar e a folha do MemorIA) e a **Conversa** à direita, sempre à mão para pedir qualquer coisa aos apps. O painel se atualiza sozinho com o que você pede na Conversa. Sai pelo mesmo botão, pelo **Esc** ou pelo **Voltar** do celular. Precisa da CronologIA 1.95.0 ou mais nova (abra a CronologIA uma vez depois de atualizar).

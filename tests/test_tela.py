@@ -431,7 +431,9 @@ class Tela(unittest.TestCase):
 
     def test_tela_cheia_com_o_painel_da_cronologia(self):
         """1.2.0: numa tela grande, com a CronologIA 1.95.0 (o endereço dela no navegador em share/cronologia/integracao.json),
-        a Tela cheia põe o painel dela à esquerda e a Conversa à direita; sai pelo botão, pelo Esc e pelo Voltar."""
+        a Tela cheia põe o painel dela à esquerda e a Conversa à direita; sai pelo botão, pelo Esc e pelo Voltar. 1.3.0: a
+        Conversa começa recolhida (uma faixa fina), abre num toque, recolhe sozinha em 5 minutos sem uso ou no Recolher;
+        fixada (guardado no aparelho), fica aberta e nunca recolhe."""
         self.publicar_app()
         self.abrir()
         self.pg.set_viewport_size({"width": 1440, "height": 900})
@@ -442,21 +444,31 @@ class Tela(unittest.TestCase):
             json.dump({"app": "CronologIA", "nome": "CronologIA", "versao": "1.95.0", "tela": "/api/hassio_ingress/AbC123_-xyz"}, f)
         # o monitor todo do navegador fica de mentira (o Chromium dos testes não muda de tamanho nele): só conta os pedidos
         self.pg.add_init_script("window.__fs = 0; Element.prototype.requestFullscreen = function () { window.__fs++; return Promise.resolve(); };")
+        self.pg.clock.install()
         self.pg.reload()
         self.pg.wait_for_selector('[data-a="cheia"]')
         self.assertEqual(self.pg.get_attribute('[data-a="cheia"]', "aria-label"), "Tela cheia")
         self.pg.click('[data-a="cheia"]')
         self.pg.wait_for_selector("body.cheia #painel")
         self.assertEqual(self.pg.get_attribute("#painel", "src"), "/api/hassio_ingress/AbC123_-xyz/?painel=1")
+        self.assertEqual(self.pg.evaluate("window.__fs"), 1, "pede o monitor todo")
         caixa = lambda sel: self.pg.locator(sel).bounding_box()
+        # recolhida de início: a faixa fina à direita, o painel com quase a tela toda
+        self.pg.wait_for_selector("body.recolhida .trilho")
+        painel, faixa = caixa("#painel"), caixa(".trilho")
+        self.assertLessEqual(faixa["width"], 80)
+        self.assertGreater(painel["width"], 1440 - 90, "o painel com quase a tela toda")
+        self.assertEqual(self.pg.locator("#ch-txt").count(), 0, "a caixa de escrever só com a Conversa aberta")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-tela-cheia-recolhida.png"))
+        # aberta: a Conversa à direita do painel
+        self.pg.click('[data-a="conversa-abrir"]')
+        self.pg.wait_for_selector("body.cheia:not(.recolhida) #ch-txt")
         painel, app, pe = caixa("#painel"), caixa("#app"), caixa(".ch-pe")
         self.assertEqual(painel["x"], 0)
         self.assertGreater(painel["width"], 900, "o painel com a maior parte da tela")
         self.assertAlmostEqual(app["x"], painel["width"], delta=2, msg="a Conversa logo à direita do painel")
         self.assertAlmostEqual(pe["x"], app["x"], delta=2, msg="a caixa de escrever na coluna da Conversa")
-        self.assertTrue(self.pg.is_visible("#ch-txt"), "dá para escrever a qualquer momento")
-        self.assertEqual(self.pg.get_attribute('[data-a="cheia"]', "aria-label"), "Sair da tela cheia")
-        self.assertEqual(self.pg.evaluate("window.__fs"), 1, "pede o monitor todo")
+        self.assertEqual(self.pg.locator('.cab-bts [data-a="cheia"]').get_attribute("aria-label"), "Sair da tela cheia")
         # a conversa continua funcionando ao lado do painel, sem redesenhar o painel
         self.pg.evaluate("document.querySelector('#painel').dataset.marca = '1'")
         self.pg.fill("#ch-txt", "Quanto gastei?")
@@ -464,15 +476,36 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector(".ch-msg.ia .ch-bolha p")
         self.assertEqual(self.pg.get_attribute("#painel", "data-marca"), "1", "o painel não recarrega com a conversa")
         self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-tela-cheia.png"))
+        # 5 minutos sem uso: recolhe sozinha (usar antes conta o tempo de novo)
+        self.pg.clock.fast_forward("04:00")
+        self.pg.click("#ch-txt")
+        self.pg.clock.fast_forward("04:00")
+        self.assertEqual(self.pg.locator("body.recolhida").count(), 0, "usada há 4 minutos: continua aberta")
+        self.pg.clock.fast_forward("01:05")
+        self.pg.wait_for_selector("body.recolhida .trilho")
+        self.assertEqual(self.pg.get_attribute("#painel", "data-marca"), "1", "recolher não recarrega o painel")
+        # o Recolher
+        self.pg.click('[data-a="conversa-abrir"]')
+        self.pg.click('[data-a="conversa-recolher"]')
+        self.pg.wait_for_selector("body.recolhida .trilho")
+        # fixada: aberta, sem o Recolher, e não recolhe mais (nem na próxima vez)
+        self.pg.click('[data-a="conversa-abrir"]')
+        self.pg.click('[data-a="conversa-fixar"]')
+        self.assertEqual(self.pg.get_attribute('[data-a="conversa-fixar"]', "aria-pressed"), "true")
+        self.assertEqual(self.pg.locator('[data-a="conversa-recolher"]').count(), 0)
+        self.pg.clock.fast_forward("10:00")
+        self.assertEqual(self.pg.locator("body.recolhida").count(), 0, "fixada: não recolhe")
         self.pg.keyboard.press("Escape")
         self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('#painel')")
-        # o Voltar do celular também sai; numa tela estreita, o botão some e a Tela cheia termina
         self.pg.click('[data-a="cheia"]')
-        self.pg.wait_for_selector("body.cheia")
+        self.pg.wait_for_selector("body.cheia:not(.recolhida) #ch-txt")
+        self.pg.click('[data-a="conversa-fixar"]')  # solta
+        self.assertEqual(self.pg.get_attribute('[data-a="conversa-fixar"]', "aria-pressed"), "false")
+        # o Voltar do celular também sai; numa tela estreita, o botão some e a Tela cheia termina
         self.pg.go_back()
         self.pg.wait_for_function("() => !document.body.classList.contains('cheia')")
         self.pg.click('[data-a="cheia"]')
-        self.pg.wait_for_selector("body.cheia")
+        self.pg.wait_for_selector("body.cheia", state="attached")
         self.pg.set_viewport_size({"width": 900, "height": 900})
         self.pg.wait_for_function("() => !document.body.classList.contains('cheia') && !document.querySelector('[data-a=\\'cheia\\']')")
 
