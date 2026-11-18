@@ -535,9 +535,9 @@ class TestComFerramentas(Base):
         self.addCleanup(self.app.fechar)
         self.app.publicar(S.SHARE_DIR, "gerencia")
 
-    def ia(self, *respostas):
+    def ia(self, *respostas, pesquisar=None):
         self.falsa = IAFalsa(*respostas)
-        p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log))
+        p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log, pesquisar=pesquisar))
         p.start()
         self.addCleanup(p.stop)
 
@@ -612,6 +612,79 @@ class TestComFerramentas(Base):
         r = S.conversar({"texto": "pode"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
         self.assertTrue(r["mensagens"][-1]["texto"].startswith("Feito!"))
         self.assertEqual(self.app.feitos[-1]["cliente"], "CorrerIA")
+
+    def test_pesquisa_na_internet_so_na_tela(self):
+        """1.6.0: a conversa da tela pesquisa na internet (uma ferramenta a mais, de leitura); o WhatsApp e o conector não."""
+        feitas = []
+
+        def pesquisar(q):
+            feitas.append(q)
+            if q == "falha":
+                raise S.ia.ErroIA("IA Azul ficou sem cota.")
+            return "Geladeira Exemplo: R$ 3.999 na Loja Fictícia."
+        pesq = {"chamar": [{"ferramenta": "internet_pesquisar", "argumentos": {"pesquisa": "preço da geladeira Exemplo"}}]}
+        self.ia(pesq, {"resposta": "Uns R$ 3.999."}, pesquisar=pesquisar)
+        r = S.conversar({"texto": "quanto custa a geladeira Exemplo?"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
+        self.assertEqual((r["mensagens"][-1]["texto"], r["mensagens"][-1]["app"]), ("Uns R$ 3.999.", "Internet"))
+        self.assertEqual(feitas, ["preço da geladeira Exemplo"])
+        self.assertIn("internet_pesquisar | lê | Internet:", self.falsa.pedidos[0])
+        self.assertIn("internet_pesquisar({\"pesquisa\": \"preço da geladeira Exemplo\"}) → Geladeira Exemplo: R$ 3.999", self.falsa.pedidos[1])
+        self.ia({"chamar": [{"ferramenta": "internet_pesquisar", "argumentos": {"pesquisa": "falha"}}, {"ferramenta": "internet_pesquisar", "argumentos": {}}]},
+                {"resposta": "Não deu."}, pesquisar=pesquisar)
+        S.conversar({"texto": "pesquisa falha"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
+        self.assertIn("→ ERRO: A pesquisa na internet não deu certo: IA Azul ficou sem cota.", self.falsa.pedidos[1])
+        self.assertIn("→ ERRO: Faltou o que pesquisar.", self.falsa.pedidos[1])
+        self.ia({"chamar": [{"ferramenta": "internet_pesquisar", "argumentos": {"pesquisa": "x"}}]}, {"resposta": "Por aqui, só os apps."}, pesquisar=pesquisar)
+        self.assertEqual(self.mandar("pesquisa x")[0][1], "Por aqui, só os apps.")
+        self.assertNotIn("internet_pesquisar |", self.falsa.pedidos[0], "no WhatsApp a IA nem vê a pesquisa")
+        self.assertIn("internet_pesquisar → ERRO: essa ferramenta não existe", self.falsa.pedidos[1])
+        self.assertEqual(feitas, ["preço da geladeira Exemplo", "falha"])
+        self.assertNotIn("internet_pesquisar", [f["id"] for f in S.FERR.todas()], "nem o conector (MCP): o Claude e o Gemini pesquisam sozinhos")
+
+    def test_pesquisar_pelo_home_assistant(self):
+        """1.6.0: a pesquisa vai para a IA Para pesquisar na internet (vazia: a de conversar), com o Uso da IA."""
+        ha = ServidorFalso({"/api/states": (200, [{"entity_id": "ai_task.ia_azul", "attributes": {"friendly_name": "IA Azul"}}]),
+                            "/api/services/ai_task/generate_data": lambda h, c: (200, {"service_response": {"data": "  Achei: R$ 10 no Site Fictício.  "}})})
+        self.addCleanup(ha.fechar)
+        S._ias_cache.update(t=0.0, v=None)
+        self.addCleanup(lambda: S._ias_cache.update(t=0.0, v=None))
+        with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
+            self.assertEqual(S.pesquisar_internet("preço do X"), "Achei: R$ 10 no Site Fictício.")
+            c = ha.pedidos[-1][3]
+            self.assertEqual((c["task_name"], "entity_id" in c), ("CorrerIA · pesquisa", False), "nenhuma escolhida: a padrão")
+            self.assertIn("A pesquisa: preço do X", c["instructions"])
+            self.assertIn("não responda de memória", c["instructions"])
+            S.salvar_config({"ia_entidade": "ai_task.ia_azul"})
+            S.pesquisar_internet("y")
+            self.assertEqual(ha.pedidos[-1][3]["entity_id"], "ai_task.ia_azul", "vazia: a de conversar")
+            with self.assertRaisesRegex(ValueError, "IA desconhecida"):
+                S.salvar_config({"ia_pesquisa": "light.sala"})
+            S.salvar_config({"ia_pesquisa": "ai_task.ia_verde"})
+            self.assertEqual(S.estado()["ias"]["pesquisa"], "ai_task.ia_verde")
+            ha.rotas["/api/services/ai_task/generate_data"] = lambda h, c: (200, {"service_response": {"data": {"texto": "ok"}}})
+            self.assertEqual(S.pesquisar_internet("z"), '{"texto": "ok"}')
+            self.assertEqual(ha.pedidos[-1][3]["entity_id"], "ai_task.ia_verde")
+            ult = S.USO.resumo()["ultimas"][0]
+            self.assertEqual((ult["tipo"], ult["ia"]), ("pesquisa", "ai_task.ia_verde"))
+            ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "quota exceeded"})
+            with self.assertRaisesRegex(S.ia.ErroIA, "^ai_task.ia_verde ficou sem cota"):
+                S.pesquisar_internet("z")
+            self.assertEqual(S.USO.resumo()["ultimas"][0]["resultado"], "cota")
+            ha.rotas["/api/services/ai_task/generate_data"] = (200, {"service_response": {}})
+            with self.assertRaisesRegex(S.ia.ErroIA, "não devolveu"):
+                S.pesquisar_internet("z")
+            ha.rotas["/api/services/ai_task/generate_data"] = (500, b"pane")
+            with self.assertRaisesRegex(S.ia.ErroIA, "O Home Assistant respondeu 500"):
+                S.pesquisar_internet("z")
+        with mock.patch.object(S, "HA_API", "http://127.0.0.1:9/api"), mock.patch.object(S, "TOKEN", "t"):
+            with self.assertRaisesRegex(S.ia.ErroIA, "Não consegui falar com o Home Assistant"):
+                S.pesquisar_internet("z")
+        with mock.patch.object(S, "DEV", False):
+            with self.assertRaisesRegex(S.ia.ErroIA, "Sem o Home Assistant"):
+                S.pesquisar_internet("z")
+        with mock.patch.object(S, "DEV", True):
+            self.assertIn("pesquisa simulada", S.pesquisar_internet("z"))
+        S.salvar_config({"ia_entidade": "", "ia_pesquisa": ""})
 
     def test_chamar_a_ia_do_home_assistant(self):
         ha = ServidorFalso({"/api/services/ai_task/generate_data": lambda h, c: (200, {"service_response": {"data": {"resposta": "ok"}}})})
@@ -1020,7 +1093,7 @@ class TestCasosRaros(Base):
         S._ias_cache.update(t=0.0, v=None)
         self.addCleanup(lambda: S._ias_cache.update(t=0.0, v=None))
         with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
-            self.assertEqual(S.estado()["ias"], {"lista": [{"id": "ai_task.ia_azul", "nome": "IA Azul"}, {"id": "ai_task.ia_verde", "nome": "IA Verde"}], "escolhida": ""})
+            self.assertEqual(S.estado()["ias"], {"lista": [{"id": "ai_task.ia_azul", "nome": "IA Azul"}, {"id": "ai_task.ia_verde", "nome": "IA Verde"}], "escolhida": "", "pesquisa": ""})
             self.assertEqual(S.nome_da_ia(), "", "a padrão, com duas: não dá para saber qual")
             S.chamar_ia("Pergunta")
             self.assertNotIn("entity_id", ha.pedidos[-1][3], "a padrão: sem entity_id")

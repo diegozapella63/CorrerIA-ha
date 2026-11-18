@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.6.0
+
+- **Pesquisar na internet**: na Conversa daqui, a IA pesquisa na internet o que os apps não têm, como preços, lojas e novidades ("quanto custa a geladeira tal?", "pesquise lojas de piso em Curitiba"). A resposta diz de onde veio. No WhatsApp não (lá a IA fica nos apps, pela regra da Meta); o Claude e o Gemini já pesquisam sozinhos.
+- **Configurações › Apps › IA** (antes "IA do Home Assistant"): além da IA **Para conversar**, agora há a **Para pesquisar na internet**, que começa **Igual à de conversar**. Escolha nela uma IA do Home Assistant com a busca na web ligada (no Claude, a opção de pesquisa na web da integração).
+- **Uso da IA**: as pesquisas aparecem como **Pesquisa na internet**.
+
 ## 1.5.0
 
 - **Casa**: o Home Assistant entrou como mais um app. Na Conversa, no WhatsApp e no Claude dá para pedir "liga a luz da entrada", "fecha a cortina da sala" ou "põe o ar em 23 graus". O pedido vai para o Assist do Home Assistant, que só mexe no que está exposto a ele. Dá também para perguntar como está ("a luz da sala está ligada?", "qual a temperatura?"). Cada mudança espera o seu **sim**, como nos outros apps. Liga e desliga em **Configurações › Apps › Casa** (vem ligada).

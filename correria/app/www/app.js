@@ -257,10 +257,11 @@
     </section>`;
   }
 
-  /* ---------- Configurações › Apps › IA do Home Assistant (0.16.0): qual IA conversa (no WhatsApp e aqui), como nos outros
-     apps; o nome dela no que deu certo ou errado (sem cota, por exemplo) e no Uso da IA */
+  /* ---------- Configurações › Apps › IA (0.16.0): qual IA conversa (no WhatsApp e aqui), como nos outros apps; o nome dela
+     no que deu certo ou errado (sem cota, por exemplo) e no Uso da IA. 1.6.0: e a que pesquisa na internet (a conversa da
+     tela), vazia igual à de conversar */
   function cardIA(e) {
-    const i = e.ia || {}, L = (e.ias || {}).lista || [], sel = (e.ias || {}).escolhida || '';
+    const i = e.ia || {}, L = (e.ias || {}).lista || [], sel = (e.ias || {}).escolhida || '', pesq = (e.ias || {}).pesquisa || '';
     if (!e.apps.some(a => a.ferramentas) && !L.length) return '';
     // como nos outros apps: o estado (verde quando está tudo certo), a caixa de seleção da IA e o Verificar de novo
     const saiu = sel && !L.some(x => x.id === sel), nome = i.nome || (L.find(x => x.id === sel) || {}).nome || (!sel && L.length === 1 ? L[0].nome : '');
@@ -268,9 +269,12 @@
         : !L.length ? '<div class="status manual"><span><b>Nenhuma IA</b> · Adicione no Home Assistant uma integração com tarefas de IA (Anthropic, Google Gemini, OpenAI ou Ollama).</span></div>'
           : saiu ? '<div class="status manual"><span><b>A IA escolhida saiu do Home Assistant</b> · Usando a padrão.</span></div>'
             : `<div class="status"><span><b>Pronta para conversar</b> · ${nome ? `Usando ${esc(nome)}` : 'Usando a IA padrão do Home Assistant'}${i.simulada ? ' (simulada, fora do Home Assistant)' : i.ok ? `, que respondeu ${quando(i.em)}` : ''}.</span></div>`;
-    return `<section class="card" id="ia">${cab('spark', 'IA do Home Assistant')}${st}
-      ${L.length ? `<div class="campo">${rotulo('f-ia', 'spark', 'IA para conversar')}<select id="f-ia" class="inp" data-ia-ent>
-        <option value=""${sel ? '' : ' selected'}>Padrão do Home Assistant</option>${L.map(x => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>` : ''}
+    const opts = (v) => L.map(x => `<option value="${esc(x.id)}"${x.id === v ? ' selected' : ''}>${esc(x.nome)}</option>`).join('');
+    return `<section class="card" id="ia">${cab('spark', 'IA')}${st}
+      ${L.length ? `<div class="campo">${rotulo('f-ia', 'chat', 'Para conversar')}<select id="f-ia" class="inp" data-ia-ent aria-label="IA para conversar">
+        <option value=""${sel ? '' : ' selected'}>Padrão do Home Assistant</option>${opts(sel)}</select></div>
+      <div class="campo">${rotulo('f-ia-pesquisa', 'globe', 'Para pesquisar na internet')}<select id="f-ia-pesquisa" class="inp" data-ia-pesq aria-label="IA para pesquisar na internet">
+        <option value=""${pesq ? '' : ' selected'}>Igual à de conversar</option>${opts(pesq)}</select></div>` : ''}
       <button class="btn out larga" data-a="ia-verificar">${ic('refresh', 'ic-s')}Verificar de novo</button></section>`;
   }
 
@@ -379,7 +383,7 @@
 
   /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
      padrão dos outros apps (0.15.0): Hoje, 7 dias e Este mês; uma barra por dia (tocar mostra o dia); os tipos; Últimas chamadas recolhidas */
-  const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa' };
+  const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa', pesquisa: 'Pesquisa na internet' };
   const RES_USO = { cota: 'sem cota', formato: 'resposta fora do formato', erro: 'erro' };
   const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
   const chamadas = n => `${n} ${n === 1 ? 'chamada' : 'chamadas'}`;
@@ -1215,6 +1219,11 @@
     if (el.matches('[data-ia-ent]')) {  // 0.16.0: a IA para conversar
       const x = ((S.e.ias || {}).lista || []).find(o => o.id === el.value);
       await acao('config', { ia_entidade: el.value }, 'IA para conversar: ' + (x ? x.nome : 'a padrão do Home Assistant'));
+      return;
+    }
+    if (el.matches('[data-ia-pesq]')) {  // 1.6.0: a IA para pesquisar na internet
+      const x = ((S.e.ias || {}).lista || []).find(o => o.id === el.value);
+      await acao('config', { ia_pesquisa: el.value }, 'IA para pesquisar na internet: ' + (x ? x.nome : 'igual à de conversar'));
       return;
     }
     if (['numero_id', 'token', 'segredo'].includes(el.dataset.f)) {  // 0.17.0: salva ao sair do campo (sem o botão Salvar)

@@ -125,6 +125,8 @@ def ler_config():
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
            "ia_entidade": str(c.get("ia_entidade") or "") if IA_RE.match(str(c.get("ia_entidade") or "")) else "",
+           # 1.6.0: a IA que pesquisa na internet (a da conversa da tela); vazio: a mesma de conversar
+           "ia_pesquisa": str(c.get("ia_pesquisa") or "") if IA_RE.match(str(c.get("ia_pesquisa") or "")) else "",
            # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
            "cor": c.get("cor") if c.get("cor") in CORES else "", "cor_dia": c.get("cor_dia") is not False,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
@@ -202,6 +204,11 @@ def salvar_config(corpo):
                 raise ValueError("IA desconhecida.")
             c["ia_entidade"] = e
             ESTADO["ia"] = None  # o que deu certo ou errado era da outra IA
+        if "ia_pesquisa" in corpo:  # 1.6.0: a IA para pesquisar na internet
+            e = str(corpo.get("ia_pesquisa") or "")
+            if not IA_RE.match(e):
+                raise ValueError("IA desconhecida.")
+            c["ia_pesquisa"] = e
         if "cor" in corpo:  # escolher uma cor desliga a Cor do dia (a tela manda os dois)
             if corpo.get("cor") not in CORES:
                 raise ValueError("Cor desconhecida.")
@@ -303,12 +310,14 @@ def ias_ha():
     return v
 
 
-def nome_da_ia(c=None):
-    """O nome da IA que conversa: a escolhida ou, na padrão, a única que existe (com mais de uma, não dá para saber qual)."""
+def nome_da_ia(c=None, ent=None):
+    """O nome da IA que conversa (ou de ent): a escolhida ou, na padrão, a única que existe (com mais de uma, não dá para
+    saber qual)."""
     c = c or ler_config()
     lista = ias_ha()
-    if c["ia_entidade"]:
-        return next((x["nome"] for x in lista if x["id"] == c["ia_entidade"]), c["ia_entidade"])
+    ent = c["ia_entidade"] if ent is None else ent
+    if ent:
+        return next((x["nome"] for x in lista if x["id"] == ent), ent)
     return lista[0]["nome"] if len(lista) == 1 else ""
 
 
@@ -466,7 +475,48 @@ def _chamar_ia(instrucoes):
     return dados
 
 
-AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN)
+PESQUISA_INSTR = """Pesquise na internet e responda em português do Brasil, curto e direto, com o que achou e de onde veio (o nome do site).
+Hoje é {hoje}. Se não conseguir pesquisar na internet agora, diga só "Não consigo pesquisar na internet com esta IA." e nada mais: não responda de memória.
+A pesquisa: {pesquisa}"""
+
+
+def pesquisar_internet(pesquisa):
+    """1.6.0: a pesquisa na internet da conversa da tela, pela IA "Para pesquisar na internet" (vazia: a de conversar), que
+    precisa ter a busca na web ligada no Home Assistant. Devolve o texto do que achou (levanta ia.ErroIA)."""
+    if not TOKEN:
+        if DEV:
+            return f"(pesquisa simulada) Achei 3 resultados para \"{pesquisa}\" no Site de Exemplo."
+        raise ia.ErroIA("Sem o Home Assistant.")
+    c = ler_config()
+    ent = c["ia_pesquisa"] or c["ia_entidade"]
+    nome, comeco = nome_da_ia(c, ent), time.time()
+    instr = PESQUISA_INSTR.format(hoje=f"{datetime.now():%d/%m/%Y}", pesquisa=pesquisa)
+    corpo = {"task_name": "CorrerIA · pesquisa", "instructions": instr}
+    if ent:
+        corpo["entity_id"] = ent
+    try:
+        r = ha_post("/services/ai_task/generate_data?return_response", corpo, timeout=150)
+        dados = ((r or {}).get("service_response") or {}).get("data")
+        if dados is None:
+            raise ia.ErroIA("não devolveu resposta.")
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read() or b"{}").get("message")
+        except (ValueError, AttributeError):
+            msg = None
+        msg = erro_da_ia(msg or f"O Home Assistant respondeu {e.code}.", nome)
+        USO.registrar("pesquisa", len(instr), 0, time.time() - comeco, msg, ia=nome)
+        raise ia.ErroIA(msg) from None
+    except (urllib.error.URLError, OSError, ValueError, ia.ErroIA) as e:
+        msg = str(e) if isinstance(e, ia.ErroIA) else f"Não consegui falar com o Home Assistant ({getattr(e, 'reason', e)})."
+        USO.registrar("pesquisa", len(instr), 0, time.time() - comeco, msg, ia=nome)
+        raise ia.ErroIA(msg) from None
+    texto = dados if isinstance(dados, str) else json.dumps(dados, ensure_ascii=False)
+    USO.registrar("pesquisa", len(instr), len(texto), time.time() - comeco, ia=nome)
+    return texto.strip()[:6000]
+
+
+AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN, pesquisar=pesquisar_internet)
 
 
 def pegar_pendente(chave):
@@ -1077,7 +1127,7 @@ def estado():
         "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
                 "conexoes": AUT.conexoes()},
         "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada, "nome": nome_da_ia(c)},
-        "ias": {"lista": ias_ha(), "escolhida": c["ia_entidade"]},
+        "ias": {"lista": ias_ha(), "escolhida": c["ia_entidade"], "pesquisa": c["ia_pesquisa"]},
         "sensores": {"ligado": c["sensores"]},
         # 1.5.0: a casa do Home Assistant (o Assist); disponivel: só dentro do Home Assistant
         "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},

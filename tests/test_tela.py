@@ -252,12 +252,13 @@ class Tela(unittest.TestCase):
         app.publicar(S.SHARE_DIR, "cronologia")
         self.abrir()
         self.opcoes("apps")
-        self.assertEqual(self.texto("#ia h2"), "IA do Home Assistant")
+        self.assertEqual(self.texto("#ia h2"), "IA", "1.6.0: só IA, como nos outros apps")
         ordem = self.pg.evaluate("[...document.querySelectorAll('#app section.card')].map(c => c.id)")
         self.assertEqual(ordem.index("ia"), ordem.index("apps") + 1, f"logo depois dos apps, como nos outros: {ordem}")
         self.assertEqual(self.pg.evaluate("[getComputedStyle(document.querySelector('#ia .status'), '::before').backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--good').trim()]")[0] != "", True)
         self.assertEqual(self.pg.get_attribute("#ia .status", "class"), "status", "verde: tudo certo")
-        self.assertEqual(self.texto("#ia .campo > label"), "IA para conversar")
+        self.assertEqual([t.strip() for t in self.pg.locator("#ia .campo > label").all_inner_texts()], ["Para conversar", "Para pesquisar na internet"])
+        self.assertEqual([t.strip() for t in self.pg.locator("#f-ia-pesquisa option").all_inner_texts()], ["Igual à de conversar", "IA de exemplo", "Outra IA"])
         self.assertEqual([t.strip() for t in self.pg.locator("#f-ia option").all_inner_texts()], ["Padrão do Home Assistant", "IA de exemplo", "Outra IA"])
         self.assertEqual(self.pg.locator("#f-ia").evaluate("s => getComputedStyle(s).pointerEvents"), "none", "a janela do celular não abre: a do app")
         bx = self.pg.locator("#f-ia").bounding_box()
@@ -269,6 +270,14 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_function("!document.querySelector('.ss-wrap')")
         self.assertEqual(S.ler_config()["ia_entidade"], "ai_task.outra_ia")
         self.assertIn("Usando Outra IA", self.texto("#ia .status"))
+        bx = self.pg.locator("#f-ia-pesquisa").bounding_box()  # 1.6.0: a IA para pesquisar na internet
+        self.pg.mouse.click(bx["x"] + bx["width"] / 2, bx["y"] + bx["height"] / 2)
+        self.pg.wait_for_selector(".ss-wrap.in .ss-sheet")
+        self.assertEqual(self.texto(".ss-head b"), "IA para pesquisar na internet")
+        self.pg.click(".ss-opt >> text=IA de exemplo")
+        self.pg.wait_for_function("document.querySelector('#f-ia-pesquisa') && document.querySelector('#f-ia-pesquisa').value === 'ai_task.ia_de_exemplo'")
+        self.pg.wait_for_function("!document.querySelector('.ss-wrap')")
+        self.assertEqual([S.ler_config()["ia_entidade"], S.ler_config()["ia_pesquisa"]], ["ai_task.outra_ia", "ai_task.ia_de_exemplo"])
         S.ESTADO["ia"] = {"ok": False, "erro": "Outra IA ficou sem cota (o limite de uso acabou).", "em": None, "nome": "Outra IA"}
         self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
         self.pg.wait_for_selector("#ia .status.erro")
@@ -276,7 +285,7 @@ class Tela(unittest.TestCase):
         self.pg.click('#ia [data-a="ia-verificar"]')
         self.pg.wait_for_selector("#ia .status:not(.erro)")
         self.assertIsNone(S.ESTADO["ia"], "Verificar de novo esquece o erro da última chamada")
-        S.salvar_config({"ia_entidade": ""})
+        S.salvar_config({"ia_entidade": "", "ia_pesquisa": ""})
 
     # ---- 0.17.0 (padrão da família): toda seção contrai e expande no cabeçalho; o aparelho lembra
     def test_secoes_contraem(self):

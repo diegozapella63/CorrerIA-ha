@@ -100,6 +100,12 @@ class TestAgente(unittest.TestCase):
         r = ag.responder([{"papel": "eu", "texto": "o que vence?"}], ANA, agora=AGORA)
         self.assertEqual(r["resposta"], "Pelo que vi:\nHoje no GerencIA: 3 contas, R$ 120,00.")
         self.assertIn("IA simulada", ag.responder([{"papel": "eu", "texto": "bom dia"}], ANA, agora=AGORA)["resposta"])
+        # 1.6.0: pesquisar na internet, só na conversa da tela
+        ag = I.Agente(self.ferr, None, print, simulada=True, pesquisar=lambda q: f"Achei {q} no Site Fictício.")
+        r = ag.responder([{"papel": "eu", "texto": "pesquise na internet o preço do Exemplo?"}], ANA, canal="correria", cliente="CorrerIA", agora=AGORA)
+        self.assertEqual((r["resposta"], r["apps"]), ("Pelo que vi:\nAchei o preço do exemplo no Site Fictício.", ["Internet"]))
+        r = ag.responder([{"papel": "eu", "texto": "pesquise o preço do Exemplo"}], ANA, agora=AGORA)
+        self.assertNotIn("Internet", r["apps"], "no WhatsApp, não")
 
 
 if __name__ == "__main__":

@@ -21,6 +21,16 @@ Converse em português do Brasil, curto e direto, como no WhatsApp: frases simpl
 Use as ferramentas para ver os dados de verdade antes de responder: não invente números, nomes nem itens. Se faltar o dado, diga o que falta. Contas de cabeça podem errar: some e compare com cuidado.
 Para mudar algo (ferramentas marcadas "grava"), não peça confirmação no texto: ponha a ação em "chamar", com um "resumo" curto e claro do que vai ser feito (ex.: "Lançar R$ 45,90 de Mercado hoje, no cartão do Banco Azul"); o CorrerIA mostra para a pessoa e só faz depois do sim dela. Faça só o que ela pediu. Se faltar um dado essencial (o valor, a data, qual item), pergunte antes. Para achar os ids, leia primeiro."""
 
+# 1.6.0: pesquisar na internet, só na conversa da tela (no WhatsApp a IA fica nos apps, pela regra da Meta; o Claude e o
+# Gemini pelo conector já pesquisam sozinhos). Vai para a IA "Para pesquisar na internet" do Home Assistant.
+PESQUISA = {"id": "internet_pesquisar", "nome": "pesquisar", "titulo": "Pesquisar na internet",
+            "app": {"app": "internet", "nome": "Internet", "assunto": "pesquisa na web"},
+            "descricao": "Pesquisa na internet o que os apps não têm: preços, lojas, novidades, notícias, como fazer algo. "
+                         "Escreva a pesquisa em português, completa (\"preço da geladeira Brastemp BRM44 hoje\").",
+            "entrada": {"type": "object", "properties": {"pesquisa": {"type": "string", "description": "O que pesquisar."}},
+                        "required": ["pesquisa"], "additionalProperties": False},
+            "grava": False, "apaga": False}
+
 ASSUNTO_WHATSAPP = "Por aqui você só ajuda com os apps: para qualquer outro assunto, diga numa frase, com gentileza, que pelo WhatsApp você ajuda só com os apps da CorrerIA Code."
 ASSUNTO_TELA = "Ajude com os apps; também pode conversar sobre outros assuntos."
 
@@ -72,8 +82,20 @@ def extrair_json(t):
 
 
 class Agente:
-    def __init__(self, ferramentas, chamar_ia, log, simulada=False):
+    def __init__(self, ferramentas, chamar_ia, log, simulada=False, pesquisar=None):
         self.ferr, self.chamar_ia, self.log, self.simulada = ferramentas, chamar_ia, log, simulada
+        self.pesquisar = pesquisar  # 1.6.0: pesquisar(texto) -> o que achou (levanta ErroIA); None: sem pesquisa
+
+    def usar(self, f, args, pessoa, cliente):
+        if f is PESQUISA:
+            q = str(args.get("pesquisa") or "").strip()[:500]
+            if not q:
+                return "Faltou o que pesquisar.", True
+            try:
+                return self.pesquisar(q), False
+            except ErroIA as e:
+                return f"A pesquisa na internet não deu certo: {e}", True
+        return self.ferr.usar(f, args, pessoa, cliente)
 
     def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False):
         nome = (pessoa or {}).get("nome") or "alguém da casa"
@@ -97,6 +119,8 @@ class Agente:
         """historico termina com a mensagem da pessoa. Devolve {resposta, pendente: [ações] ou [], apps: [nomes]}."""
         agora = agora or datetime.now()
         lista = self.ferr.todas()
+        if self.pesquisar and canal != "whatsapp":
+            lista = lista + [PESQUISA]
         resultados, usados = [], []
         for rodada in range(RODADAS):
             ultima = rodada == RODADAS - 1
@@ -124,7 +148,7 @@ class Agente:
             if (ler or desconhecidas) and not ultima:
                 for f, c in ler:
                     args = c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {}
-                    res, erro = self.ferr.usar(f, args, pessoa, cliente)
+                    res, erro = self.usar(f, args, pessoa, cliente)
                     if f["app"]["nome"] not in usados:
                         usados.append(f["app"]["nome"])
                     resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → {'ERRO: ' if erro else ''}{res[:MAX_RESULTADO]}")
@@ -153,6 +177,9 @@ def simulado(texto, lista, resultados):
         desc = (m.group(2) or "gasto").capitalize()
         return {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"tipo": "despesa", "descricao": desc, "valor": valor},
                             "resumo": f"Lançar R$ {valor:.2f} de {desc} hoje".replace(".", ",")}]}
+    m = re.search(r"\bpesquis[ae]\s+(?:na internet\s+)?(.+)", t)
+    if m and PESQUISA["id"] in ids:
+        return {"chamar": [{"ferramenta": PESQUISA["id"], "argumentos": {"pesquisa": m.group(1).strip(" ?.")}}], "resposta": ""}
     resumo = next((f["id"] for f in lista if f["id"].endswith("_resumo")), None)
     if resumo and re.search(r"\?|quanto|qual|quais|tem |o que", t):
         return {"chamar": [{"ferramenta": resumo, "argumentos": {}}], "resposta": ""}
