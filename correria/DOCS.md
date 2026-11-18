@@ -111,6 +111,10 @@ O CorrerIA abre na **Conversa** com os apps, do mesmo jeito que pelo WhatsApp, m
 
 As conversas são de quem está usando a tela (o login do Home Assistant, ligado à pessoa) e ficam guardadas: fechou, abre de onde parou. No alto, **Nova conversa** começa outra (a de antes fica guardada) e **Conversas** abre a lista, como nos chats de sempre: a mais recente primeiro, com o nome tirado da primeira pergunta; toque para abrir ou na lixeira para apagar. Na conversa, arrastar o dedo para o lado passa para as outras: para a esquerda, a anterior (mais antiga); para a direita, a mais nova. Ficam as últimas 30 conversas, cada uma com as últimas 40 mensagens. Nas Opções e no Sobre, o Voltar do celular volta um passo.
 
+No computador (a partir de 1000 px de largura), a Conversa ocupa a tela toda e as conversas ficam numa lateral à esquerda, com a **Nova conversa** no alto e a aberta marcada; no celular, o botão **Conversas** no alto abre a lista.
+
+Para não guardar conversas para sempre, em **Configurações › Opções › Conversas** escolha em quantos dias parada uma conversa sai sozinha: **7**, **30** (o de início) ou **90 dias**, ou **Nunca**. Vale para as conversas daqui e para as mensagens do WhatsApp guardadas no CorrerIA (as do celular de cada pessoa continuam no WhatsApp dela).
+
 ## Atalho no celular
 
 Para abrir o CorrerIA direto da tela inicial do celular (Android), sem passar pelo menu do Home Assistant: em **Mais › Configurações › Opções › Atalho no celular**, toque em **Copiar** embaixo do **Caminho** (algo como `/app/a1b2c3d4_correria`). No app do Home Assistant, abra **Configurações › Aplicativo complementar › Gerenciar atalhos** e, em **Atalho fixado**, escolha o tipo **Painel**, cole o caminho, dê o nome e adicione à tela inicial. O ícone abre o CorrerIA na Conversa. O mesmo cartão existe em todos os apps da família.

@@ -121,6 +121,8 @@ def ler_config():
            # 1.5.0: a casa do Home Assistant (o Assist) como um app, ligada de início; a Conversa da tela cheia recolhe
            # sozinha depois de recolher minutos sem uso (1, 3, 5 ou 10; 3 de início)
            "casa": c.get("casa") is not False, "recolher": c.get("recolher") if c.get("recolher") in RECOLHER else 3,
+           # 1.7.0: as conversas paradas há mais de tantos dias saem sozinhas (0: nunca; 30 de início)
+           "apagar_dias": c.get("apagar_dias") if c.get("apagar_dias") in APAGAR_DIAS else 30,
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
@@ -138,6 +140,7 @@ def ler_config():
 
 IA_RE = re.compile(r"^(ai_task\.[a-z0-9_]+)?$")
 RECOLHER = (1, 3, 5, 10)
+APAGAR_DIAS = (7, 30, 90, 0)  # 1.7.0: Apagar as conversas paradas há mais de (0: nunca)
 def wa_ligado(c):
     """0.17.0: o WhatsApp ligado no CorrerIA: o que a pessoa escolheu ou, sem escolha, ligado se já está configurado."""
     return c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else bool(c["numero_id"] and c["token"])
@@ -198,6 +201,10 @@ def salvar_config(corpo):
             if corpo.get("recolher") not in RECOLHER:
                 raise ValueError("Tempo desconhecido.")
             c["recolher"] = corpo.get("recolher")
+        if "apagar_dias" in corpo:
+            if corpo.get("apagar_dias") not in APAGAR_DIAS or isinstance(corpo.get("apagar_dias"), bool):
+                raise ValueError("Escolha 7, 30 ou 90 dias, ou nunca.")
+            c["apagar_dias"] = corpo.get("apagar_dias")
         if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
             e = str(corpo.get("ia_entidade") or "")
             if not IA_RE.match(e):
@@ -220,6 +227,8 @@ def salvar_config(corpo):
         ESTADO.update(conta=None, conta_em=None)
     if "sensores" in corpo:  # cria ou tira os sensores na hora
         threading.Thread(target=publicar_sensores if c["sensores"] else remover_sensores, daemon=True).start()
+    if "apagar_dias" in corpo:  # 1.7.0: as velhas saem na hora
+        limpar_conversas_velhas()
     return c
 
 
@@ -848,11 +857,18 @@ def rodada_sensores(agora=None):
 
 
 def laco_sensores():
+    volta = 0
     while True:
         try:
             rodada_sensores()
         except Exception as e:  # noqa: BLE001
             log("Sensores:", e)
+        if volta % 60 == 0:  # 1.7.0: de hora em hora (e ao começar), as conversas velhas saem
+            try:
+                limpar_conversas_velhas()
+            except Exception as e:  # noqa: BLE001
+                log("Conversas velhas:", e)
+        volta += 1
         time.sleep(60)
 
 
@@ -1131,7 +1147,7 @@ def estado():
         "sensores": {"ligado": c["sensores"]},
         # 1.5.0: a casa do Home Assistant (o Assist); disponivel: só dentro do Home Assistant
         "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},
-        "recolher": c["recolher"],
+        "recolher": c["recolher"], "apagar_dias": c["apagar_dias"],
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
@@ -1183,6 +1199,52 @@ def _titulo(msgs):
     return t if len(t) <= 60 else t[:59].rstrip() + "…"
 
 
+def _limite_velhas():
+    """1.7.0: antes disso (ISO), a conversa está parada há mais dias que o escolhido; vazio: nunca apaga."""
+    dias = ler_config()["apagar_dias"]
+    return (datetime.now() - timedelta(days=dias)).isoformat(timespec="seconds") if dias else ""
+
+
+def limpar_conversas_velhas():
+    """1.7.0: apaga as conversas da tela paradas há mais dias que o escolhido (Configurações › Opções › Conversas) e, no
+    WhatsApp, as mensagens mais velhas que isso; devolve quantas conversas e mensagens saíram."""
+    lim = _limite_velhas()
+    if not lim:
+        return 0
+    with TRAVA:
+        c = ler_json(CONVERSAS_ARQ)
+        n = 0
+        tela = c.get("tela") if isinstance(c.get("tela"), dict) else {}
+        for k in list(tela):
+            v = tela[k]
+            if isinstance(v, dict) and isinstance(v.get("lista"), list):
+                fica = [x for x in v["lista"] if not isinstance(x, dict) or str(x.get("atualizada") or "") >= lim]
+                n += len(v["lista"]) - len(fica)
+                v["lista"] = fica
+                if v.get("atual") and not any(isinstance(x, dict) and x.get("id") == v["atual"] for x in fica):
+                    v["atual"] = None
+                if not fica:
+                    del tela[k]
+            elif isinstance(v, list) and not any(isinstance(m, dict) and str(m.get("em") or "") >= lim for m in v):
+                n += 1
+                del tela[k]
+        zap = c.get("conversas") if isinstance(c.get("conversas"), dict) else {}
+        for k in list(zap):
+            msgs = zap[k] if isinstance(zap[k], list) else []
+            fica = [m for m in msgs if isinstance(m, dict) and str(m.get("em") or "") >= lim]
+            n += len(msgs) - len(fica)
+            if fica:
+                zap[k] = fica
+            else:
+                del zap[k]
+        if n:
+            c["tela"], c["conversas"] = tela, zap
+            _gravar_conversas(c)
+    if n:
+        log(f"Conversas velhas apagadas: {n}.")
+    return n
+
+
 def _tela_de(c, chave):
     """As conversas da tela de um login: {"atual": id ou None, "lista": [{id, titulo, criada, atualizada, mensagens}]}.
     Até a 0.5.0 era uma conversa só (uma lista de mensagens): vira a primeira da lista."""
@@ -1197,6 +1259,9 @@ def _tela_de(c, chave):
     if not isinstance(v, dict):
         return {"atual": None, "lista": []}
     lista = [x for x in v.get("lista") or [] if isinstance(x, dict) and x.get("id") and isinstance(x.get("mensagens"), list)]
+    lim = _limite_velhas()  # 1.7.0: as paradas há mais dias que o escolhido já não aparecem (e saem ao gravar)
+    if lim:
+        lista = [x for x in lista if str(x.get("atualizada") or "") >= lim]
     atual = v.get("atual") if any(x["id"] == v.get("atual") for x in lista) else None
     return {"atual": atual, "lista": lista}
 

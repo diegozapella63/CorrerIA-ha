@@ -76,11 +76,17 @@
   // aba: a de Configurações (fica guardada neste aparelho)
   // Opções (0.13.0): o Atalho no celular, como nos outros apps; só dentro do Home Assistant (fora dele, a aba some)
   const ABAS = [['apps', 'Apps', 'layers'], ['whatsapp', 'WhatsApp', 'chat'], ['mcp', 'MCP', 'plug'], ['dados', 'Dados', 'database'], ['aparencia', 'Aparência', 'palette'], ['opcoes', 'Opções', 'toggle']];
-  const abasDe = (e) => ABAS.filter(([k]) => k !== 'opcoes' || (e && (e.atalho || e.painel)));
+  // 1.7.0: Opções sempre (as conversas velhas valem em qualquer lugar)
+  const abasDe = () => ABAS;
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps', tema: guardada('correria-tema') || 'auto',
     ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined, fala: '' } };
+  /* 1.7.0: no computador (1000 px ou mais, fora da Tela cheia), a Conversa fica com a tela toda e as conversas na lateral
+     esquerda, como nos chats de sempre: sem o botão Conversas no alto */
+  const DESK = window.matchMedia ? matchMedia('(min-width: 1000px)') : null;
+  const lateral = () => !!(DESK && DESK.matches && !S.cheia && !S.tela);
+  let carregandoLista = false;
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
@@ -336,7 +342,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -435,6 +441,16 @@
   }
 
   /* ---------- 1.5.0: Configurações › Opções › Tela cheia: em quanto tempo sem uso a Conversa recolhe sozinha */
+  /* ---------- Configurações › Opções › Conversas (1.7.0): as conversas paradas há mais de tantos dias saem sozinhas (as da
+     tela e as mensagens do WhatsApp), para não ficarem guardadas para sempre */
+  const APAGAR_DIAS = [7, 30, 90, 0];
+  function cardConversas(e) {
+    const d = APAGAR_DIAS.includes(e.apagar_dias) ? e.apagar_dias : 30;
+    return `<section class="card" id="conversas-velhas">${cab('conversas', 'Conversas')}
+      <div class="campo">${tituloLinha('trash', 'Apagar as paradas há mais de')}
+        <div class="chips-tempo" role="radiogroup" aria-label="Apagar as conversas paradas há mais de">${APAGAR_DIAS.map(n => `<button role="radio" aria-checked="${d === n}" class="chip${d === n ? ' on' : ''}" data-a="apagar-dias" data-v="${n}">${ic(n ? 'calendar' : 'x', 'ic-s')}${n ? n + ' dias' : 'Nunca'}</button>`).join('')}</div>
+        <span class="dica">As da tela e as mensagens do WhatsApp.</span></div></section>`;
+  }
   function cardTelaCheia(e) {
     if (!e.painel) return '';
     const m = RECOLHER.includes(e.recolher) ? e.recolher : 3;
@@ -554,9 +570,9 @@
         <button class="ch-op" role="menuitem" data-a="ch-camera">${ic('camera', 'ic-s')}Tirar foto</button>
         <button class="ch-op" role="menuitem" data-a="ch-galeria">${ic('image', 'ic-s')}Escolher fotos</button>
         <button class="ch-op" role="menuitem" data-a="ch-anexar">${ic('arquivo', 'ic-s')}Escolher arquivo</button></div>` : '';
-    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
-        <div class="cab-bts"><button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
-          ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}
+    return `${lateral() ? ladoConversas() : ''}<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
+        <div class="cab-bts">${lateral() ? '' : `<button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
+          ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}`}
           ${botaoCheia(e)}<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
@@ -708,6 +724,9 @@
   if (LARGA) {
     try { LARGA.addEventListener('change', () => { if (!LARGA.matches && S.cheia) cheia(false); else render(); }); } catch (err) { /* antigo */ }
   }
+  if (DESK) {
+    try { DESK.addEventListener('change', () => render()); } catch (err) { /* antigo */ }
+  }
 
   // o botão redondo da conversa: com a caixa vazia, o microfone (Falar); ouvindo, o Pronto; com texto ou arquivo, o Enviar
   function botaoPri(e) {
@@ -830,18 +849,27 @@
     const dia = x => x.toDateString();
     return dia(d) === dia(hoje) ? `hoje às ${hm}` : dia(d) === dia(ontem) ? `ontem às ${hm}` : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ` às ${hm}`;
   }
-  function telaConversas() {
+  function listaConversas() {
     const L = S.ch.lista;
-    const lista = L === undefined ? '<p class="vazio">Carregando…</p>' : !L.length ? '<p class="vazio">Nenhuma conversa ainda.</p>'
-      : `<ul class="conv-lista">${L.map(x => `<li class="conv${x.aberta ? ' aberta' : ''}"><button class="conv-abrir" data-a="conv-abrir" data-v="${esc(x.id)}">
+    return L === undefined ? '<p class="vazio">Carregando…</p>' : !L.length ? '<p class="vazio">Nenhuma conversa ainda.</p>'
+      : `<ul class="conv-lista">${L.map(x => `<li class="conv${x.aberta ? ' aberta' : ''}"><button class="conv-abrir" data-a="conv-abrir" data-v="${esc(x.id)}"${x.aberta ? ' aria-current="true"' : ''}>
           <b>${esc(x.titulo)}</b><span>${esc(quando(x.atualizada))} · ${x.mensagens} ${x.mensagens === 1 ? 'mensagem' : 'mensagens'}${x.aberta ? ' · aberta' : ''}</span></button>
           <button class="bt-icone peq" data-a="conv-apagar" data-v="${esc(x.id)}" aria-label="Apagar ${esc(x.titulo)}" title="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('')}</ul>`;
+  }
+  function telaConversas() {
     return `${topoTela('Conversas', 'Conversa')}<div class="conv-pag">
-      <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${lista}</div>`;
+      <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${listaConversas()}</div>`;
+  }
+  function ladoConversas() {
+    if (S.ch.lista === undefined && !carregandoLista) carregarLista();
+    return `<aside class="ch-lado" aria-label="Conversas"><h2 class="lado-t">${ic('conversas')}Conversas</h2>
+      <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${listaConversas()}</aside>`;
   }
   function carregarLista() {
-    return api.conversas().then(r => { S.ch.lista = r.conversas || []; if (S.tela === 'conversas') render(); })
-      .catch(err => { S.ch.lista = S.ch.lista || []; toast(err.message); if (S.tela === 'conversas') render(); });
+    carregandoLista = true;
+    const pinta = () => { carregandoLista = false; if (S.tela === 'conversas' || lateral()) render(); };
+    return api.conversas().then(r => { S.ch.lista = r.conversas || []; pinta(); })
+      .catch(err => { S.ch.lista = S.ch.lista || []; toast(err.message); pinta(); });
   }
 
   /* ---------- Tirar foto: a câmera aqui dentro, como nos outros apps (em http não abre: dá para escolher a foto) */
@@ -916,6 +944,7 @@
     if (!e) return;
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
+    document.body.classList.toggle('lado', lateral());
     aplicarCor();
     $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
@@ -1052,6 +1081,10 @@
       await acao('config', { casa: !on }, on ? 'Casa desligada' : 'Casa ligada');
     } else if (a === 'recolher') {
       await acao('config', { recolher: Number(el.dataset.v) }, 'Salvo');
+    } else if (a === 'apagar-dias') {  // 1.7.0
+      const n = Number(el.dataset.v);
+      await acao('config', { apagar_dias: n }, n ? `As conversas paradas há mais de ${n} dias saem sozinhas` : 'As conversas ficam guardadas');
+      S.ch.lista = undefined;
     } else if (a === 'sensores') {
       const on = !!(S.e.sensores && S.e.sensores.ligado);
       await acao('config', { sensores: !on }, on ? 'Sensores desligados' : 'Sensores ligados');

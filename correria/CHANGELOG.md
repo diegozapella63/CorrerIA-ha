@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.7.0
+
+- **No computador** (1000 px ou mais): a Conversa ocupa a tela toda, e as conversas ficam numa lateral à esquerda, com a **Nova conversa** no alto e a aberta marcada, como nos chats de sempre. No celular, nada muda.
+- **Configurações › Opções › Conversas**: as conversas paradas há mais de **7**, **30** ou **90 dias** saem sozinhas, ou **Nunca**. Começa em 30 dias. Vale para as conversas daqui e para as mensagens guardadas do WhatsApp.
+- A aba **Opções** agora aparece sempre.
+
 ## 1.6.2
 
 - **Conversa**: para o que não está nos apps e muda com o tempo (preços, lojas, níveis e benefícios de bancos, novidades, notícias), a IA agora pesquisa na internet antes de responder, em vez de responder de memória.

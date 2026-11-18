@@ -1125,12 +1125,62 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertTrue(S.ler_config()["cor_dia"])
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
 
+    def test_apagar_as_conversas_velhas(self):
+        """1.7.0: Configurações › Opções › Conversas: as paradas há mais de 7, 30 ou 90 dias (30 de início) saem sozinhas, ou
+        nunca; os quatro do mesmo tamanho, em duas linhas."""
+        self.abrir()
+        self.opcoes()
+        self.pg.click('.abas [data-v="opcoes"]')
+        self.pg.wait_for_selector("#conversas-velhas")
+        self.assertEqual(self.texto("#conversas-velhas h2"), "Conversas")
+        chips = [t.strip() for t in self.pg.locator("#conversas-velhas .chip").all_inner_texts()]
+        self.assertEqual(chips, ["7 dias", "30 dias", "90 dias", "Nunca"])
+        self.assertEqual(self.texto('#conversas-velhas .chip[aria-checked="true"]'), "30 dias", "30 de início")
+        self.pg.click('#conversas-velhas [data-v="0"]')
+        self.pg.wait_for_selector('#conversas-velhas [data-v="0"][aria-checked="true"]')
+        self.assertEqual(S.ler_config()["apagar_dias"], 0)
+        self.pg.click('#conversas-velhas [data-v="7"]')
+        self.pg.wait_for_selector('#conversas-velhas [data-v="7"][aria-checked="true"]')
+        self.assertEqual(S.ler_config()["apagar_dias"], 7)
+        caixas = self.pg.evaluate("[...document.querySelectorAll('#conversas-velhas .chip')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })")
+        self.assertEqual(len(set(map(tuple, caixas))), 1, f"os quatro do mesmo tamanho ({caixas})")
+        S.salvar_config({"apagar_dias": 30})
+
+    def test_no_computador_as_conversas_na_lateral(self):
+        """1.7.0: no computador (1000 px ou mais), a Conversa fica com a tela toda e as conversas na lateral esquerda, sem o
+        botão Conversas no alto; no celular, como antes."""
+        self.publicar_app()
+        self.abrir()
+        self.pg.set_viewport_size({"width": 1280, "height": 800})
+        self.pg.wait_for_selector(".ch-lado")
+        self.pg.fill("#ch-txt", "quanto gastei?")
+        self.pg.keyboard.press("Enter")
+        self.pg.wait_for_selector(".ch-lado .conv-lista .conv")
+        self.assertEqual(self.pg.locator('.cab-bts [data-a="conversas"]').count(), 0, "sem o botão Conversas no alto")
+        self.assertEqual(self.texto(".ch-lado h2"), "Conversas")
+        self.assertEqual(self.pg.locator('.ch-lado [data-a="ch-nova"]').count(), 1, "a Nova conversa na lateral")
+        lado = self.pg.locator(".ch-lado").bounding_box()
+        app = self.pg.locator("#app").bounding_box()
+        pe = self.pg.locator(".ch-pe").bounding_box()
+        self.assertEqual((round(lado["x"]), round(lado["width"])), (0, 300), "a lateral na esquerda")
+        self.assertEqual((round(app["x"]), round(app["x"] + app["width"])), (300, 1280), "a Conversa com o resto da tela")
+        self.assertEqual((round(pe["x"]), round(pe["x"] + pe["width"])), (300, 1280), "a caixa de escrever também")
+        self.assertEqual(self.pg.locator(".ch-lado .conv.aberta").count(), 1, "a aberta marcada")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-computador.png"))
+        self.pg.set_viewport_size({"width": 390, "height": 844})
+        self.pg.wait_for_selector('.cab-bts [data-a="conversas"]')
+        self.assertFalse(self.pg.locator(".ch-lado").is_visible(), "no celular, sem a lateral")
+        self.assertFalse(self.pg.evaluate("document.body.classList.contains('lado')"))
+
     def test_atalho_no_celular(self):
         # Opções › Atalho no celular (0.13.0; antes em Aparência): o caminho do app no Home Assistant e o Copiar; fora do
         # Home Assistant, nem a aba
         self.abrir()
         self.opcoes()
-        self.assertEqual(self.pg.locator('.abas [data-v="opcoes"]').count(), 0, "fora do Home Assistant, sem a aba Opções")
+        # 1.7.0: a aba Opções sempre (as Conversas valem em qualquer lugar); fora do Home Assistant, sem o Atalho
+        self.pg.click('.abas [data-v="opcoes"]')
+        self.pg.wait_for_selector("#conversas-velhas")
+        self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora do Home Assistant, sem o Atalho")
         with mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}):
             self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
             self.pg.wait_for_selector('.abas [data-v="opcoes"]')
@@ -1214,7 +1264,9 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(len(set(tops)), 1, "as cinco abas numa linha")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.pg.set_viewport_size({"width": 320, "height": 700})
-        self.assertFalse(self.pg.evaluate("document.querySelector('.abas').scrollWidth > document.querySelector('.abas').clientWidth + 1"), "cabem em 320 px")
+        # 1.7.0: com a aba Opções sempre, as seis não cabem em 320 px: rolam, com a seta na ponta de onde há mais
+        self.pg.wait_for_function("document.querySelector('.abas-wrap').classList.contains('tem-dir') || document.querySelector('.abas-wrap').classList.contains('tem-esq')")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "a página não passa da largura")
         self.pg.reload()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()

@@ -11,6 +11,7 @@ import os
 import shutil
 import ssl
 import threading
+from datetime import datetime, timedelta
 import time
 import unittest
 import urllib.error
@@ -612,6 +613,37 @@ class TestComFerramentas(Base):
         r = S.conversar({"texto": "pode"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
         self.assertTrue(r["mensagens"][-1]["texto"].startswith("Feito!"))
         self.assertEqual(self.app.feitos[-1]["cliente"], "CorrerIA")
+
+    def test_conversas_velhas_saem(self):
+        """1.7.0: as conversas da tela paradas há mais dias que o escolhido (30 de início) saem, e no WhatsApp as mensagens
+        mais velhas que isso; com Nunca, ficam."""
+        velha = (datetime.now() - timedelta(days=40)).isoformat(timespec="seconds")
+        nova = (datetime.now() - timedelta(days=2)).isoformat(timespec="seconds")
+        S._gravar_conversas({"tela": {"u-ana": {"atual": "c-velha", "lista": [
+            {"id": "c-velha", "titulo": "Velha", "criada": velha, "atualizada": velha, "mensagens": [{"papel": "eu", "texto": "oi", "em": velha}]},
+            {"id": "c-nova", "titulo": "Nova", "criada": nova, "atualizada": nova, "mensagens": [{"papel": "eu", "texto": "oi", "em": nova}]}]},
+            "u-beto": {"atual": "c-b", "lista": [{"id": "c-b", "titulo": "Do Beto", "atualizada": velha, "mensagens": []}]},
+            "u-antigo": [{"papel": "eu", "texto": "de antes", "em": velha}]},
+            "conversas": {"5511999990000": [{"papel": "eu", "texto": "velha", "em": velha}, {"papel": "eu", "texto": "nova", "em": nova}],
+                          "5511999990001": [{"papel": "eu", "texto": "velha", "em": velha}]}})
+        self.assertEqual(S.ler_config()["apagar_dias"], 30, "30 de início")
+        self.assertEqual([x["titulo"] for x in S.conversas_tela("u-ana")], ["Nova"], "a velha nem aparece")
+        S.salvar_config({"apagar_dias": 0})
+        self.assertEqual(len(S.conversas_tela("u-ana")), 2, "com Nunca, ficam")
+        self.assertEqual(S.limpar_conversas_velhas(), 0)
+        S.salvar_config({"apagar_dias": 30})  # salvar já limpa
+        c = S.ler_json(S.CONVERSAS_ARQ)
+        self.assertEqual([x["id"] for x in c["tela"]["u-ana"]["lista"]], ["c-nova"])
+        self.assertEqual((c["tela"]["u-ana"]["atual"], "u-beto" in c["tela"], "u-antigo" in c["tela"]), (None, False, False))
+        self.assertEqual(c["conversas"], {"5511999990000": [{"papel": "eu", "texto": "nova", "em": nova}]})
+        self.assertEqual(S.limpar_conversas_velhas(), 0, "já limpo")
+        for ruim in (5, "30", True, None):
+            with self.assertRaisesRegex(ValueError, "7, 30 ou 90"):
+                S.salvar_config({"apagar_dias": ruim})
+        self.assertEqual(S.estado()["apagar_dias"], 30)
+        S.salvar_config({"apagar_dias": 7})
+        self.assertEqual([x["titulo"] for x in S.conversas_tela("u-ana")], ["Nova"], "a de 2 dias fica com 7")
+        S.salvar_config({"apagar_dias": 30})
 
     def test_pesquisa_na_internet_so_na_tela(self):
         """1.6.0: a conversa da tela pesquisa na internet (uma ferramenta a mais, de leitura); o WhatsApp e o conector não."""

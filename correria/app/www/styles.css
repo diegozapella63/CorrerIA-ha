@@ -498,3 +498,22 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 .chips-tempo .chip.on { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 .chips-tempo .chip.on > .ic-s { color: inherit; }
 .dica { display: block; margin-top: 8px; font-size: 13.5px; color: var(--muted); }
+
+/* ---------- 1.7.0: no computador (1000 px ou mais, fora da Tela cheia), a Conversa com a tela toda e as conversas na
+   lateral esquerda, como nos chats de sempre */
+.ch-lado { display: none; }
+@media (min-width: 1000px) {
+  body.lado { --lado: 300px; }
+  body.lado .ch-lado { display: flex; flex-direction: column; position: fixed; z-index: 21; left: 0; top: 0; bottom: 0; width: var(--lado);
+    padding: 22px 14px 16px; border-right: 1px solid var(--line); background: var(--card); overflow-y: auto; }
+  body.lado .lado-t { display: flex; align-items: center; gap: 10px; margin: 6px 4px 14px; font: 700 26px/1.1 var(--font-d); }
+  body.lado .lado-t .ic { color: var(--accent-text); }
+  body.lado .ch-lado .btn.larga { width: 100%; margin: 0 0 12px; }
+  body.lado .ch-lado .conv-abrir { padding: 11px 8px; border-radius: 10px; }
+  body.lado .ch-lado .conv.aberta { background: var(--accent-soft); border-radius: 10px; }
+  body.lado .ch-lado .vazio { padding: 8px 4px; }
+  body.lado #app { max-width: none; margin: 0 0 0 var(--lado); padding-left: 32px; padding-right: 32px; }
+  body.lado .ch-pe { left: var(--lado); padding-left: 32px; padding-right: 32px; }
+  body.lado .ch-pe > * { max-width: none; }
+  body.lado .ch-msg { max-width: min(78%, 900px); }
+}
