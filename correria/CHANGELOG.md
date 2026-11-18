@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.6.2
+
+- **Conversa**: para o que não está nos apps e muda com o tempo (preços, lojas, níveis e benefícios de bancos, novidades, notícias), a IA agora pesquisa na internet antes de responder, em vez de responder de memória.
+
 ## 1.6.1
 
 - **Configurações › Opções › Tela cheia**: o ícone do **Recolher a Conversa sozinha** fica na mesma linha do título, e os tempos ficam em duas linhas (1 e 3 minutos, 5 e 10 minutos), sem o "10 min" quebrar.

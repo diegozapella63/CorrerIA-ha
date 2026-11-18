@@ -106,6 +106,12 @@ class TestAgente(unittest.TestCase):
         self.assertEqual((r["resposta"], r["apps"]), ("Pelo que vi:\nAchei o preço do exemplo no Site Fictício.", ["Internet"]))
         r = ag.responder([{"papel": "eu", "texto": "pesquise o preço do Exemplo"}], ANA, agora=AGORA)
         self.assertNotIn("Internet", r["apps"], "no WhatsApp, não")
+        # 1.6.2: com a pesquisa, a IA é mandada pesquisar o que muda com o tempo, e não responder de memória
+        com = ag.instrucoes(self.ferr.todas() + [I.PESQUISA], [{"papel": "eu", "texto": "oi"}], ANA, "correria", [], AGORA)
+        sem = ag.instrucoes(self.ferr.todas(), [{"papel": "eu", "texto": "oi"}], ANA, "whatsapp", [], AGORA)
+        self.assertIn("chame internet_pesquisar", com)
+        self.assertIn("Não responda de memória", com)
+        self.assertNotIn("internet_pesquisar", sem)
 
 
 if __name__ == "__main__":

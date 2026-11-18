@@ -105,6 +105,11 @@ class Agente:
         if apps:
             partes.append("Os apps:\n" + apps)
         partes.append("Ferramentas (nome | lê ou grava | o que faz | entrada):\n" + catalogo(lista))
+        if any(f is PESQUISA for f in lista):
+            # 1.6.2: o que é de fora dos apps e muda com o tempo vem da internet de hoje, nunca de memória
+            partes.append("Para o que não está nos apps e muda com o tempo (preços, lojas, níveis e benefícios de bancos e cartões, "
+                          "novidades, notícias, horários), chame internet_pesquisar e responda pelo que ela achar. Não responda de "
+                          "memória: o que você lembra pode estar velho.")
         conversa = [("IA: " if m.get("papel") == "ia" else "Pessoa: ") + str(m.get("texto") or "").strip()[:2000]
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))
