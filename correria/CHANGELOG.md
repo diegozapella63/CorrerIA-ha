@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.6.1
+
+- **Configurações › Opções › Tela cheia**: o ícone do **Recolher a Conversa sozinha** fica na mesma linha do título, e os tempos ficam em duas linhas (1 e 3 minutos, 5 e 10 minutos), sem o "10 min" quebrar.
+
 ## 1.6.0
 
 - **Pesquisar na internet**: na Conversa daqui, a IA pesquisa na internet o que os apps não têm, como preços, lojas e novidades ("quanto custa a geladeira tal?", "pesquise lojas de piso em Curitiba"). A resposta diz de onde veio. No WhatsApp não (lá a IA fica nos apps, pela regra da Meta); o Claude e o Gemini já pesquisam sozinhos.

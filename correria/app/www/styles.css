@@ -376,8 +376,9 @@ body[data-tela="conversa"] #toast { bottom: calc(96px + env(safe-area-inset-bott
 
 /* ---------- 0.16.0: o padrão da família, ícones em tudo. As linhas e os campos com o ícone antes do título; as abas com o
    ícone (no celular, só o nome, para caber); o título das telas com o ícone; a IA para conversar em botões de escolha */
-.linha-sw b:has(> .ic-s), .campo > label:has(> .ic-s), .lbl:has(> .ic-s) { display: flex; align-items: center; gap: 8px; }
-.linha-sw b > .ic-s, .campo > label > .ic-s, .lbl > .ic-s { flex: none; width: 18px; height: 18px; color: var(--accent-text); }
+.linha-sw b:has(> .ic-s), .campo > label:has(> .ic-s), .campo > b:has(> .ic-s), .lbl:has(> .ic-s) { display: flex; align-items: center; gap: 8px; }
+.campo > b:has(> .ic-s) { font-size: 16px; font-weight: 600; }
+.linha-sw b > .ic-s, .campo > label > .ic-s, .campo > b > .ic-s, .lbl > .ic-s { flex: none; width: 18px; height: 18px; color: var(--accent-text); }
 .linha-sw b:has(> .ic-s) + span { display: block; padding-left: 26px; }
 .abas button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .abas button .ic-s { width: 17px; height: 17px; flex: none; }
@@ -492,8 +493,8 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
 }
 /* 1.5.0: Configurações › Opções › Tela cheia: o tempo para a Conversa recolher sozinha (quatro botões iguais, lado a lado) */
-.chips-tempo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.chips-tempo .chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border-radius: 12px; font-weight: 600; }
+.chips-tempo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.chips-tempo .chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
 .chips-tempo .chip.on { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 .chips-tempo .chip.on > .ic-s { color: inherit; }
 .dica { display: block; margin-top: 8px; font-size: 13.5px; color: var(--muted); }

@@ -542,6 +542,16 @@ class Tela(unittest.TestCase):
         caixas = self.pg.evaluate("[...document.querySelectorAll('#tela-cheia .chip')].map((b) => Math.round(b.getBoundingClientRect().width))")
         self.assertEqual(len(set(caixas)), 1, f"os quatro do mesmo tamanho ({caixas})")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        # 1.6.1: o ícone na mesma linha do título; os tempos em duas linhas, cada um numa linha só
+        tit = self.pg.evaluate("""(() => { const b = document.querySelector('#tela-cheia .campo > b'), i = b.querySelector('svg').getBoundingClientRect();
+          const r = document.createRange(); r.selectNodeContents(b.lastChild); const t = r.getBoundingClientRect();
+          return Math.abs((i.top + i.bottom) / 2 - (t.top + t.bottom) / 2) < 6; })()""")
+        self.assertTrue(tit, "o ícone ao lado do título")
+        linhas = self.pg.evaluate("[...document.querySelectorAll('#tela-cheia .chip')].map((b) => Math.round(b.getBoundingClientRect().top))")
+        self.assertEqual((linhas[0] == linhas[1], linhas[2] == linhas[3], linhas[2] > linhas[0]), (True, True, True), f"duas linhas ({linhas})")
+        alturas = self.pg.evaluate("[...document.querySelectorAll('#tela-cheia .chip')].map((b) => Math.round(b.getBoundingClientRect().height))")
+        self.assertEqual(len(set(alturas)), 1, f"o 10 min não quebra ({alturas})")
+        self.pg.locator("#tela-cheia").screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-opcoes-tela-cheia.png"))
 
     PAINEL_FALSO = """<!doctype html><body style="margin:0">
 <button id="conv" onclick="parent.postMessage({painel: 'conversa'}, location.origin)">Conversa</button>
