@@ -13,10 +13,11 @@ import ferramentas as F
 RODADAS = 4
 MAX_CHAMADAS = 4          # de leitura, por rodada
 MAX_RESULTADO = 8000      # o texto de cada resultado que volta para a IA
+MAX_ACOES = 8             # as mudanças de uma vez, para o sim
 DIAS = ("segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo")
 
 BASE = """Você é o CorrerIA, o assistente dos apps da CorrerIA Code, {onde}. Quem está conversando: {nome}. Agora: {agora}.
-Converse em português do Brasil, curto e direto, como no WhatsApp: frases simples, no máximo uns 4 parágrafos curtos. Formatação do WhatsApp: *negrito* com um asterisco de cada lado e listas com "- "; nada de tabelas, títulos nem links. Valores como R$ 1.234,56 e datas como 20/11.
+Converse em português do Brasil, com todos os acentos e o ç (você, às, não, alimentação), curto e direto, como no WhatsApp: frases simples, no máximo uns 4 parágrafos curtos. Formatação do WhatsApp: *negrito* com um asterisco de cada lado e listas com "- "; nada de tabelas, títulos nem links. Valores como R$ 1.234,56 e datas como 20/11.
 {assunto}
 Use as ferramentas para ver os dados de verdade antes de responder: não invente números, nomes nem itens. Se faltar o dado, diga o que falta. Contas de cabeça podem errar: some e compare com cuidado.
 Para mudar algo (ferramentas marcadas "grava"), não peça confirmação no texto: ponha a ação em "chamar", com um "resumo" curto e claro do que vai ser feito (ex.: "Lançar R$ 45,90 de Mercado hoje, no cartão do Banco Azul"); o CorrerIA mostra para a pessoa e só faz depois do sim dela. Faça só o que ela pediu. Se faltar um dado essencial (o valor, a data, qual item), pergunte antes. Para achar os ids, leia primeiro."""
@@ -47,6 +48,14 @@ class ErroIA(Exception):
 
 def _agora_txt(agora):
     return f"{DIAS[agora.weekday()]}, {agora:%d/%m/%Y %H:%M}"
+
+
+def cortado(res):
+    """1.9.0: um resultado grande demais vai cortado, e a IA sabe (antes ela respondia como se tivesse visto tudo)."""
+    if len(res) <= MAX_RESULTADO:
+        return res
+    return (res[:MAX_RESULTADO] + f"\n… (cortado aqui: o resultado tinha {len(res)} letras e só as primeiras {MAX_RESULTADO} "
+            "couberam; para ver o resto, chame de novo com um filtro ou um limite menor)")
 
 
 def catalogo(lista):
@@ -144,19 +153,26 @@ class Agente:
             if gravar:
                 pend = [{"ferramenta": f["id"], "argumentos": c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {},
                          "resumo": str(c.get("resumo") or "").strip()[:200] or f"{f['titulo']}: {F.resumo_args(c.get('argumentos'))}", "app": f["app"]["nome"]}
-                        for f, c in gravar[:8]]
+                        for f, c in gravar[:MAX_ACOES]]
                 linhas = "\n".join(f"- {p['resumo']}" for p in pend)
+                if len(gravar) > MAX_ACOES:  # 1.9.0: as que não couberam não somem caladas
+                    linhas += f"\n(Mais {len(gravar) - MAX_ACOES} ficam para depois: peça de novo depois do sim.)"
                 frase = (texto + "\n\n") if texto else ""
                 return {"resposta": f"{frase}Vou fazer {'isto' if len(pend) == 1 else 'isto tudo'}:\n{linhas}\n\nResponda *sim* para confirmar.",
                         "pendente": pend, "apps": sorted({p["app"] for p in pend} | set(usados))}
-            ler = [(f, c) for f, c in achadas if not f["grava"]][:MAX_CHAMADAS]
+            todas_ler = [(f, c) for f, c in achadas if not f["grava"]]
+            ler = todas_ler[:MAX_CHAMADAS]
             if (ler or desconhecidas) and not ultima:
                 for f, c in ler:
                     args = c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {}
                     res, erro = self.usar(f, args, pessoa, cliente)
                     if f["app"]["nome"] not in usados:
                         usados.append(f["app"]["nome"])
-                    resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → {'ERRO: ' if erro else ''}{res[:MAX_RESULTADO]}")
+                    resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → {'ERRO: ' if erro else ''}{cortado(res)}")
+                # 1.9.0: as leituras além das 4 voltam como não feitas, para a IA pedir de novo (antes sumiam)
+                for f, c in todas_ler[MAX_CHAMADAS:]:
+                    args = c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {}
+                    resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → não chamada agora: no máximo {MAX_CHAMADAS} por vez. Chame de novo se ainda precisar.")
                 for _, c in desconhecidas:
                     resultados.append(f"{c.get('ferramenta') or c.get('nome')} → ERRO: essa ferramenta não existe. Use só as da lista.")
                 continue

@@ -13,7 +13,11 @@
   --r-card: 20px;
   --r-ctl: 12px;
   color-scheme: dark;
-  --bg: #0f1318; --card: #151a21; --card-2: #1c222b; --line: #242b35; --line-2: #2f3743;
+  /* o fundo e os cartões são os do tema do Home Assistant (hatema.js, igual em todos os apps); os cinzas saem deles e do
+     texto, para todos os apps da família terem o mesmo fundo */
+  --bg: var(--ha-bg-dark, #111111); --card: var(--ha-card-dark, #1c1c1c);
+  --card-2: color-mix(in srgb, var(--card) 95%, var(--text)); --line: color-mix(in srgb, var(--card) 91%, var(--text));
+  --line-2: color-mix(in srgb, var(--card) 81%, var(--text));
   --text: #eef2f6; --text-2: #b6bfcb; --muted: #8a94a2;
   --terc: #F5B14C; --danger: #FF7A6B; --good: #4CD3A5;
   --accent-text: var(--accent);
@@ -22,7 +26,7 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f2f4f7; --card: #ffffff; --card-2: #eef1f5; --line: #e3e7ec; --line-2: #d3d9e1;
+  --bg: var(--ha-bg-light, #fafafa); --card: var(--ha-card-light, #ffffff);
   --text: #121820; --text-2: #3d4754; --muted: #667180;
   --terc: #a85f00; --danger: #c63d2f; --good: #0f8a5f;
   --accent-text: var(--accent-ink, color-mix(in srgb, var(--accent) 50%, #000));
@@ -75,7 +79,7 @@ body[data-tela="conversa"] .cab { margin-bottom: 18px; }
 .abas::-webkit-scrollbar { display: none; }
 .abas button { flex: 1 0 auto; height: 40px; padding: 0 10px; border-radius: 10px; color: var(--muted); font: 500 15px/1 var(--font); white-space: nowrap; }
 .abas button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
-:root[data-theme="dark"] .abas button.on { background: #2c333d; }
+:root[data-theme="dark"] .abas button.on { background: color-mix(in srgb, var(--card) 84%, var(--text)); }
 @media (max-width: 400px) { .abas button { padding: 0 6px; font-size: 14.5px; } }
 @media (max-width: 360px) { .abas { gap: 0; padding: 3px; } .abas button { padding: 0 4px; font-size: 13.5px; } }
 .cab-tela + .sync { margin-top: -8px; }
@@ -318,7 +322,7 @@ body[data-tela="conversa"] #toast { bottom: calc(96px + env(safe-area-inset-bott
 .temas button .ic { width: 22px; height: 22px; }
 .temas button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
 .temas button.on .ic { color: var(--accent-text); }
-:root[data-theme="dark"] .temas button.on { background: #2c333d; }
+:root[data-theme="dark"] .temas button.on { background: color-mix(in srgb, var(--card) 84%, var(--text)); }
 .cores { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 -6px; }
 .tsw { --sw-bg: var(--card); position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 2px 7px; border-radius: 10px; background: var(--sw-bg); min-width: 0; }
 .tsw svg { width: 48px; height: 36px; overflow: visible; }

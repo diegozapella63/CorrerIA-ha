@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.9.0
+
+- **O fundo e os cartões seguem o tema do Home Assistant**, no claro e no escuro: o mesmo fundo do Home Assistant e dos outros apps da família (antes, cada app tinha o seu). Com um tema seu no Home Assistant, o app usa as cores dele; ao trocar o tema ou o modo no Home Assistant, o app muda junto.
+- **Conversa e WhatsApp**: a IA responde com todos os acentos (algumas IAs escreviam "voce" e "Alimentacao").
+- **Conversa e WhatsApp**: quando um app devolve mais do que cabe, a IA sabe que viu só uma parte e pede o resto, em vez de responder como se fosse tudo. E as leituras e mudanças além do limite de uma vez não somem mais caladas: as mudanças que ficaram de fora aparecem embaixo do **sim**.
+
 ## 1.8.0
 
 - **No computador** (1000 px ou mais): a barra lateral dos outros apps, em todas as telas. No alto o CorrerIA, depois **Conversa** e **Mais**, as **Conversas** (a aberta marcada, o + para uma nova, a lixeira ao passar o mouse) e a versão embaixo. A Conversa fica com o resto da tela; Mais, Configurações e Sobre ficam no meio, como nos outros apps.

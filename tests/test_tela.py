@@ -1146,6 +1146,59 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(len(set(map(tuple, caixas))), 1, f"os quatro do mesmo tamanho ({caixas})")
         S.salvar_config({"apagar_dias": 30})
 
+    def test_o_fundo_e_os_cartoes_do_tema_do_home_assistant(self):
+        """1.9.0: o fundo e os cartões são os do tema do Home Assistant (hatema.js, o mesmo arquivo em todos os apps), para
+        todos os apps terem o mesmo fundo. Dentro de um Home Assistant de mentira (a mesma origem, como no Ingress), com um
+        tema dele, claro e depois escuro com o app aberto: o fundo e o cartão dele. Sozinho, os do tema padrão."""
+        ha = """<!doctype html><html style="--primary-background-color:#eef3fb;--card-background-color:#fcfdff"><body style="margin:0">
+<home-assistant></home-assistant><iframe id="app" src="/app/" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>
+<script>document.querySelector("home-assistant").hass = { themes: { darkMode: false } };
+window.modo = (dark, bg, card) => { document.querySelector("home-assistant").hass = { themes: { darkMode: dark } };
+  document.documentElement.style.setProperty("--primary-background-color", bg); document.documentElement.style.setProperty("--card-background-color", card); };</script></body></html>"""
+        base = self.url.rstrip("/")
+
+        def servir(route):
+            u = route.request.url
+            if u.rstrip("/") == "http://ha.test":
+                route.fulfill(body=ha, content_type="text/html")
+            elif u.startswith("http://ha.test/app/"):
+                route.fulfill(response=route.fetch(url=base + "/" + u[len("http://ha.test/app/"):]))  # como o Ingress
+            else:
+                route.fulfill(status=404, body="")
+
+        cores = "() => ['--ha-bg-light', '--ha-card-light', '--ha-bg-dark', '--ha-card-dark'].map((v) => document.documentElement.style.getPropertyValue(v))"
+        fundo = "() => getComputedStyle(document.body).backgroundColor"
+        cartao = "() => { const d = document.createElement('div'); d.style.background = 'var(--card)'; document.body.append(d); const c = getComputedStyle(d).backgroundColor; d.remove(); return c; }"
+        ctx = self.nav.new_context(viewport={"width": 390, "height": 844}, color_scheme="light")
+        self.addCleanup(ctx.close)
+        ctx.route("http://ha.test/**", servir)
+        pg = ctx.new_page()
+        pg.on("pageerror", lambda e: self.erros.append(str(e)))
+        pg.goto("http://ha.test/")
+        fr = pg.frames[1]
+        fr.wait_for_selector("#ch-txt")
+        pg.wait_for_timeout(500)
+        self.assertEqual(fr.evaluate("() => window.__haTema.doHA"), "light")
+        self.assertEqual(fr.evaluate(cores), ["#eef3fb", "#fcfdff", "#111111", "#1c1c1c"])
+        self.assertEqual(fr.evaluate("() => document.documentElement.dataset.theme"), "light", "o claro do Home Assistant")
+        self.assertEqual(fr.evaluate(fundo), "rgb(238, 243, 251)", "o fundo do tema claro")
+        self.assertEqual(fr.evaluate(cartao), "rgb(252, 253, 255)", "o cartão do tema claro")
+        pg.emulate_media(color_scheme="dark")
+        pg.evaluate("() => window.modo(true, '#0d1a26', '#172636')")
+        pg.wait_for_timeout(900)
+        self.assertEqual(fr.evaluate("() => window.__haTema.doHA"), "dark")
+        self.assertEqual(fr.evaluate(cores), ["#fafafa", "#ffffff", "#0d1a26", "#172636"])
+        self.assertEqual(fr.evaluate(fundo), "rgb(13, 26, 38)", "o fundo do tema escuro")
+        self.assertEqual(fr.evaluate(cartao), "rgb(23, 38, 54)", "o cartão do tema escuro")
+        # sozinho (fora do Home Assistant): as cores do tema padrão do Home Assistant
+        for tema, f, c in (("light", "rgb(250, 250, 250)", "rgb(255, 255, 255)"), ("dark", "rgb(17, 17, 17)", "rgb(28, 28, 28)")):
+            p2 = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme=tema)
+            self.addCleanup(p2.close)
+            p2.goto(self.url)
+            p2.wait_for_selector("#ch-txt")
+            self.assertIsNone(p2.evaluate("() => window.__haTema.doHA"), tema)
+            self.assertEqual((p2.evaluate(fundo), p2.evaluate(cartao)), (f, c), tema)
+
     def test_no_computador_a_barra_lateral(self):
         """1.8.0: no computador (1000 px ou mais), a barra lateral da família em todas as telas: o app, Conversa e Mais, as
         conversas (a aberta marcada, a Nova conversa no +) e a versão; a Conversa com o resto da tela, as outras no meio. No

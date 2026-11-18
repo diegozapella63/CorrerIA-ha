@@ -45,6 +45,7 @@ class TestAgente(unittest.TestCase):
         p1, p2 = self.ia.pedidos
         self.assertIn("pelo WhatsApp. Quem está conversando: Ana. Agora: domingo, 08/11/2026 09:30.", p1)
         self.assertIn("pelo WhatsApp você ajuda só com os apps da CorrerIA Code", p1, "a regra da Meta")
+        self.assertIn("com todos os acentos e o ç (você, às, não, alimentação)", p1, "1.9.0: com os acentos (uma IA respondia sem eles)")
         self.assertIn("gerencia_lancar | grava | GerencIA: Lança um gasto.", p1)
         self.assertIn("- GerencIA (um assunto): GerencIA: dicas.", p1)
         self.assertIn("Pessoa: oi\nIA: Oi, Ana!\nPessoa: O que vence?", p1)
@@ -86,6 +87,25 @@ class TestAgente(unittest.TestCase):
         self.assertEqual(r["resposta"], "Não consegui responder agora. Pode perguntar de outro jeito?")
         self.assertEqual(len(self.ia.pedidos), 4)
         self.assertIn("Agora responda com o que já tem", self.ia.pedidos[-1])
+
+    def test_o_que_nao_coube_nao_some_calado(self):
+        """1.9.0: um resultado cortado, as leituras além das 4 e as mudanças além das 8 são ditas (antes sumiam caladas)."""
+        curto = "x" * I.MAX_RESULTADO
+        self.assertEqual(I.cortado(curto), curto)
+        longo = I.cortado("y" * (I.MAX_RESULTADO + 500))
+        self.assertTrue(longo.startswith("y" * I.MAX_RESULTADO))
+        self.assertIn(f"cortado aqui: o resultado tinha {I.MAX_RESULTADO + 500} letras", longo)
+        ler = {"chamar": [{"ferramenta": "gerencia_resumo", "argumentos": {"n": i}} for i in range(6)]}
+        ag = self.agente(ler, {"resposta": "Pronto."})
+        self.assertEqual(ag.responder(self.hist("?"), ANA, agora=AGORA)["resposta"], "Pronto.")
+        p2 = self.ia.pedidos[1]
+        self.assertEqual(p2.count("→ Hoje no GerencIA"), 4)
+        self.assertIn('gerencia_resumo({"n": 4}) → não chamada agora: no máximo 4 por vez.', p2)
+        self.assertIn('gerencia_resumo({"n": 5}) → não chamada agora', p2)
+        gravar = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"valor": i}, "resumo": f"Lançar {i}"} for i in range(10)]}
+        r = self.agente(gravar).responder(self.hist("lança tudo"), ANA, agora=AGORA)
+        self.assertEqual(len(r["pendente"]), 8)
+        self.assertIn("- Lançar 7\n(Mais 2 ficam para depois: peça de novo depois do sim.)", r["resposta"])
 
     def test_extrair_json(self):
         self.assertEqual(I.extrair_json('Claro! {"resposta": "x"} tchau'), {"resposta": "x"})
