@@ -101,7 +101,7 @@ class Tela(unittest.TestCase):
         self.pg.click('.ch-vazio [data-a="opcoes"]')
         self.pg.wait_for_selector(".abas")
         self.assertEqual(self.texto(".cab-tela h1"), "Configurações")
-        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência"])
+        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"])
         self.assertEqual(self.texto(".abas .on"), "Apps", "começa em Apps")
         self.pg.click('.abas [data-v="whatsapp"]')
         self.assertEqual(self.pg.locator(".sync").count(), 0, "0.16.1: sem o \"Falta terminar a configuração\" no alto (o cartão já diz)")
@@ -1146,30 +1146,45 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(len(set(map(tuple, caixas))), 1, f"os quatro do mesmo tamanho ({caixas})")
         S.salvar_config({"apagar_dias": 30})
 
-    def test_no_computador_as_conversas_na_lateral(self):
-        """1.7.0: no computador (1000 px ou mais), a Conversa fica com a tela toda e as conversas na lateral esquerda, sem o
-        botão Conversas no alto; no celular, como antes."""
+    def test_no_computador_a_barra_lateral(self):
+        """1.8.0: no computador (1000 px ou mais), a barra lateral da família em todas as telas: o app, Conversa e Mais, as
+        conversas (a aberta marcada, a Nova conversa no +) e a versão; a Conversa com o resto da tela, as outras no meio. No
+        celular, como antes."""
         self.publicar_app()
         self.abrir()
         self.pg.set_viewport_size({"width": 1280, "height": 800})
-        self.pg.wait_for_selector(".ch-lado")
+        self.pg.wait_for_selector("#lado .side-nav")
+        self.assertEqual(self.texto("#lado .side-brand"), "CorrerIA")
+        self.assertEqual([t.strip() for t in self.pg.locator("#lado .side-link").all_inner_texts()], ["Conversa", "Mais"])
+        self.assertEqual(self.texto('#lado .side-link[aria-current="page"]'), "Conversa")
+        for bt in ("conversas", "ch-nova", "mais"):
+            self.assertEqual(self.pg.locator(f'.cab-bts [data-a="{bt}"]').count(), 0, f"sem o {bt} no alto: está na lateral")
         self.pg.fill("#ch-txt", "quanto gastei?")
         self.pg.keyboard.press("Enter")
-        self.pg.wait_for_selector(".ch-lado .conv-lista .conv")
-        self.assertEqual(self.pg.locator('.cab-bts [data-a="conversas"]').count(), 0, "sem o botão Conversas no alto")
-        self.assertEqual(self.texto(".ch-lado h2"), "Conversas")
-        self.assertEqual(self.pg.locator('.ch-lado [data-a="ch-nova"]').count(), 1, "a Nova conversa na lateral")
-        lado = self.pg.locator(".ch-lado").bounding_box()
-        app = self.pg.locator("#app").bounding_box()
-        pe = self.pg.locator(".ch-pe").bounding_box()
-        self.assertEqual((round(lado["x"]), round(lado["width"])), (0, 300), "a lateral na esquerda")
-        self.assertEqual((round(app["x"]), round(app["x"] + app["width"])), (300, 1280), "a Conversa com o resto da tela")
-        self.assertEqual((round(pe["x"]), round(pe["x"] + pe["width"])), (300, 1280), "a caixa de escrever também")
-        self.assertEqual(self.pg.locator(".ch-lado .conv.aberta").count(), 1, "a aberta marcada")
+        self.pg.wait_for_selector("#lado .side-conv.on")
+        self.assertEqual(self.texto("#lado .side-conv.on .sl-nome"), "quanto gastei?")
+        lado, app, pe = (self.pg.locator(x).bounding_box() for x in ("#lado", "#app", ".ch-pe"))
+        self.assertEqual((round(lado["x"]), round(lado["width"])), (0, 272), "a lateral na esquerda")
+        self.assertEqual((round(app["x"]), round(app["x"] + app["width"])), (272, 1280), "a Conversa com o resto da tela")
+        self.assertEqual((round(pe["x"]), round(pe["x"] + pe["width"])), (272, 1280), "a caixa de escrever também")
+        self.assertIn("CorrerIA ", self.texto("#lado .side-foot"))
         self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-computador.png"))
+        # Mais, Configurações e Sobre: no meio do resto da tela, com a lateral (o Mais marcado)
+        self.pg.click('#lado [data-v="mais"]')
+        self.pg.wait_for_selector(".mais-menu")
+        self.assertEqual(self.texto('#lado .side-link[aria-current="page"]'), "Mais")
+        self.pg.click('.mais-menu [data-a="sobre"]')
+        self.pg.wait_for_selector(".sobre-topo")
+        app = self.pg.locator("#app").bounding_box()
+        self.assertEqual((round(app["width"]), round(app["x"] - 272), round(1280 - app["x"] - app["width"])), (960, 24, 24), "no meio, com 960")
+        self.pg.screenshot(path=os.path.join(os.environ.get("CORRERIA_PRINTS", "/tmp"), "correria-computador-sobre.png"))
+        # a Nova conversa da lateral volta para a Conversa
+        self.pg.click('#lado [data-a="ch-nova"]')
+        self.pg.wait_for_selector("#ch-txt")
+        self.assertEqual(self.texto('#lado .side-link[aria-current="page"]'), "Conversa")
         self.pg.set_viewport_size({"width": 390, "height": 844})
         self.pg.wait_for_selector('.cab-bts [data-a="conversas"]')
-        self.assertFalse(self.pg.locator(".ch-lado").is_visible(), "no celular, sem a lateral")
+        self.assertEqual(self.pg.locator("#lado").count(), 0, "no celular, sem a lateral")
         self.assertFalse(self.pg.evaluate("document.body.classList.contains('lado')"))
 
     def test_atalho_no_celular(self):

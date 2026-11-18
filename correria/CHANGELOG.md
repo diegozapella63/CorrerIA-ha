@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.8.0
+
+- **No computador** (1000 px ou mais): a barra lateral dos outros apps, em todas as telas. No alto o CorrerIA, depois **Conversa** e **Mais**, as **Conversas** (a aberta marcada, o + para uma nova, a lixeira ao passar o mouse) e a versão embaixo. A Conversa fica com o resto da tela; Mais, Configurações e Sobre ficam no meio, como nos outros apps.
+
 ## 1.7.0
 
 - **No computador** (1000 px ou mais): a Conversa ocupa a tela toda, e as conversas ficam numa lateral à esquerda, com a **Nova conversa** no alto e a aberta marcada, como nos chats de sempre. No celular, nada muda.

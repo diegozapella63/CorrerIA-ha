@@ -82,10 +82,10 @@
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: só nesta vez */ } };
   const S = { e: null, salvando: false, form: {}, tela: '', aba: guardada('correria-aba') || 'apps', tema: guardada('correria-tema') || 'auto',
     ch: { msgs: null, texto: '', anexo: null, enviando: false, pessoa: '', ola: '', conversa: null, lista: undefined, fala: '' } };
-  /* 1.7.0: no computador (1000 px ou mais, fora da Tela cheia), a Conversa fica com a tela toda e as conversas na lateral
-     esquerda, como nos chats de sempre: sem o botão Conversas no alto */
+  /* 1.8.0: no computador (1000 px ou mais, fora da Tela cheia), a barra lateral da família (como no GerencIA, no
+     CronologIA e no ResolvIA), em todas as telas: o app, Conversa e Mais, as conversas e a versão (pintarLado) */
   const DESK = window.matchMedia ? matchMedia('(min-width: 1000px)') : null;
-  const lateral = () => !!(DESK && DESK.matches && !S.cheia && !S.tela);
+  const lateral = () => !!(DESK && DESK.matches && !S.cheia);
   let carregandoLista = false;
   const api = {
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
@@ -570,10 +570,10 @@
         <button class="ch-op" role="menuitem" data-a="ch-camera">${ic('camera', 'ic-s')}Tirar foto</button>
         <button class="ch-op" role="menuitem" data-a="ch-galeria">${ic('image', 'ic-s')}Escolher fotos</button>
         <button class="ch-op" role="menuitem" data-a="ch-anexar">${ic('arquivo', 'ic-s')}Escolher arquivo</button></div>` : '';
-    return `${lateral() ? ladoConversas() : ''}<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? ` · Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
+    return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? `<span class="ola-sep"> · </span>Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts">${lateral() ? '' : `<button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}`}
-          ${botaoCheia(e)}<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button></div></header>
+          ${botaoCheia(e)}${lateral() ? '' : `<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button>`}</div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
@@ -860,10 +860,21 @@
     return `${topoTela('Conversas', 'Conversa')}<div class="conv-pag">
       <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${listaConversas()}</div>`;
   }
-  function ladoConversas() {
+  function pintarLado() {
+    let el = document.getElementById('lado');
+    if (!lateral()) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('aside'); el.id = 'lado'; el.setAttribute('aria-label', 'Menu'); document.body.prepend(el); }
     if (S.ch.lista === undefined && !carregandoLista) carregarLista();
-    return `<aside class="ch-lado" aria-label="Conversas"><h2 class="lado-t">${ic('conversas')}Conversas</h2>
-      <button class="btn pri larga" data-a="ch-nova">${ic('nova', 'ic-s')}Nova conversa</button>${listaConversas()}</aside>`;
+    const t = S.tela, naConversa = !t || t === 'conversas', L = S.ch.lista || [];
+    const link = (k, n, i, on) => `<button class="side-link" data-a="lado-ir" data-v="${k}"${on ? ' aria-current="page"' : ''}>${ic(i)}<span>${n}</span></button>`;
+    el.innerHTML = `<div class="side-brand"><span class="side-raio" aria-hidden="true">${ic('zap')}</span><span>Correr<b>IA</b></span></div>
+      <nav class="side-nav" aria-label="Seções">${link('', 'Conversa', 'chat', naConversa)}${link('mais', 'Mais', 'mais', !naConversa)}</nav>
+      <div class="side-h"><span>Conversas</span><button class="side-nova" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova', 'ic-s')}</button></div>
+      <div class="side-lista">${S.ch.lista === undefined ? '<p class="side-vazio">Carregando…</p>' : !L.length ? '<p class="side-vazio">Nenhuma conversa ainda.</p>'
+        : L.map(x => { const on = x.aberta && naConversa; return `<div class="side-conv${on ? ' on' : ''}"><button class="side-item" data-a="conv-abrir" data-v="${esc(x.id)}"${on ? ' aria-current="page"' : ''}>
+          <span class="sl-nome">${esc(x.titulo)}</span><small>${esc(quando(x.atualizada))}</small></button>
+          <button class="side-x" data-a="conv-apagar" data-v="${esc(x.id)}" aria-label="Apagar ${esc(x.titulo)}" title="Apagar">${ic('trash', 'ic-s')}</button></div>`; }).join('')}</div>
+      <p class="side-foot">CorrerIA ${esc((S.e && S.e.versao) || '')}</p>`;
   }
   function carregarLista() {
     carregandoLista = true;
@@ -945,6 +956,7 @@
     const ativo = document.activeElement && document.activeElement.id;
     document.body.dataset.tela = S.tela || 'conversa';
     document.body.classList.toggle('lado', lateral());
+    pintarLado();
     aplicarCor();
     $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
@@ -1118,6 +1130,8 @@
       render();
     } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {
       abrirTela(a);
+    } else if (a === 'lado-ir') {  // 1.8.0: Conversa e Mais, na barra lateral
+      abrirTela(el.dataset.v);
     } else if (a === 'tema') {
       S.tema = el.dataset.v; guardar('correria-tema', S.tema); aplicarTema(); render();
     } else if (a === 'cor') {  // escolher uma cor desliga a Cor do dia; vale para a casa toda
@@ -1175,7 +1189,8 @@
       try {
         const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v });
         Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null, rapidas: false, menu: false });
-        if (S.tela === 'conversas') voltar(); else render();
+        // 1.8.0: pela barra lateral, de outra tela, abre a Conversa
+        if (S.tela === 'conversas') voltar(); else if (S.tela && lateral()) abrirTela(''); else render();
         if (a === 'ch-nova') setTimeout(() => { const t = $('#ch-txt'); if (t) t.focus(); }, 60);
       } catch (err) { toast(err.message); if (a === 'conv-abrir') carregarLista(); }
     } else if (a === 'conv-apagar') {
