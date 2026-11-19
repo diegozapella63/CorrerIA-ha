@@ -1,18 +1,22 @@
 """O login das IAs (Claude, ChatGPT, Gemini…) no conector MCP do CorrerIA: OAuth 2.1 com PKCE (S256) e registro dinâmico
-de cliente (RFC 7591), o que elas pedem para um conector MCP. Sem senha: ao conectar, a página do CorrerIA mostra um código e
+de cliente (RFC 7591), o que elas pedem para um conector MCP. 1.11.0: também o client_id que é um endereço (Client ID
+Metadata Document, o CIMD do MCP): o CorrerIA lê o documento do cliente nesse endereço, em vez do registro. Sem senha: ao conectar, a página do CorrerIA mostra um código e
 alguém da casa aprova o pedido no painel do Home Assistant (onde já está logado). A conexão fica com a pessoa que aprovou.
 
 Em /data/mcp.json ficam os clientes registrados e as conexões (os tokens só como hash, SHA-256). Os pedidos e os
 códigos de autorização ficam na memória (valem poucos minutos)."""
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import secrets
+import socket
 import threading
 import time
 import urllib.parse
+import urllib.request
 from datetime import datetime
 
 ESCOPO = "casa"
@@ -23,6 +27,9 @@ CODIGO_VALE = 5 * 60     # o código de autorização, para trocar pelo token
 ACESSO_VALE = 60 * 60    # o token de acesso
 RENOVAR_VALE = 90 * 86400
 MAX_CONEXOES = 30
+CIMD_VALE = 24 * 3600    # o documento do cliente (CIMD): lido de novo depois de um dia
+CIMD_MAX = 5 * 1024      # o tamanho máximo do documento
+MAX_VOLTAS = 10          # endereços de retorno de um cliente
 
 
 class ErroOAuth(Exception):
@@ -55,6 +62,44 @@ def _uri_ok(u):
     return p.scheme == "https" or (p.scheme == "http" and p.hostname in ("localhost", "127.0.0.1", "::1"))
 
 
+def _cimd_url(u):
+    """Um client_id que é um endereço (CIMD): https, com caminho, sem fragmento, sem usuário, sem . nem .. no caminho."""
+    try:
+        p = urllib.parse.urlparse(u)
+    except ValueError:
+        return False
+    if p.scheme != "https" or not p.hostname or p.fragment or p.username or p.password or len(u) > 500:
+        return False
+    partes = p.path.split("/")
+    return p.path not in ("", "/") and "." not in partes and ".." not in partes
+
+
+class _SemRedirecionar(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):  # noqa: ARG002  (o documento vem do próprio endereço, sem desvio)
+        return None
+
+
+def buscar_cimd(url):
+    """Baixa o documento de um cliente (CIMD): só https, só um endereço da internet (nada da rede da casa), até 5 KB, em
+    até 5 segundos e sem redirecionar."""
+    p = urllib.parse.urlparse(url)
+    try:
+        ips = {i[4][0] for i in socket.getaddrinfo(p.hostname, p.port or 443, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        raise ErroOAuth("invalid_client", "Não achei o endereço do cliente.") from None
+    if not ips or not all(ipaddress.ip_address(i.split("%")[0]).is_global for i in ips):
+        raise ErroOAuth("invalid_client", "O endereço do cliente não é da internet.")
+    pedido = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "CorrerIA"})
+    try:
+        with urllib.request.build_opener(_SemRedirecionar).open(pedido, timeout=5) as r:
+            corpo = r.read(CIMD_MAX + 1)
+    except (OSError, ValueError):
+        raise ErroOAuth("invalid_client", "Não consegui ler o documento do cliente.") from None
+    if len(corpo) > CIMD_MAX:
+        raise ErroOAuth("invalid_client", "O documento do cliente é grande demais.")
+    return corpo
+
+
 def _com_params(uri, **params):
     p = urllib.parse.urlparse(uri)
     q = urllib.parse.parse_qsl(p.query, keep_blank_values=True) + [(k, v) for k, v in params.items() if v is not None]
@@ -76,8 +121,9 @@ def _mesmo_redirect(registrados, uri):
 
 
 class Autorizacao:
-    def __init__(self, arquivo, gravar, log, ao_pedir=None, relogio=time.time):
+    def __init__(self, arquivo, gravar, log, ao_pedir=None, relogio=time.time, buscar=None):
         self.arquivo, self.gravar, self.log = arquivo, gravar, log
+        self.buscar = buscar or buscar_cimd   # buscar(endereço) → bytes: o documento de um cliente (CIMD)
         self.ao_pedir = ao_pedir   # ao_pedir(pedido): um pedido novo esperando (o aviso no Home Assistant)
         self.agora = relogio
         self.trava = threading.Lock()
@@ -109,7 +155,7 @@ class Autorizacao:
         return {"issuer": base, "authorization_endpoint": base + "/autorizar", "token_endpoint": base + "/token",
                 "registration_endpoint": base + "/registrar", "scopes_supported": [ESCOPO], "response_types_supported": ["code"],
                 "response_modes_supported": ["query"], "grant_types_supported": ["authorization_code", "refresh_token"],
-                "code_challenge_methods_supported": ["S256"],
+                "code_challenge_methods_supported": ["S256"], "client_id_metadata_document_supported": True,
                 "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"]}
 
     # ---------------------------------------------------------------- registro do cliente (RFC 7591)
@@ -135,9 +181,13 @@ class Autorizacao:
             segredo = secrets.token_urlsafe(32)
             cli["segredo"] = _hash(segredo)
             resp.update(client_secret=segredo, client_secret_expires_at=0)
+        self._guardar(cid, cli)
+        return resp
+
+    def _guardar(self, cid, cli):
         with self.trava:
             d = self._ler()
-            if len(d["clientes"]) >= MAX_CLIENTES:  # tira os mais velhos que não têm conexão
+            if cid not in d["clientes"] and len(d["clientes"]) >= MAX_CLIENTES:  # tira os mais velhos que não têm conexão
                 usados = {c.get("cliente") for c in d["conexoes"].values()}
                 for velho in sorted((k for k in d["clientes"] if k not in usados), key=lambda k: d["clientes"][k].get("criado", 0)):
                     if len(d["clientes"]) < MAX_CLIENTES:
@@ -147,7 +197,43 @@ class Autorizacao:
                     raise ErroOAuth("temporarily_unavailable", "Clientes demais registrados.", 503)
             d["clientes"][cid] = cli
             self._salvar(d)
-        return resp
+
+    # ---------------------------------------------------------------- 1.11.0: o cliente pelo endereço (CIMD)
+    def _cliente(self, cid):
+        """O cliente registrado ou, quando o client_id é um endereço, o documento lido nele (de novo a cada dia; se não der
+        para ler de novo, vale o que já foi lido)."""
+        with self.trava:
+            cli = self._ler()["clientes"].get(cid)
+        if not _cimd_url(cid) or (cli and self.agora() - cli.get("lido", 0) < CIMD_VALE):
+            return cli
+        try:
+            novo = self._ler_cimd(cid)
+        except ErroOAuth as e:
+            if cli and cli.get("cimd"):
+                self.log("Conector MCP: não consegui ler de novo o documento de", cid, "·", e.descricao)
+                return cli
+            raise
+        if cli:
+            novo["criado"] = cli.get("criado", novo["criado"])
+        self._guardar(cid, novo)
+        return novo
+
+    def _ler_cimd(self, cid):
+        try:
+            d = json.loads(self.buscar(cid))
+        except ValueError:
+            raise ErroOAuth("invalid_client", "O documento do cliente não é um JSON.") from None
+        if not isinstance(d, dict) or d.get("client_id") != cid:
+            raise ErroOAuth("invalid_client", "O documento do cliente não é deste endereço.")
+        if "client_secret" in d or (d.get("token_endpoint_auth_method") or "none") != "none":
+            raise ErroOAuth("invalid_client", "Pelo endereço, só cliente público (token_endpoint_auth_method none).")
+        uris = d.get("redirect_uris")
+        if not isinstance(uris, list) or not 1 <= len(uris) <= MAX_VOLTAS or not all(isinstance(u, str) and _uri_ok(u) for u in uris):
+            raise ErroOAuth("invalid_client", f"redirect_uris: de 1 a {MAX_VOLTAS} endereços https (ou http no localhost).")
+        nome = re.sub(r"[\x00-\x1f<>]", "", str(d.get("client_name") or "")).strip()[:40] or urllib.parse.urlparse(cid).hostname
+        agora = int(self.agora())
+        self.log("Conector MCP: li o documento do cliente", nome, "em", cid)
+        return {"nome": nome, "redirect_uris": uris, "metodo": "none", "criado": agora, "lido": agora, "cimd": True}
 
     # ---------------------------------------------------------------- autorizar (a página espera a aprovação no painel)
     def _limpar(self):
@@ -161,8 +247,7 @@ class Autorizacao:
         """GET /autorizar: confere o pedido e deixa esperando a aprovação. Devolve o pedido (para a página)."""
         g = lambda k: str((q.get(k) or [""])[0]) if isinstance(q.get(k), list) else str(q.get(k) or "")  # noqa: E731
         cid = g("client_id")
-        with self.trava:
-            cli = self._ler()["clientes"].get(cid)
+        cli = self._cliente(cid)
         if not cli:
             raise ErroOAuth("invalid_client", "Esse cliente não está registrado. Tente conectar de novo.")
         uri = g("redirect_uri") or (cli["redirect_uris"][0] if len(cli["redirect_uris"]) == 1 else "")

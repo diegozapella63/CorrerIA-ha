@@ -9,6 +9,7 @@ import re
 import secrets
 import os
 import shutil
+import socket
 import ssl
 import threading
 from datetime import datetime, timedelta
@@ -949,6 +950,38 @@ class TestHttps(Base):
             self.assertEqual(pedir(url, contexto=ctx)[0], 200)
             self.assertIsNot(hook._ctx, antes)
 
+    def test_anota_a_ultima_conexao_de_fora(self):
+        """1.11.0: a última conexão que chegou de fora (de um endereço da internet) e se o https fechou; as do próprio
+        computador e da rede da casa não contam."""
+        ssl_dir = pasta_temp()
+        certificado(ssl_dir)
+        S.FORA.update(em=None, ok=None, erro="")
+        self.addCleanup(S.FORA.update, em=None, ok=None, erro="")
+        with mock.patch.object(S, "SSL_DIR", ssl_dir):
+            hook = S.ServidorWebhook(("127.0.0.1", 0), S.Webhook)
+            threading.Thread(target=hook.serve_forever, daemon=True).start()
+            self.addCleanup(hook.server_close)
+            self.addCleanup(hook.shutdown)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+            url = f"https://127.0.0.1:{hook.server_address[1]}/.well-known/oauth-protected-resource"
+            pedir(url, contexto=ctx)
+            self.assertIsNone(S.estado()["webhook"]["fora"]["em"], "do próprio computador não conta")
+
+            def esperar(cond):
+                fim = time.time() + 3
+                while not cond() and time.time() < fim:
+                    time.sleep(0.02)
+            with mock.patch.object(S, "de_fora", return_value=True):
+                with self.assertRaises((urllib.error.URLError, ConnectionError, OSError)):
+                    pedir(url.replace("https", "http"))
+                esperar(lambda: S.FORA["em"])
+                self.assertEqual((S.FORA["ok"], S.FORA["erro"]), (False, "chegou sem https"))
+                pedir(url, contexto=ctx)
+                esperar(lambda: S.FORA["ok"])
+                self.assertEqual((S.FORA["ok"], S.FORA["erro"]), (True, ""))
+            self.assertEqual(S.estado()["webhook"]["fora"]["ok"], True)
+
     def test_sem_certificado_fica_em_http(self):
         with mock.patch.object(S, "SSL_DIR", pasta_temp()):
             self.assertIsNone(S.certificado())
@@ -1291,6 +1324,49 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------------------------------------------------
+class TestCaminhoDeFora(unittest.TestCase):
+    """1.11.0: o que ajuda a achar o que falta para chegar de fora (o Duck DNS, o roteador ou o certificado)."""
+
+    def test_de_fora(self):
+        for ip in ("8.8.8.8", "::ffff:8.8.8.8", "2001:4860:4860::8888"):
+            self.assertTrue(S.de_fora(ip), ip)
+        for ip in ("127.0.0.1", "192.168.0.2", "10.1.2.3", "100.64.1.1", "::1", "::ffff:192.168.1.1", "fe80::1%eth0", "nada", ""):
+            self.assertFalse(S.de_fora(ip), ip)
+
+    def test_motivo_tls(self):
+        def erro(reason):
+            e = ssl.SSLError(1, reason)
+            e.reason = reason
+            return e
+        self.assertEqual(S.motivo_tls(erro("SSLV3_ALERT_CERTIFICATE_UNKNOWN")), "o aparelho recusou o certificado")
+        self.assertEqual(S.motivo_tls(erro("TLSV1_ALERT_UNKNOWN_CA")), "o aparelho recusou o certificado")
+        self.assertEqual(S.motivo_tls(erro("HTTP_REQUEST")), "chegou sem https")
+        self.assertEqual(S.motivo_tls(erro("WRONG_VERSION_NUMBER")), "chegou sem https")
+        self.assertEqual(S.motivo_tls(socket.timeout("timed out")), "demorou demais")
+        self.assertEqual(S.motivo_tls(ConnectionResetError("reset")), "o https não fechou")
+
+    def test_o_certificado_e_do_endereco(self):
+        self.assertIs(S.certificado_confere("https://casa-exemplo.duckdns.org:8443", "casa-exemplo.duckdns.org"), True)
+        self.assertIs(S.certificado_confere("https://Casa-Exemplo.duckdns.org", "casa-exemplo.duckdns.org"), True)
+        self.assertIs(S.certificado_confere("https://casa-exemplo.duckdns.org", "outra-casa.duckdns.org"), False)
+        self.assertIs(S.certificado_confere("https://casa-exemplo.duckdns.org", "*.duckdns.org"), True)
+        self.assertIs(S.certificado_confere("https://x.casa-exemplo.duckdns.org", "*.duckdns.org"), False)
+        self.assertIsNone(S.certificado_confere("", "casa-exemplo.duckdns.org"))
+        self.assertIsNone(S.certificado_confere("https://casa-exemplo.duckdns.org", ""))
+
+    def test_no_estado(self):
+        from datetime import datetime, timezone
+        vence = datetime(2027, 1, 1, tzinfo=timezone.utc)
+        with mock.patch.object(S, "certificado", return_value=("/ssl/fullchain.pem", "/ssl/privkey.pem")), \
+                mock.patch.object(S, "validade_certificado", return_value=(vence, "outra-casa.duckdns.org")), \
+                mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "endereco": "https://casa-exemplo.duckdns.org:8443"}):
+            w = S.estado()["webhook"]
+        self.assertEqual((w["cert_nome"], w["cert_vence"], w["cert_confere"]), ("outra-casa.duckdns.org", "2027-01-01T00:00:00+00:00", False))
+        with mock.patch.object(S, "certificado", return_value=None):
+            w = S.estado()["webhook"]
+        self.assertEqual((w["cert_nome"], w["cert_vence"], w["cert_confere"]), ("", None, None))
+
+
 class TestSensores(Base):
     """0.14.0: sensor.correria_certificado e binary_sensor.correria_whatsapp, com Sensores ligado."""
 

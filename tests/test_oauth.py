@@ -7,6 +7,7 @@ import os
 import secrets
 import unittest
 import urllib.parse
+from unittest import mock
 
 from tests.base import pasta_temp
 import oauth as O
@@ -273,6 +274,139 @@ class TestOAuth(unittest.TestCase):
         h = O.pagina("Conectar", "<h1>Oi</h1>")
         self.assertIn("<title>Conectar · CorrerIA</title>", h)
         self.assertIn('lang="pt-BR"', h)
+
+
+
+DOC = "https://ia-exemplo.com/oauth/cliente.json"
+
+
+class TestCIMD(unittest.TestCase):
+    """1.11.0: o client_id que é um endereço (Client ID Metadata Document): o CorrerIA lê o documento do cliente nele, sem
+    registro; o resto (o código, a aprovação, o token) é igual."""
+
+    def setUp(self):
+        self.arq = os.path.join(pasta_temp(), "mcp.json")
+        self.rel = Relogio()
+        self.lidos, self.log = [], []
+        self.doc = {"client_id": DOC, "client_name": "IA de exemplo", "redirect_uris": [VOLTA], "token_endpoint_auth_method": "none"}
+        self.a = O.Autorizacao(self.arq, gravar, lambda *x: self.log.append(x), relogio=self.rel, buscar=self.buscar)
+
+    def buscar(self, url):
+        self.lidos.append(url)
+        if isinstance(self.doc, Exception):
+            raise self.doc
+        return self.doc if isinstance(self.doc, bytes) else json.dumps(self.doc).encode()
+
+    def pedir(self, cid=DOC, **extra):
+        v, d = pkce()
+        q = {"response_type": "code", "client_id": cid, "redirect_uri": VOLTA, "code_challenge": d, "code_challenge_method": "S256",
+             "state": "s1", **extra}
+        return v, self.a.pedir({k: [x] for k, x in q.items()}, BASE)
+
+    def test_o_servidor_diz_que_aceita(self):
+        self.assertIs(O.Autorizacao.servidor(BASE)["client_id_metadata_document_supported"], True)
+
+    def test_caminho_todo_sem_registro(self):
+        v, p = self.pedir()
+        self.assertEqual((p["nome"], p["host"]), ("IA de exemplo", "claude.ai"))
+        self.assertEqual(self.lidos, [DOC])
+        self.a.decidir(p["id"], True, ANA)
+        code = urllib.parse.parse_qs(urllib.parse.urlparse(self.a.situacao(p["id"])["ir"]).query)["code"][0]
+        tok = self.a.trocar({"grant_type": "authorization_code", "code": code, "redirect_uri": VOLTA, "client_id": DOC, "code_verifier": v})
+        self.assertEqual(self.a.conexao(tok["access_token"])["nome"], "IA de exemplo")
+        ren = self.a.trocar({"grant_type": "refresh_token", "refresh_token": tok["refresh_token"], "client_id": DOC})
+        self.assertIsNotNone(self.a.conexao(ren["access_token"]), "renova pelo mesmo endereço")
+
+    def test_le_de_novo_depois_de_um_dia(self):
+        self.pedir()
+        self.pedir()
+        self.assertEqual(len(self.lidos), 1, "no mesmo dia, o que já foi lido")
+        self.rel.t += O.CIMD_VALE + 1
+        self.doc["client_name"] = "IA de exemplo 2"
+        _, p = self.pedir()
+        self.assertEqual((len(self.lidos), p["nome"]), (2, "IA de exemplo 2"))
+        self.rel.t += O.CIMD_VALE + 1
+        self.doc = O.ErroOAuth("invalid_client", "Não consegui ler o documento do cliente.")
+        _, p = self.pedir()
+        self.assertEqual(p["nome"], "IA de exemplo 2", "sem conseguir ler de novo, vale o que já foi lido")
+        self.assertTrue(any("não consegui ler de novo" in " ".join(map(str, x)) for x in self.log))
+
+    def test_documentos_que_nao_valem(self):
+        casos = [
+            ({**self.doc, "client_id": "https://outro.com/x.json"}, "não é deste endereço"),
+            ({**self.doc, "token_endpoint_auth_method": "client_secret_post"}, "só cliente público"),
+            ({**self.doc, "client_secret": "abc"}, "só cliente público"),
+            ({**self.doc, "redirect_uris": ["http://golpe.com/volta"]}, "redirect_uris"),
+            ({**self.doc, "redirect_uris": []}, "redirect_uris"),
+            ([DOC], "não é deste endereço"),
+            (b"<html>", "não é um JSON"),
+            (O.ErroOAuth("invalid_client", "Não consegui ler o documento do cliente."), "Não consegui ler"),
+        ]
+        for doc, erro in casos:
+            with self.subTest(erro=erro):
+                self.doc = doc
+                with self.assertRaisesRegex(O.ErroOAuth, erro):
+                    self.pedir()
+        self.doc = {**self.doc_bom(), "redirect_uris": ["https://claude.ai/outra"]}
+        with self.assertRaisesRegex(O.ErroOAuth, "diferente do registrado"):
+            self.pedir()
+
+    def doc_bom(self):
+        return {"client_id": DOC, "client_name": "", "redirect_uris": [VOLTA]}
+
+    def test_so_endereco_de_verdade_vira_documento(self):
+        for cid in ("http://ia-exemplo.com/c.json", "https://ia-exemplo.com", "https://ia-exemplo.com/", "https://ia-exemplo.com/a/../b",
+                    "https://ia-exemplo.com/c.json#x", "https://eu:senha@ia-exemplo.com/c.json", "c-qualquer"):
+            with self.subTest(cid=cid), self.assertRaisesRegex(O.ErroOAuth, "não está registrado"):
+                self.pedir(cid)
+        self.assertEqual(self.lidos, [], "nada foi baixado")
+        self.doc = self.doc_bom()
+        _, p = self.pedir()
+        self.assertEqual(p["nome"], "ia-exemplo.com", "sem nome, o do endereço")
+
+
+class Resposta:
+    def __init__(self, corpo):
+        self.corpo = corpo
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self, n):
+        return self.corpo[:n]
+
+
+class TestBuscarCIMD(unittest.TestCase):
+    """buscar_cimd: só um endereço da internet (nada da rede da casa), até 5 KB, sem redirecionar."""
+
+    def ips(self, *ips):
+        return mock.patch.object(O.socket, "getaddrinfo", return_value=[(2, 1, 6, "", (ip, 443)) for ip in ips])
+
+    def test_le_o_documento(self):
+        with self.ips("93.184.216.34"), mock.patch.object(O.urllib.request.OpenerDirector, "open", return_value=Resposta(b'{"a": 1}')) as ab:
+            self.assertEqual(O.buscar_cimd(DOC), b'{"a": 1}')
+        self.assertEqual(ab.call_args.kwargs["timeout"], 5)
+
+    def test_nada_da_rede_da_casa(self):
+        for ip in ("127.0.0.1", "192.168.0.10", "10.0.0.2", "169.254.169.254", "::1", "fe80::1%eth0"):
+            with self.subTest(ip=ip), self.ips("93.184.216.34", ip), self.assertRaisesRegex(O.ErroOAuth, "não é da internet"):
+                O.buscar_cimd(DOC)
+
+    def test_erros(self):
+        with mock.patch.object(O.socket, "getaddrinfo", side_effect=OSError("sem nome")), self.assertRaisesRegex(O.ErroOAuth, "Não achei"):
+            O.buscar_cimd(DOC)
+        with self.ips("93.184.216.34"), mock.patch.object(O.urllib.request.OpenerDirector, "open", side_effect=OSError("recusou")), \
+                self.assertRaisesRegex(O.ErroOAuth, "Não consegui ler"):
+            O.buscar_cimd(DOC)
+        with self.ips("93.184.216.34"), mock.patch.object(O.urllib.request.OpenerDirector, "open", return_value=Resposta(b"x" * (O.CIMD_MAX + 9))), \
+                self.assertRaisesRegex(O.ErroOAuth, "grande demais"):
+            O.buscar_cimd(DOC)
+
+    def test_nao_redireciona(self):
+        self.assertIsNone(O._SemRedirecionar().redirect_request(None, None, 302, "Found", {}, "https://outro.com"))
 
 
 if __name__ == "__main__":

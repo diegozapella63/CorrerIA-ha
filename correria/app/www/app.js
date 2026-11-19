@@ -216,10 +216,25 @@
     </section>`;
   }
 
+  // 1.11.0: o caminho de fora até aqui: de que endereço é o certificado, a porta no endereço e a última conexão de fora
+  // (assim dá para saber se o que falta é o Duck DNS, o roteador ou o certificado)
+  function caminhoDeFora(e, semCert) {
+    const w = e.webhook || {}, end = (e.config || {}).endereco || '', f = w.fora || {}, out = [];
+    if (!w.https) out.push(`<div class="status manual">${semCert}</div>`);
+    else if (w.cert_confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
+    else out.push(`<div class="status">Certificado ${w.cert_nome ? 'de ' + esc(w.cert_nome) : esc(w.certificado)} · porta ${w.porta}</div>`);
+    let u = null;
+    try { u = end ? new URL(end) : null; } catch (_) { u = null; }
+    if (u && !u.port && Number(w.porta) !== 443) out.push(`<div class="status manual" data-porta><span>Sem <b>:${w.porta}</b> no fim do endereço, só chega aqui se o roteador mandar a porta 443 para a ${w.porta}.</span></div>`);
+    if (end && w.https) out.push(!f.em ? `<div class="status manual" data-fora><span><b>Nenhuma conexão de fora desde que o app abriu</b> · Pelo 5G, abra o endereço do conector.</span></div>`
+      : f.ok ? `<div class="status" data-fora>Chegou uma conexão de fora ${quando(f.em)}.</div>`
+        : `<div class="status erro" data-fora><span><b>Chegou de fora ${quando(f.em)}, mas não abriu</b> · ${esc(f.erro)}.</span></div>`);
+    return out.join('');
+  }
+
   function cardWebhook(e) {
     const c = e.config, w = e.webhook;
-    const cert = w.https ? `<div class="status">Certificado ${esc(w.certificado)} · porta ${w.porta}</div>`
-      : `<div class="status manual">Sem certificado: instale o app Duck DNS com o Let's Encrypt (a Meta só aceita https).</div>`;
+    const cert = caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (a Meta só aceita https).");
     const meta = w.ultimo ? `<div class="status">Última mensagem da Meta ${quando(w.ultimo)}.</div>`
       : w.verificado_em ? `<div class="status">A Meta confirmou o endereço ${quando(w.verificado_em)}.</div>`
         : '<div class="status manual">A Meta ainda não chamou.</div>';
@@ -299,9 +314,9 @@
     const w = e.webhook || {};  // 0.15.0: o endereço público e o certificado aqui também (antes: "Escreva o endereço público na aba WhatsApp")
     const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público')}
         <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : e.config.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
-      ${w.https ? `<div class="status">Certificado ${esc(w.certificado)} · porta ${w.porta}</div>` : `<div class="status manual">Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).</div>`}`;
+      ${caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).")}`;
     const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
-      ${conexoes ? '' : `<ol class="passos"><li>Na IA, adicione um <b>conector personalizado</b> com este endereço.</li><li>Aprove aqui o pedido com o código que aparece lá.</li></ol>`}`
+      ${conexoes ? '' : `<ol class="passos"><li>Toque em <b>Copiar</b>.</li><li>Na IA, em Conectores, adicione um <b>conector personalizado</b> e cole o endereço.</li><li>Ao entrar, abre uma página com um <b>código</b>: aprove aqui o pedido com o mesmo código.</li></ol>`}`
       : '';
     // 0.16.3: tudo o que depende do conector (os pedidos, os endereços, os conectados e as Últimas mudanças) fica num
     // quadro recuado logo abaixo de Ligar o conector, dentro do cartão dele
@@ -447,9 +462,9 @@
   function cardConversas(e) {
     const d = APAGAR_DIAS.includes(e.apagar_dias) ? e.apagar_dias : 30;
     return `<section class="card" id="conversas-velhas">${cab('conversas', 'Conversas')}
-      <div class="campo">${tituloLinha('trash', 'Apagar as paradas há mais de')}
-        <div class="chips-tempo" role="radiogroup" aria-label="Apagar as conversas paradas há mais de">${APAGAR_DIAS.map(n => `<button role="radio" aria-checked="${d === n}" class="chip${d === n ? ' on' : ''}" data-a="apagar-dias" data-v="${n}">${ic(n ? 'calendar' : 'x', 'ic-s')}${n ? n + ' dias' : 'Nunca'}</button>`).join('')}</div>
-        <span class="dica">As da tela e as mensagens do WhatsApp.</span></div></section>`;
+      <div class="campo">${tituloLinha('clock', 'Guardar as conversas por')}
+        <div class="chips-tempo" role="radiogroup" aria-label="Guardar as conversas por">${APAGAR_DIAS.map(n => `<button role="radio" aria-checked="${d === n}" class="chip${d === n ? ' on' : ''}" data-a="apagar-dias" data-v="${n}">${ic(n ? 'calendar' : 'check', 'ic-s')}${n ? n + ' dias' : 'Sempre'}</button>`).join('')}</div>
+        <span class="dica">Sem uso por esse tempo, saem sozinhas: as da tela e as mensagens do WhatsApp.</span></div></section>`;
   }
   function cardTelaCheia(e) {
     if (!e.painel) return '';
@@ -549,14 +564,26 @@
     ed.lista.push(t); ed.rascunho = ''; render();
     const inp = $('#ch-ed-txt'); if (inp) inp.focus();
   }
+  // 1.11.0: em Editar perguntas, Perguntas prontas e Mais perguntas fecham num toque no título, com a seta no canto (o
+  // aparelho lembra, em correria-perguntas); de início, as duas abertas
+  function edFechadas() {
+    try { const o = JSON.parse(guardada('correria-perguntas') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; }
+  }
+  function edDobrar(k) {
+    const o = edFechadas();
+    o[k] = !o[k];
+    guardar('correria-perguntas', JSON.stringify(o));
+  }
+  const edCab = (k, icone, titulo, fechada) => `<button type="button" class="ch-ed-h ch-ed-dobra${k === 'mais' ? ' ch-ed-mais' : ''}" data-a="ch-ed-dobra" data-v="${k}" aria-expanded="${!fechada}">${ic(icone, 'ic-s')}<span>${titulo}</span><span class="dobra-ic" aria-hidden="true">${ic('chev', 'ic-s')}</span></button>`;
   function blocoPerguntas(e) {
     const ed = S.ch.editando;
-    if (ed) return `<div class="ch-ed"><p class="ch-ed-h">${ic('nova', 'ic-s')}Perguntas prontas</p>
-        ${ed.lista.map((q, i) => `<div class="ch-ed-lin"><span>${esc(q)}</span><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
+    const F = edFechadas();
+    if (ed) return `<div class="ch-ed">${edCab('prontas', 'nova', `Perguntas prontas (${ed.lista.length})`, F.prontas)}
+        ${F.prontas ? '' : `${ed.lista.map((q, i) => `<div class="ch-ed-lin"><span>${esc(q)}</span><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
         <div class="ch-ed-nova"><input id="ch-ed-txt" class="inp" maxlength="120" placeholder="Nova pergunta" aria-label="Nova pergunta" enterkeyhint="done" value="${esc(ed.rascunho || '')}">
-          <button class="btn out" data-a="ch-ed-add">${ic('plus', 'ic-s')}Adicionar</button></div>
-        ${((mais) => mais.length ? `<p class="ch-ed-h ch-ed-mais">${ic('sparkles', 'ic-s')}Mais perguntas (${mais.length})</p>
-          ${mais.map(q => `<button class="ch-ed-lin ch-ed-modelo" data-a="ch-ed-por" data-v="${esc(q)}" aria-label="Pôr “${esc(q)}”"><span>${esc(q)}</span><span class="ch-ed-mais-ic">${ic('plus', 'ic-s')}</span></button>`).join('')}` : '')(
+          <button class="btn out" data-a="ch-ed-add">${ic('plus', 'ic-s')}Adicionar</button></div>`}
+        ${((mais) => mais.length ? `${edCab('mais', 'sparkles', `Mais perguntas (${mais.length})`, F.mais)}
+          ${F.mais ? '' : mais.map(q => `<button class="ch-ed-lin ch-ed-modelo" data-a="ch-ed-por" data-v="${esc(q)}" aria-label="Pôr “${esc(q)}”"><span>${esc(q)}</span><span class="ch-ed-mais-ic">${ic('plus', 'ic-s')}</span></button>`).join('')}` : '')(
           perguntas(e).modelos.filter(q => !ed.lista.includes(q)))}
         <div class="ch-ed-bts"><button class="btn out" data-a="ch-ed-padrao">${ic('refresh', 'ic-s')}Padrão</button><button class="btn pri" data-a="ch-ed-pronto">${ic('check', 'ic-s')}Pronto</button></div></div>`;
     const { lista } = perguntas(e);
@@ -1116,7 +1143,7 @@
       await acao('config', { recolher: Number(el.dataset.v) }, 'Salvo');
     } else if (a === 'apagar-dias') {  // 1.7.0
       const n = Number(el.dataset.v);
-      await acao('config', { apagar_dias: n }, n ? `As conversas paradas há mais de ${n} dias saem sozinhas` : 'As conversas ficam guardadas');
+      await acao('config', { apagar_dias: n }, n ? `As conversas sem uso por ${n} dias saem sozinhas` : 'As conversas ficam guardadas');
       S.ch.lista = undefined;
     } else if (a === 'sensores') {
       const on = !!(S.e.sensores && S.e.sensores.ligado);
@@ -1182,6 +1209,8 @@
       Object.assign(S.ch, { rapidas: !(S.ch.rapidas || S.ch.editando), editando: null, menu: false }); render();
     } else if (a === 'ch-ed-abrir') {
       Object.assign(S.ch, { editando: { lista: perguntas(S.e).lista.slice(), rascunho: '' }, menu: false }); render();
+    } else if (a === 'ch-ed-dobra') {
+      edDobrar(el.dataset.v); render();
     } else if (a === 'ch-ed-por') {
       if (!S.ch.editando.lista.includes(el.dataset.v)) S.ch.editando.lista.push(el.dataset.v);
       render();

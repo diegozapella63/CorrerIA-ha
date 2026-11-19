@@ -62,6 +62,7 @@ class Tela(unittest.TestCase):
         shutil.rmtree(S.SHARE_DIR, ignore_errors=True)
         os.makedirs(S.SHARE_DIR)
         S.ESTADO.update(ultimo_webhook=None, verificado_em=None, conta=None, conta_em=None)
+        S.FORA.update(em=None, ok=None, erro="")
         self.meta.pedidos.clear()
         self.app.pedidos.clear()
         self.erros = []
@@ -359,6 +360,36 @@ class Tela(unittest.TestCase):
         p = S.AUT.pedir({"response_type": ["code"], "client_id": [cli["client_id"]], "code_challenge": [d], "code_challenge_method": ["S256"]}, "https://x")
         return cli, v, p
 
+    def test_o_caminho_de_fora(self):
+        """1.11.0: no MCP e no Webhook, de que endereço é o certificado, a porta que falta no endereço e a última conexão de
+        fora, para saber se o que falta é o Duck DNS, o roteador ou o certificado."""
+        from datetime import datetime, timezone
+        cc = ("/ssl/fullchain.pem", "/ssl/privkey.pem")
+        vence = datetime(2027, 1, 1, tzinfo=timezone.utc)
+        S.salvar_config({"mcp": True, "whatsapp": True, "endereco": "https://casa-exemplo.duckdns.org"})
+        with mock.patch.object(S, "certificado", return_value=cc), mock.patch.object(S, "validade_certificado", return_value=(vence, "outra-casa.duckdns.org")):
+            self.abrir()
+            self.opcoes("mcp")
+            t = self.texto("#mcp")
+            self.assertIn("O certificado é de outra-casa.duckdns.org · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.", t)
+            self.assertIn("Sem :8443 no fim do endereço, só chega aqui se o roteador mandar a porta 443 para a 8443.", t)
+            self.assertIn("Nenhuma conexão de fora desde que o app abriu · Pelo 5G, abra o endereço do conector.", t)
+            self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        S.salvar_config({"endereco": "https://casa-exemplo.duckdns.org:8443"})
+        S.FORA.update(em=S.agora_iso(), ok=False, erro="o aparelho recusou o certificado")
+        with mock.patch.object(S, "certificado", return_value=cc), mock.patch.object(S, "validade_certificado", return_value=(vence, "casa-exemplo.duckdns.org")):
+            self.pg.reload()
+            self.opcoes("mcp")
+            t = self.texto("#mcp")
+            self.assertIn("Certificado de casa-exemplo.duckdns.org · porta 8443", t)
+            self.assertNotIn("Sem :8443", t)
+            self.assertRegex(self.texto("#mcp [data-fora]"), r"^Chegou de fora hoje às \d\d:\d\d, mas não abriu · o aparelho recusou o certificado\.$")
+            S.FORA.update(ok=True, erro="")
+            self.pg.reload()
+            self.opcoes("whatsapp")
+            self.assertRegex(self.texto("#webhook [data-fora]"), r"^Chegou uma conexão de fora hoje às \d\d:\d\d\.$", "no Webhook também")
+            self.assertIn("Certificado de casa-exemplo.duckdns.org · porta 8443", self.texto("#webhook"))
+
     def test_claude_e_gemini(self):
         S.salvar_config({"whatsapp": True})
         self.abrir()
@@ -384,7 +415,8 @@ class Tela(unittest.TestCase):
         self.pg.click('.abas [data-v="whatsapp"]')
         self.assertEqual(self.pg.input_value("#f-endereco"), "https://casa-exemplo.duckdns.org:8443", "o mesmo endereço do webhook")
         self.pg.click('.abas [data-v="mcp"]')
-        self.assertEqual(self.texto("#mcp .passos"), "Na IA, adicione um conector personalizado com este endereço.\nAprove aqui o pedido com o código que aparece lá.")
+        self.assertEqual(self.texto("#mcp .passos"), "Toque em Copiar.\nNa IA, em Conectores, adicione um conector personalizado e cole o endereço.\n"
+                         "Ao entrar, abre uma página com um código: aprove aqui o pedido com o mesmo código.")
         self.assertNotRegex(self.texto("#mcp"), "Claude|Gemini|ChatGPT")
         cli, v, p = self.pedido()
         self.pg.wait_for_selector(".pedido", timeout=8000)  # aparece sozinho (a tela confere a cada 4 segundos)
@@ -983,6 +1015,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.click('[data-a="ch-rapidas"]')
         self.assertEqual(self.pg.locator(".ch-rapidas .chip").count(), 7)
         self.assertEqual(self.pg.get_attribute('[data-a="ch-rapidas"]', "aria-expanded"), "true")
+
         self.pg.click('.ch-rapidas [data-a="ch-sug"] >> nth=2')
         self.pg.wait_for_function("() => document.querySelectorAll('.ch-msg.eu').length === 2")
         self.assertEqual(self.pg.locator(".ch-rapidas").count(), 0, "perguntar fecha as perguntas")
@@ -995,6 +1028,33 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertIsNone(self.pg.evaluate("localStorage.getItem('correria-perguntas')"), "as dos apps: nada guardado")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.assertEqual(self.erros, [])
+
+
+    def test_recolher_as_perguntas(self):
+        """1.11.0: em Editar perguntas, Perguntas prontas e Mais perguntas fecham num toque no título (a seta no canto) e o
+        aparelho lembra; de início, as duas abertas, com a contagem."""
+        self.abrir_conversa()
+        self.pg.click('[data-a="ch-ed-abrir"]')
+        cabs = '[data-a="ch-ed-dobra"]'
+        self.assertEqual([t.strip() for t in self.pg.locator(cabs).all_inner_texts()], ["Perguntas prontas (6)", "Mais perguntas (3)"])
+        self.assertEqual(self.pg.locator(f'{cabs}[aria-expanded="true"]').count(), 2, "de início, abertas")
+        self.pg.click(f'{cabs}[data-v="mais"]')
+        self.assertEqual(self.pg.get_attribute(f'{cabs}[data-v="mais"]', "aria-expanded"), "false")
+        self.assertEqual(self.pg.locator(".ch-ed-modelo").count(), 0, "fechada, sem os modelos")
+        self.assertEqual(self.pg.locator(".ch-ed-lin:not(.ch-ed-modelo)").count(), 6, "as prontas continuam")
+        self.pg.click(f'{cabs}[data-v="prontas"]')
+        self.assertEqual((self.pg.locator(".ch-ed-lin").count(), self.pg.locator("#ch-ed-txt").count()), (0, 0), "as duas fechadas")
+        self.assertEqual(self.pg.locator(".ch-ed-bts .btn").count(), 2, "Padrão e Pronto ficam")
+        girada = self.pg.evaluate("getComputedStyle(document.querySelector('[data-v=\"mais\"] .dobra-ic')).transform")
+        self.assertEqual(girada, "none", "fechada, a seta deitada")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        self.pg.reload()
+        self.pg.wait_for_selector('[data-a="ch-ed-abrir"]')
+        self.pg.click('[data-a="ch-ed-abrir"]')
+        self.assertEqual(self.pg.locator(f'{cabs}[aria-expanded="false"]').count(), 2, "o aparelho lembra")
+        self.pg.click(f'{cabs}[data-v="prontas"]')
+        self.pg.click(f'{cabs}[data-v="mais"]')
+        self.assertEqual((self.pg.locator(".ch-ed-lin:not(.ch-ed-modelo)").count(), self.pg.locator(".ch-ed-modelo").count()), (6, 3))
 
     def test_mandar_uma_foto(self):
         self.abrir_conversa()
@@ -1177,7 +1237,8 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector("#conversas-velhas")
         self.assertEqual(self.texto("#conversas-velhas h2"), "Conversas")
         chips = [t.strip() for t in self.pg.locator("#conversas-velhas .chip").all_inner_texts()]
-        self.assertEqual(chips, ["7 dias", "30 dias", "90 dias", "Nunca"])
+        self.assertEqual(chips, ["7 dias", "30 dias", "90 dias", "Sempre"])
+        self.assertEqual(self.texto("#conversas-velhas .campo > b"), "Guardar as conversas por")
         self.assertEqual(self.texto('#conversas-velhas .chip[aria-checked="true"]'), "30 dias", "30 de início")
         self.pg.click('#conversas-velhas [data-v="0"]')
         self.pg.wait_for_selector('#conversas-velhas [data-v="0"][aria-checked="true"]')

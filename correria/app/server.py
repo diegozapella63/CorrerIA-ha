@@ -11,6 +11,7 @@ Dois servidores (só biblioteca padrão do Python):
   /token); o resto responde 404.
 """
 import base64
+import ipaddress
 import json
 import mimetypes
 import os
@@ -741,6 +742,47 @@ def certificado():
     return None
 
 
+# 1.11.0: a última conexão que chegou de fora de casa na porta pública, e se o https fechou, para saber se o problema é o
+# caminho até aqui (o roteador, o Duck DNS) ou o certificado
+FORA = {"em": None, "ok": None, "erro": ""}
+
+
+def de_fora(ip):
+    """Um endereço da internet (não da rede da casa nem deste computador)."""
+    try:
+        a = ipaddress.ip_address(str(ip).split("%")[0])
+    except ValueError:
+        return False
+    a = a.ipv4_mapped or a if a.version == 6 else a
+    return a.is_global
+
+
+def motivo_tls(e):
+    """O porquê de o https não fechar, em poucas palavras."""
+    t = str(getattr(e, "reason", "") or e).upper()
+    if "CERTIFICATE" in t or "UNKNOWN_CA" in t or "BAD_CERT" in t:
+        return "o aparelho recusou o certificado"
+    if "WRONG_VERSION" in t or "HTTP_REQUEST" in t:
+        return "chegou sem https"
+    if "TIMED OUT" in t or isinstance(e, socket.timeout):
+        return "demorou demais"
+    return "o https não fechou"
+
+
+def anotar_fora(ip, ok, erro=""):
+    if de_fora(ip):
+        FORA.update(em=agora_iso(), ok=ok, erro=erro)
+
+
+def certificado_confere(endereco, nome):
+    """O certificado é do endereço público (ou de um curinga *.dominio dele)? None: não dá para saber."""
+    host = (urllib.parse.urlparse(endereco or "").hostname or "").lower()
+    nome = (nome or "").lower()
+    if not host or not nome:
+        return None
+    return host == nome or (nome.startswith("*.") and host.endswith(nome[1:]) and host.count(".") == nome.count("."))
+
+
 class ServidorWebhook(ThreadingHTTPServer):
     """https com o certificado de /ssl (relido quando o Duck DNS renova); sem certificado, http."""
     daemon_threads = True
@@ -943,8 +985,14 @@ class Webhook(BaseHTTPRequestHandler):
 
     def setup(self):
         self.request.settimeout(15)
+        ip = self.client_address[0] if self.client_address else ""
         if isinstance(self.request, ssl.SSLSocket):
-            self.request.do_handshake()
+            try:
+                self.request.do_handshake()
+            except (OSError, ssl.SSLError) as e:
+                anotar_fora(ip, False, motivo_tls(e))
+                raise
+        anotar_fora(ip, True)
         super().setup()
 
     def log_message(self, fmt, *args):
@@ -1138,6 +1186,12 @@ def versao_tupla(v):
     return tuple(int(x) for x in m.groups()) if m else (0,)
 
 
+def _cert_do_endereco(cc, endereco):
+    vence, nome = validade_certificado(cc[0]) if cc else (None, "")
+    return {"cert_nome": nome, "cert_vence": vence.isoformat(timespec="seconds") if vence else None,
+            "cert_confere": certificado_confere(endereco, nome)}
+
+
 def estado():
     c = ler_config()
     nums = c["pessoas"]
@@ -1165,7 +1219,9 @@ def estado():
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
-                    "verificado_em": ESTADO["verificado_em"], "ultimo": ESTADO["ultimo_webhook"]},
+                    "verificado_em": ESTADO["verificado_em"], "ultimo": ESTADO["ultimo_webhook"],
+                    # 1.11.0: de quem é o certificado (e se é do endereço público) e a última conexão de fora
+                    **_cert_do_endereco(cc, c["endereco"]), "fora": dict(FORA)},
         "pessoas": pessoas,
         "apps": lista,
         "fala": FALA.status(),

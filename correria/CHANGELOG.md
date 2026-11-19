@@ -1,5 +1,13 @@
 # Mudanças
 
+## 1.11.0
+
+- **Conector MCP**: a opção que o Claude recomenda no login (a identidade publicada da IA) passa a funcionar. O registro automático continua valendo.
+- **Conector MCP e Webhook**: o cartão mostra de que endereço é o certificado e avisa quando é de outro. Avisa também quando falta a porta no fim do endereço e quando chegou (ou não) uma conexão de fora de casa, e se ela abriu. Assim fica claro se o que falta é o Duck DNS, o roteador ou o certificado.
+- **Conector MCP**: o passo a passo ficou mais claro: copiar, adicionar o conector personalizado e aprovar o código.
+- **Editar perguntas**: **Perguntas prontas** e **Mais perguntas** fecham num toque no título, com a seta no canto. O aparelho lembra.
+- **Configurações › Opções › Conversas**: agora é **Guardar as conversas por** 7, 30 ou 90 dias, ou **Sempre**.
+
 ## 1.10.0
 
 - **Sim e Não para tocar**: quando a IA vai mudar algo nos apps, a conversa mostra os botões **Sim** e **Não** embaixo da mensagem, e o WhatsApp também, com botões. Escrever sim continua valendo.
