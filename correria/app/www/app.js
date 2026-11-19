@@ -579,7 +579,7 @@
     const ed = S.ch.editando;
     const F = edFechadas();
     if (ed) return `<div class="ch-ed">${edCab('prontas', 'nova', `Perguntas prontas (${ed.lista.length})`, F.prontas)}
-        ${F.prontas ? '' : `${ed.lista.map((q, i) => `<div class="ch-ed-lin"><span>${esc(q)}</span><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
+        ${F.prontas ? '' : `${ed.lista.map((q, i) => `<div class="ch-ed-lin"><textarea id="ch-ed-q-${i}" class="ch-ed-txt" data-ed-i="${i}" rows="${Math.min(4, Math.max(1, Math.ceil(q.length / 32)))}" maxlength="120" enterkeyhint="done" data-size="off" aria-label="Mudar “${esc(q)}”">${esc(q)}</textarea><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
         <div class="ch-ed-nova"><input id="ch-ed-txt" class="inp" maxlength="120" placeholder="Nova pergunta" aria-label="Nova pergunta" enterkeyhint="done" value="${esc(ed.rascunho || '')}">
           <button class="btn out" data-a="ch-ed-add">${ic('plus', 'ic-s')}Adicionar</button></div>`}
         ${((mais) => mais.length ? `${edCab('mais', 'sparkles', `Mais perguntas (${mais.length})`, F.mais)}
@@ -1002,12 +1002,17 @@
     const e = S.e;
     if (!e) return;
     const ativo = document.activeElement && document.activeElement.id;
+    const sel = ativo && 'selectionStart' in document.activeElement ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
     document.body.dataset.tela = S.tela || 'conversa';
     document.body.classList.toggle('lado', lateral());
     pintarLado();
     aplicarCor();
     $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
-    if (ativo) { const el = document.getElementById(ativo); if (el && el.focus) el.focus(); }
+    if (ativo) {
+      const el = document.getElementById(ativo);
+      if (el && el.focus) el.focus();
+      try { if (el && sel && sel[0] != null) el.setSelectionRange(sel[0], sel[1]); } catch (_) { /* um campo sem cursor */ }
+    }
     if (!S.tela) {
       window.scrollTo(0, document.body.scrollHeight);
       const l = cabPainel() && $('#ch-lista');  // 1.4.0: no lugar da folha, a lista rola dentro do quadro
@@ -1222,7 +1227,8 @@
       guardarPerguntas(null);
       S.ch.editando = { lista: perguntas(S.e).pad.slice(), rascunho: '' }; render();
     } else if (a === 'ch-ed-pronto') {
-      const ed = S.ch.editando, t = (ed.rascunho || '').trim(), lista = ed.lista.concat(t ? [t] : []);
+      // uma pergunta mudada vale como ficou; uma apagada até ficar vazia sai
+      const ed = S.ch.editando, t = (ed.rascunho || '').trim(), lista = ed.lista.map(q => String(q || '').trim()).filter(Boolean).concat(t ? [t] : []);
       guardarPerguntas(lista.join('\n') === perguntas(S.e).pad.join('\n') ? null : lista);  // as dos apps: seguem os apps
       S.ch.editando = null; render();
     } else if (a === 'ch-menu') {
@@ -1280,6 +1286,7 @@
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;
     if (el.id === 'ch-ed-txt' && S.ch.editando) S.ch.editando.rascunho = el.value;
+    if (el.dataset.edI != null && S.ch.editando) S.ch.editando.lista[Number(el.dataset.edI)] = el.value;  // 1.12.0: mudar uma pergunta
     if (el.id === 'ch-txt') {
       S.ch.texto = el.value; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';
       const b = $('#ch-pri'), novo = botaoPri(S.e);  // o microfone vira Enviar ao escrever (e volta com a caixa vazia)
@@ -1306,6 +1313,7 @@
     // com teclado, Enter envia (Shift+Enter quebra a linha); no celular, o botão Enviar
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'ch-txt' && comTeclado()) { ev.preventDefault(); enviarConversa(); }
     if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'ch-ed-txt') { ev.preventDefault(); perguntaNova(); }
+    if (ev.key === 'Enter' && !ev.isComposing && ev.target.dataset && ev.target.dataset.edI != null) { ev.preventDefault(); ev.target.blur(); }
   });
   document.addEventListener('change', async ev => {
     const el = ev.target;

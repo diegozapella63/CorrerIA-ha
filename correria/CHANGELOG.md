@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.12.0
+
+- **Editar perguntas**: toque numa pergunta para mudar o texto dela. Uma pergunta apagada até ficar vazia sai da lista.
+
 ## 1.11.0
 
 - **Conector MCP**: a opção que o Claude recomenda no login (a identidade publicada da IA) passa a funcionar. O registro automático continua valendo.

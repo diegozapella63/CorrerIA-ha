@@ -984,12 +984,12 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.abrir_conversa()
         self.pg.wait_for_selector('[data-a="ch-ed-abrir"]')
         self.pg.click('[data-a="ch-ed-abrir"]')
-        lin = ".ch-ed-lin:not(.ch-ed-modelo) > span"
-        self.assertEqual(self.pg.locator(lin).all_inner_texts(), G6)
+        lin = ".ch-ed-lin:not(.ch-ed-modelo) > .ch-ed-txt"
+        self.assertEqual(self.pg.locator(lin).evaluate_all('els => els.map(e => e.value)'), G6)
         # 1.10.0: os modelos: as outras perguntas dos apps ligados (aqui só o GerencIA) e as de todos os apps
         self.assertEqual(self.pg.locator(".ch-ed-modelo > span:first-child").all_inner_texts(), ["Resume o meu dia", "O que eu tenho para fazer hoje?", "O que vence nos próximos dias, em todos os apps?"])
         self.pg.click('.ch-ed-modelo >> nth=0')
-        self.assertEqual(self.pg.locator(lin).all_inner_texts()[-1], "Resume o meu dia", "um toque põe o modelo na lista")
+        self.assertEqual(self.pg.locator(lin).evaluate_all('els => els.map(e => e.value)')[-1], "Resume o meu dia", "um toque põe o modelo na lista")
         self.assertEqual(self.pg.locator(".ch-ed-modelo").count(), 2)
         self.pg.click('[data-a="ch-ed-tirar"] >> nth=6')
         self.pg.click('[data-a="ch-ed-tirar"] >> nth=0')
@@ -998,7 +998,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.input_value("#ch-ed-txt"), "", "Adicionar limpa a caixa")
         self.pg.fill("#ch-ed-txt", "Qual a maior despesa?")
         self.pg.press("#ch-ed-txt", "Enter")
-        self.assertEqual(self.pg.locator(lin).all_inner_texts(), G6[1:] + ["Quanto sobrou no mês?", "Qual a maior despesa?"])
+        self.assertEqual(self.pg.locator(lin).evaluate_all('els => els.map(e => e.value)'), G6[1:] + ["Quanto sobrou no mês?", "Qual a maior despesa?"])
         larg = self.pg.evaluate("[...document.querySelectorAll('.ch-ed-bts .btn')].map(b => Math.round(b.getBoundingClientRect().width))")
         self.assertEqual(len(set(larg)), 1, f"Padrão e Pronto do mesmo tamanho ({larg})")
         self.pg.screenshot(path=os.path.join(S.DATA_DIR, "perguntas.png"))
@@ -1029,6 +1029,21 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.assertEqual(self.erros, [])
 
+
+    def test_mudar_uma_pergunta(self):
+        """1.12.0: em Editar perguntas, um toque numa pergunta muda o texto dela (o Enter só termina); o Pronto guarda como
+        ficou e uma apagada até ficar vazia sai."""
+        self.abrir_conversa()
+        self.pg.click('[data-a="ch-ed-abrir"]')
+        q = ".ch-ed-lin:not(.ch-ed-modelo) > .ch-ed-txt"
+        self.pg.locator(q).nth(1).fill(G6[1] + " Hoje")
+        self.pg.locator(q).nth(1).press("Enter")
+        self.assertEqual(self.pg.locator(q).nth(1).input_value(), G6[1] + " Hoje", "o Enter não quebra a linha")
+        self.assertFalse(self.pg.evaluate("document.activeElement.classList.contains('ch-ed-txt')"), "o Enter termina")
+        self.pg.locator(q).nth(2).fill("")
+        self.pg.click('[data-a="ch-ed-pronto"]')
+        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), [G6[0], G6[1] + " Hoje"] + G6[3:])
+        self.assertEqual(self.erros, [])
 
     def test_recolher_as_perguntas(self):
         """1.11.0: em Editar perguntas, Perguntas prontas e Mais perguntas fecham num toque no título (a seta no canto) e o
