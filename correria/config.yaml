@@ -1,5 +1,5 @@
 name: CorrerIA
-version: "1.12.0"
+version: "1.13.0"
 slug: correria
 description: Os apps no WhatsApp (API oficial da Meta) e em outras IAs (MCP). Pergunte, lance e marque como feito, com a IA.
 url: https://github.com/diegozapella63/CorrerIA-ha
@@ -15,8 +15,10 @@ panel_title: CorrerIA
 homeassistant_api: true
 ports:
   8443/tcp: 8443
+  8444/tcp: 8444
 ports_description:
   8443/tcp: WhatsApp e o conector MCP (https; encaminhe no roteador)
+  8444/tcp: O túnel da Cloudflare (http; só na rede de casa, não encaminhe no roteador)
 map:
   - type: share
     read_only: true

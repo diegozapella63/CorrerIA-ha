@@ -59,6 +59,9 @@ SHARE_DIR = os.environ.get("CORRERIA_SHARE", "/share")
 SSL_DIR = os.environ.get("CORRERIA_SSL", "/ssl")
 PORTA = int(os.environ.get("CORRERIA_PORTA", "8099"))
 PORTA_WEBHOOK = int(os.environ.get("CORRERIA_PORTA_WEBHOOK", "8443"))
+# 1.13.0: a porta do túnel da Cloudflare (o app Cloudflared): a mesma porta pública, em http e só na rede de casa (o https
+# é o da Cloudflare, na 443, sem abrir porta no roteador); só com o túnel ligado na tela
+PORTA_TUNEL = int(os.environ.get("CORRERIA_PORTA_TUNEL", "8444"))
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
 DEV = os.environ.get("CORRERIA_DEV") == "1"            # no computador: a tela sem o painel e Ana e Beto de exemplo
 LOG_HTTP = os.environ.get("CORRERIA_LOG_HTTP") != "0"   # no computador, cada pedido no registro (os testes desligam)
@@ -118,7 +121,7 @@ def ler_config():
     c = ler_json(CONFIG_ARQ)
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
-           "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True,
+           "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True, "tunel": c.get("tunel") is True,
            # 1.5.0: a casa do Home Assistant (o Assist) como um app, ligada de início; a Conversa da tela cheia recolhe
            # sozinha depois de recolher minutos sem uso (1, 3, 5 ou 10; 3 de início)
            "casa": c.get("casa") is not False, "recolher": c.get("recolher") if c.get("recolher") in RECOLHER else 3,
@@ -192,6 +195,8 @@ def salvar_config(corpo):
             c["ligado"] = corpo.get("ligado") is not False
         if "mcp" in corpo:
             c["mcp"] = corpo.get("mcp") is True
+        if "tunel" in corpo:  # 1.13.0: o túnel da Cloudflare
+            c["tunel"] = corpo.get("tunel") is True
         if "whatsapp" in corpo:
             c["whatsapp"] = corpo.get("whatsapp") is True
         if "sensores" in corpo:
@@ -230,6 +235,8 @@ def salvar_config(corpo):
         threading.Thread(target=publicar_sensores if c["sensores"] else remover_sensores, daemon=True).start()
     if "apagar_dias" in corpo:  # 1.7.0: as velhas saem na hora
         limpar_conversas_velhas()
+    if "tunel" in corpo:  # 1.13.0: abre ou fecha a porta do túnel na hora
+        ligar_tunel(c["tunel"])
     return c
 
 
@@ -744,7 +751,8 @@ def certificado():
 
 # 1.11.0: a última conexão que chegou de fora de casa na porta pública, e se o https fechou, para saber se o problema é o
 # caminho até aqui (o roteador, o Duck DNS) ou o certificado
-FORA = {"em": None, "ok": None, "erro": ""}
+FORA = {"em": None, "ok": None, "erro": "", "via": ""}  # via: porta (a pública) ou tunel (o da Cloudflare)
+TUNEL = {"em": None}  # 1.13.0: a última conexão que chegou pelo túnel
 
 
 def de_fora(ip):
@@ -769,9 +777,11 @@ def motivo_tls(e):
     return "o https não fechou"
 
 
-def anotar_fora(ip, ok, erro=""):
+def anotar_fora(ip, ok, erro="", via="porta"):
     if de_fora(ip):
-        FORA.update(em=agora_iso(), ok=ok, erro=erro)
+        FORA.update(em=agora_iso(), ok=ok, erro=erro, via=via)
+        if via == "tunel":
+            TUNEL["em"] = FORA["em"]
 
 
 def certificado_confere(endereco, nome):
@@ -1221,7 +1231,9 @@ def estado():
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
                     "verificado_em": ESTADO["verificado_em"], "ultimo": ESTADO["ultimo_webhook"],
                     # 1.11.0: de quem é o certificado (e se é do endereço público) e a última conexão de fora
-                    **_cert_do_endereco(cc, c["endereco"]), "fora": dict(FORA)},
+                    **_cert_do_endereco(cc, c["endereco"]), "fora": dict(FORA),
+                    # 1.13.0: o túnel da Cloudflare (ligado na tela, a porta aberta e a última conexão por ele)
+                    "tunel": {"ligado": c["tunel"], "porta": PORTA_TUNEL, "aberto": bool(SERVIDOR_TUNEL["s"]), "em": TUNEL["em"]}},
         "pessoas": pessoas,
         "apps": lista,
         "fala": FALA.status(),
@@ -1610,11 +1622,68 @@ class Tela(BaseHTTPRequestHandler):
             return self.enviar(500, {"erro": str(e)})
 
 
+class WebhookTunel(Webhook):
+    """1.13.0: a porta pública para o túnel da Cloudflare (o app Cloudflared do Home Assistant): as mesmas rotas, em http e
+    só na rede de casa. O https e o certificado são os da Cloudflare, na porta 443 (a única que o Claude aceita), sem abrir
+    porta no roteador. Quem chamou vem no CF-Connecting-IP, que só a Cloudflare põe."""
+
+    def setup(self):
+        self.request.settimeout(15)
+        BaseHTTPRequestHandler.setup(self)
+
+    def parse_request(self):
+        ok = super().parse_request()
+        if ok:
+            anotar_fora((self.headers.get("CF-Connecting-IP") or "").strip(), True, via="tunel")
+        return ok
+
+    def base(self):
+        """Pelo túnel é sempre https (o da Cloudflare); sem um nome de verdade no Host, o endereço público."""
+        host = re.sub(r"[^A-Za-z0-9.\-:\[\]]", "", self.headers.get("Host") or "")
+        nome = host.rsplit(":", 1)[0].strip("[]") if host.count(":") <= 1 or host.startswith("[") else host
+        if "." not in nome or _e_ip(nome):
+            host = urllib.parse.urlparse(ler_config()["endereco"]).netloc or host or f"localhost:{PORTA_TUNEL}"
+        return f"https://{host}"
+
+
+def _e_ip(t):
+    try:
+        ipaddress.ip_address(t)
+        return True
+    except ValueError:
+        return False
+
+
+SERVIDOR_TUNEL = {"s": None}
+TRAVA_TUNEL = threading.Lock()
+
+
+def ligar_tunel(ligar):
+    """Abre (ou fecha) a porta do túnel. Ela não vai para a internet: o app Cloudflared chega nela pela rede de casa."""
+    with TRAVA_TUNEL:
+        s = SERVIDOR_TUNEL["s"]
+        if ligar and not s:
+            try:
+                s = ThreadingHTTPServer(("0.0.0.0", PORTA_TUNEL), WebhookTunel)
+            except OSError as e:
+                log("Túnel: não consegui abrir a porta", PORTA_TUNEL, e)
+                return
+            s.daemon_threads = True
+            SERVIDOR_TUNEL["s"] = s
+            threading.Thread(target=s.serve_forever, daemon=True).start()
+            log(f"Túnel: porta {PORTA_TUNEL} aberta (http, para o app Cloudflared)")
+        elif not ligar and s:
+            SERVIDOR_TUNEL["s"] = None
+            threading.Thread(target=lambda: (s.shutdown(), s.server_close()), daemon=True).start()
+            log("Túnel: porta fechada")
+
+
 def main():
     os.makedirs(DATA_DIR, exist_ok=True)
-    ler_config()  # cria o token de verificação na primeira vez
+    c = ler_config()  # cria o token de verificação na primeira vez
     hook = ServidorWebhook(("0.0.0.0", PORTA_WEBHOOK), Webhook)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
+    ligar_tunel(c["tunel"])
     threading.Thread(target=laco_sensores, daemon=True).start()
     cc = certificado()
     log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook e MCP na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")

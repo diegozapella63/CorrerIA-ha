@@ -55,6 +55,8 @@
     key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+    cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
     gauge: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
@@ -218,14 +220,23 @@
 
   // 1.11.0: o caminho de fora até aqui: de que endereço é o certificado, a porta no endereço e a última conexão de fora
   // (assim dá para saber se o que falta é o Duck DNS, o roteador ou o certificado)
-  function caminhoDeFora(e, semCert) {
-    const w = e.webhook || {}, end = (e.config || {}).endereco || '', f = w.fora || {}, out = [];
+  function caminhoDeFora(e, semCert, { mcp = false } = {}) {
+    const w = e.webhook || {}, end = (e.config || {}).endereco || '', f = w.fora || {}, out = [], t = w.tunel || {};
+    // 1.13.0: pelo túnel da Cloudflare, o https e a porta 443 são os dela: só a última conexão que chegou por ele
+    if (t.ligado) {
+      if (!t.aberto) out.push(`<div class="status erro" data-fora><span><b>A porta ${t.porta} não abriu</b> · Reinicie o CorrerIA.</span></div>`);
+      else if (end) out.push(t.em ? `<div class="status" data-fora>Chegou uma conexão pelo túnel ${quando(t.em)}.</div>`
+        : `<div class="status manual" data-fora><span><b>Nada chegou pelo túnel desde que o app abriu</b> · Confira o app Cloudflared e abra o endereço do conector.</span></div>`);
+      return out.join('');
+    }
     if (!w.https) out.push(`<div class="status manual">${semCert}</div>`);
     else if (w.cert_confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
     else out.push(`<div class="status">Certificado ${w.cert_nome ? 'de ' + esc(w.cert_nome) : esc(w.certificado)} · porta ${w.porta}</div>`);
     let u = null;
     try { u = end ? new URL(end) : null; } catch (_) { u = null; }
     if (u && !u.port && Number(w.porta) !== 443) out.push(`<div class="status manual" data-porta><span>Sem <b>:${w.porta}</b> no fim do endereço, só chega aqui se o roteador mandar a porta 443 para a ${w.porta}.</span></div>`);
+    // 1.13.0: o Claude (e outras IAs) só conectam na porta 443: com outra porta no endereço, o conector não abre
+    if (mcp && u && u.port && u.port !== '443') out.push(`<div class="status erro" data-porta><span><b>As IAs só conectam na porta 443</b> · Tire o :${esc(u.port)} do endereço e, no roteador, mande a 443 para a ${w.porta} (ou use o túnel da Cloudflare).</span></div>`);
     if (end && w.https) out.push(!f.em ? `<div class="status manual" data-fora><span><b>Nenhuma conexão de fora desde que o app abriu</b> · Pelo 5G, abra o endereço do conector.</span></div>`
       : f.ok ? `<div class="status" data-fora>Chegou uma conexão de fora ${quando(f.em)}.</div>`
         : `<div class="status erro" data-fora><span><b>Chegou de fora ${quando(f.em)}, mas não abriu</b> · ${esc(f.erro)}.</span></div>`);
@@ -314,18 +325,30 @@
     const w = e.webhook || {};  // 0.15.0: o endereço público e o certificado aqui também (antes: "Escreva o endereço público na aba WhatsApp")
     const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público')}
         <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : e.config.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
-      ${caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).")}`;
+      ${caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da Cloudflare.", { mcp: true })}`;
     const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Toque em <b>Copiar</b>.</li><li>Na IA, em Conectores, adicione um <b>conector personalizado</b> e cole o endereço.</li><li>Ao entrar, abre uma página com um <b>código</b>: aprove aqui o pedido com o mesmo código.</li></ol>`}`
       : '';
     // 0.16.3: tudo o que depende do conector (os pedidos, os endereços, os conectados e as Últimas mudanças) fica num
     // quadro recuado logo abaixo de Ligar o conector, dentro do cartão dele
+    // 1.13.0: o túnel da Cloudflare (o app Cloudflared): sem abrir porta no roteador, na 443 dela (a operadora pode
+    // bloquear a 443 de casa); o que vai no additional_hosts do app, pronto para copiar
+    const t = w.tunel || {};
+    const ipHa = /^\d{1,3}(\.\d{1,3}){3}$/.test(location.hostname) ? location.hostname : 'IP-do-Home-Assistant';
+    let hostPub = '';
+    try { hostPub = e.config.endereco ? new URL(e.config.endereco).hostname : ''; } catch (_) { hostPub = ''; }
+    const yaml = `- hostname: ${hostPub || 'correria.seu-dominio.com.br'}\n  service: http://${ipHa}:${t.porta || 8444}`;
+    const tunel = `<div class="linha-sw"><div>${tituloLinha('cloud', 'Pelo túnel da Cloudflare')}<span>${t.ligado ? 'Sem abrir porta no roteador.' : 'Para quando a operadora bloqueia a porta 443.'}</span></div>
+        <button class="sw${t.ligado ? ' on' : ''}" data-a="tunel" role="switch" aria-checked="${!!t.ligado}" aria-label="Pelo túnel da Cloudflare"></button></div>
+      ${t.ligado ? `<div class="sub-op"><div class="sub-box"><div class="campo">${rotulo('f-tunel', 'code', 'No app Cloudflared, em Additional Hosts')}
+        <textarea id="f-tunel" class="inp mono" rows="2" readonly data-size="off">${esc(yaml)}</textarea>
+        <button class="btn peq out" data-a="copiar" data-v="f-tunel" aria-label="Copiar a configuração do túnel">${ic('copy', 'ic-s')}Copiar</button></div></div></div>` : ''}`;
     const R = e.registro_mcp || [];
     const mudancas = `<details class="uso-ult mudancas" id="mudancas"${S.mudAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas mudanças (${R.length})</summary>
       ${listaMsgs(R, 'Nenhuma mudança ainda.')}${R.length ? `<button class="btn peq out" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</details>`;
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
-      <p class="lead">Os apps dentro de outras IAs, como um conector. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>${sw}
-      <div class="sub-op"><div class="sub-box">${pedidos}${publico}${endereco}
+      <p class="lead">Os apps dentro de outras IAs, como um conector. O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a ${w.porta}, ou pelo túnel da Cloudflare.</p>${sw}
+      <div class="sub-op"><div class="sub-box">${pedidos}${publico}${tunel}${endereco}
         ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
         ${mudancas}</div></div>
     </section>`;
@@ -1137,6 +1160,9 @@
       await acao('config', { ligado: !S.e.config.ligado }, S.e.config.ligado ? 'Respostas pausadas' : 'Respondendo');
     } else if (a === 'whatsapp') {  // 0.17.0: liga e desliga o WhatsApp, como o conector MCP
       await acao('config', { whatsapp: !S.e.config.whatsapp }, S.e.config.whatsapp ? 'WhatsApp desligado' : 'WhatsApp ligado');
+    } else if (a === 'tunel') {  // 1.13.0: o túnel da Cloudflare
+      const on = !!(S.e.webhook && S.e.webhook.tunel && S.e.webhook.tunel.ligado);
+      await acao('config', { tunel: !on }, on ? 'Túnel desligado' : 'Túnel ligado');
     } else if (a === 'mcp') {
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
     } else if (a === 'ia-verificar') {  // a lista das IAs de novo e esquece o erro da última chamada

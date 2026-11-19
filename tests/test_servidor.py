@@ -1324,6 +1324,73 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------------------------------------------------
+class TestTunel(unittest.TestCase):
+    """1.13.0: a porta do túnel da Cloudflare (o app Cloudflared): as mesmas rotas, em http e só na rede de casa; o
+    endereço que o CorrerIA diz é https (o da Cloudflare); quem chamou vem no CF-Connecting-IP."""
+
+    def setUp(self):
+        S.FORA.update(em=None, ok=None, erro="", via="")
+        S.TUNEL["em"] = None
+        self.addCleanup(S.ligar_tunel, False)
+        self.addCleanup(S.FORA.update, em=None, ok=None, erro="", via="")
+        p = mock.patch.object(S, "PORTA_TUNEL", 0)  # uma porta livre
+        p.start()
+        self.addCleanup(p.stop)
+
+    def url(self, caminho):
+        return f"http://127.0.0.1:{S.SERVIDOR_TUNEL['s'].server_address[1]}{caminho}"
+
+    def pedir(self, caminho, **cab):
+        req = urllib.request.Request(self.url(caminho), headers=cab)
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+
+    def test_o_endereco_e_o_da_cloudflare(self):
+        S.ligar_tunel(True)
+        S.ligar_tunel(True)  # de novo: a mesma porta
+        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://correria.casa-exemplo.com.br"}):
+            j = self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br", **{"CF-Connecting-IP": "8.8.8.8"})
+            self.assertEqual(j["issuer"], "https://correria.casa-exemplo.com.br", "https, sem porta")
+            self.assertEqual((S.FORA["via"], S.FORA["ok"]), ("tunel", True))
+            self.assertIsNotNone(S.TUNEL["em"])
+            for host in ("192.168.0.10:8444", "a1b2c3d4-correria:8444", "[::1]:8444", ""):
+                with self.subTest(host=host):
+                    j = self.pedir("/.well-known/oauth-authorization-server", Host=host)
+                    self.assertEqual(j["issuer"], "https://correria.casa-exemplo.com.br", "um nome de dentro: o endereço público")
+            w = S.estado()["webhook"]["tunel"]
+            self.assertEqual((w["aberto"], w["porta"]), (True, 0))
+
+    def test_sem_o_cabecalho_da_cloudflare_nao_conta_de_fora(self):
+        S.ligar_tunel(True)
+        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://correria.casa-exemplo.com.br"}):
+            self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br")
+            self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br", **{"CF-Connecting-IP": "192.168.0.7"})
+        self.assertIsNone(S.TUNEL["em"], "de dentro de casa não é de fora")
+
+    def test_liga_e_desliga_pela_tela(self):
+        with mock.patch.object(S, "gravar_config"), mock.patch.object(S, "ler_config", return_value=S.ler_config()):
+            S.salvar_config({"tunel": True})
+        self.assertIsNotNone(S.SERVIDOR_TUNEL["s"])
+        S.ligar_tunel(False)
+        self.assertIsNone(S.SERVIDOR_TUNEL["s"])
+        S.ligar_tunel(False)  # já fechada: nada
+        self.assertIsNone(S.SERVIDOR_TUNEL["s"])
+
+    def test_a_porta_ocupada_nao_derruba(self):
+        ocupada = socket.socket()
+        ocupada.bind(("0.0.0.0", 0))
+        ocupada.listen(1)
+        self.addCleanup(ocupada.close)
+        with mock.patch.object(S, "PORTA_TUNEL", ocupada.getsockname()[1]), mock.patch.object(S, "log") as log:
+            S.ligar_tunel(True)
+        self.assertIsNone(S.SERVIDOR_TUNEL["s"])
+        self.assertIn("não consegui abrir a porta", " ".join(map(str, log.call_args.args)))
+
+    def test_o_ip(self):
+        self.assertTrue(S._e_ip("192.168.0.1") and S._e_ip("::1"))
+        self.assertFalse(S._e_ip("correria.casa-exemplo.com.br"))
+
+
 class TestCaminhoDeFora(unittest.TestCase):
     """1.11.0: o que ajuda a achar o que falta para chegar de fora (o Duck DNS, o roteador ou o certificado)."""
 

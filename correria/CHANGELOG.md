@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.13.0
+
+- **Conector MCP › Pelo túnel da Cloudflare**: para quando a operadora bloqueia a porta 443 (ou usa CGNAT). Ligado, o CorrerIA abre uma porta só na rede de casa para o app **Cloudflared** do Home Assistant e mostra, pronto para copiar, o que vai nele. As IAs chegam pela 443 da Cloudflare, sem abrir porta no roteador. O cartão diz quando chegou uma conexão pelo túnel.
+- **Conector MCP**: avisa quando o endereço tem uma porta no fim, porque as IAs (como o Claude) só conectam na porta 443. O texto do cartão agora explica isso.
+
 ## 1.12.0
 
 - **Editar perguntas**: toque numa pergunta para mudar o texto dela. Uma pergunta apagada até ficar vazia sai da lista.

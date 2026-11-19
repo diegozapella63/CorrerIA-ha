@@ -62,7 +62,8 @@ class Tela(unittest.TestCase):
         shutil.rmtree(S.SHARE_DIR, ignore_errors=True)
         os.makedirs(S.SHARE_DIR)
         S.ESTADO.update(ultimo_webhook=None, verificado_em=None, conta=None, conta_em=None)
-        S.FORA.update(em=None, ok=None, erro="")
+        S.FORA.update(em=None, ok=None, erro="", via="")
+        S.TUNEL["em"] = None
         self.meta.pedidos.clear()
         self.app.pedidos.clear()
         self.erros = []
@@ -390,6 +391,42 @@ class Tela(unittest.TestCase):
             self.assertRegex(self.texto("#webhook [data-fora]"), r"^Chegou uma conexão de fora hoje às \d\d:\d\d\.$", "no Webhook também")
             self.assertIn("Certificado de casa-exemplo.duckdns.org · porta 8443", self.texto("#webhook"))
 
+    def test_o_tunel_da_cloudflare(self):
+        """1.13.0: no MCP, Pelo túnel da Cloudflare (para quando a operadora bloqueia a 443): ligado, o que vai no app
+        Cloudflared, pronto para copiar (o endereço público e a porta do túnel), e a última conexão que chegou por ele;
+        sem as linhas do certificado e da porta. Com outra porta no endereço, o aviso de que as IAs só usam a 443."""
+        S.salvar_config({"mcp": True, "endereco": "https://casa-exemplo.duckdns.org:8443"})
+        self.addCleanup(S.ligar_tunel, False)
+        self.abrir()
+        self.opcoes("mcp")
+        self.assertIn("As IAs só conectam na porta 443 · Tire o :8443 do endereço e, no roteador, mande a 443 para a 8443 (ou use o túnel da Cloudflare).", self.texto("#mcp"))
+        self.assertEqual(self.pg.get_attribute('[data-a="tunel"]', "aria-checked"), "false")
+        self.assertEqual(self.pg.locator("#f-tunel").count(), 0, "desligado: nada do túnel")
+        S.salvar_config({"endereco": "https://correria.casa-exemplo.com.br"})
+        with mock.patch.object(S, "PORTA_TUNEL", 0):
+            self.pg.reload()
+            self.opcoes("mcp")
+            self.pg.click('[data-a="tunel"]')
+            self.aviso("Túnel ligado")
+        self.assertTrue(S.ler_config()["tunel"])
+        self.assertIsNotNone(S.SERVIDOR_TUNEL["s"], "a porta abriu")
+        yaml = self.pg.input_value("#f-tunel")
+        self.assertEqual(yaml, "- hostname: correria.casa-exemplo.com.br\n  service: http://127.0.0.1:8444")
+        t = self.texto("#mcp")
+        self.assertIn("Nada chegou pelo túnel desde que o app abriu · Confira o app Cloudflared e abra o endereço do conector.", t)
+        self.assertNotIn("Certificado", t, "pelo túnel, o certificado é o da Cloudflare")
+        self.assertNotIn("porta 443 para", t)
+        self.assertEqual(self.pg.locator('[data-a="copiar"][data-v="f-tunel"]').count(), 1)
+        S.TUNEL["em"] = S.agora_iso()
+        self.pg.reload()
+        self.opcoes("mcp")
+        self.assertRegex(self.texto("#mcp [data-fora]"), r"^Chegou uma conexão pelo túnel hoje às \d\d:\d\d\.$")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        self.pg.click('[data-a="tunel"]')
+        self.aviso("Túnel desligado")
+        self.assertIsNone(S.SERVIDOR_TUNEL["s"], "desligado, a porta fecha")
+        self.assertEqual(self.erros, [])
+
     def test_claude_e_gemini(self):
         S.salvar_config({"whatsapp": True})
         self.abrir()
@@ -403,8 +440,8 @@ class Tela(unittest.TestCase):
         self.assertTrue(S.ler_config()["mcp"])
         # 0.15.0: o endereço público e o certificado na própria aba (antes: "Escreva o endereço público na aba WhatsApp")
         self.assertNotIn("aba WhatsApp", self.texto("#mcp"))
-        self.assertEqual(self.texto("#mcp .status"), "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https).")
-        self.assertIn("No roteador, a porta 8443 vai para o Home Assistant.", self.texto("#mcp .lead"))
+        self.assertEqual(self.texto("#mcp .status"), "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da Cloudflare.")
+        self.assertIn("O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a 8443, ou pelo túnel da Cloudflare.", self.texto("#mcp .lead"))
         self.assertEqual(self.pg.locator("#f-mcp").count(), 0)
         self.pg.fill("#f-endereco-mcp", "casa-exemplo.duckdns.org:8443")
         self.pg.press("#f-endereco-mcp", "Tab")

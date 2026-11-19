@@ -13,7 +13,7 @@ Usa a **API oficial do WhatsApp Business** (da Meta): sem risco de o número ser
 ## Do que precisa
 
 - Uma conta na Meta para desenvolvedores, com um app do tipo **Empresa** e o produto **WhatsApp**. Para começar, a Meta dá um **número de teste**, que conversa com até 5 números cadastrados. Para todo mundo conversar, depois, um número só do CorrerIA (um chip que não esteja no WhatsApp comum).
-- O Home Assistant acessível pela internet com **https**, só na porta do CorrerIA: o app **Duck DNS** (com o Let's Encrypt) e a porta **8443** encaminhada no roteador. O Home Assistant Cloud não serve, porque ele não chega nos apps.
+- O CorrerIA acessível pela internet com **https**: o app **Duck DNS** (com o Let's Encrypt) e, no roteador, a porta de fora **443** encaminhada para a **8443** do Home Assistant (o Claude só conecta na 443); ou o **túnel da Cloudflare**, sem abrir porta (veja Conector MCP). O Home Assistant Cloud não serve, porque ele não chega nos apps.
 - Nos apps, a opção **CorrerIA** ligada (GerencIA 1.39.0, CronologIA 1.60.0, ResolvIA 2.49.0, InventarIA 1.37.0 e MemorIA 1.8.0 ou mais novos).
 - Para o WhatsApp e a conversa da tela, uma IA no Home Assistant (uma integração com tarefas de IA, como Anthropic, Google Gemini, OpenAI ou Ollama). Em **Configurações › Apps › IA › Para conversar** você escolhe qual; de início fica a padrão do Home Assistant (Configurações › Sistema › IA). Em **Para pesquisar na internet** fica a IA que pesquisa na web na Conversa daqui (começa **Igual à de conversar**): escolha uma com a busca na web ligada no Home Assistant (no Claude, a pesquisa na web da integração; no Gemini, a pesquisa do Google). Ela só pesquisa na Conversa da tela: no WhatsApp a IA fica nos apps, pela regra da Meta, e o Claude e o Gemini pelo conector já pesquisam sozinhos. Sem a busca ligada, a IA avisa que não consegue pesquisar, em vez de responder de memória. O estado fica verde quando está tudo certo; **Verificar de novo** busca de novo a lista das IAs e esquece o erro da última chamada.
 
@@ -96,17 +96,37 @@ actions:
 
 A aba **MCP** (em Configurações) liga os apps em outras IAs, como um conector: o padrão MCP, com login. Serve para qualquer IA que aceite um conector personalizado remoto (como Claude, ChatGPT e Gemini). A IA vê as ferramentas de todos os apps ligados e lê e muda os dados: "quanto gastei com mercado em outubro?", "lança 45,90 de mercado no cartão", "o que tem na agenda amanhã?". Antes de mudar algo, ela mostra o que vai fazer.
 
-1. Ligue **Ligar o conector** e escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`), ali mesmo na aba MCP. É o mesmo endereço do webhook do WhatsApp (mudar num muda no outro), com a mesma porta (8443) e o mesmo certificado, que o cartão também mostra; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
-2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org:8443/mcp`).
+**A porta 443.** O Claude (e outras IAs) só conectam num endereço na porta 443, a do https, sem porta no fim (`https://casa-exemplo.duckdns.org/mcp`, nunca `…:8443/mcp`). Há dois jeitos:
+
+- **Pelo roteador**: encaminhe a porta de fora **443** para o IP do Home Assistant, porta **8443**, e escreva o endereço público sem a porta. Algumas operadoras bloqueiam a 443 de entrada em casa; aí use o túnel.
+- **Pelo túnel da Cloudflare**: sem abrir porta no roteador (veja abaixo).
+
+1. Ligue **Ligar o conector** e escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org`), ali mesmo na aba MCP. É o mesmo endereço do webhook do WhatsApp (mudar num muda no outro), com o mesmo certificado, que o cartão também mostra; só o endereço do conector e o login ficam abertos, e só com essa opção ligada.
+2. Copie o **Endereço do conector** (ex.: `https://casa-exemplo.duckdns.org/mcp`).
 3. Na IA, nas configurações de conectores (ou apps conectados), adicione um **conector personalizado**: dê um nome (CorrerIA), cole o endereço e conecte. Em geral isso é feito no site da IA e passa a valer também no app do celular; algumas pedem um plano pago ou um modo de desenvolvedor ligado. Se ela perguntar como entrar, escolha entrar agora (OAuth); para o cliente, vale tanto a identidade publicada da IA (o endereço do documento dela, CIMD) quanto o registro automático.
 4. Abre uma página do CorrerIA com um **código**. Abra o CorrerIA no Home Assistant: o pedido aparece no alto da Conversa (e no sino do Home Assistant), com o mesmo código: toque nele e em **Aprovar**. A página volta sozinha para a IA.
 
 **Se a IA não consegue chegar** ("não consegui conferir o servidor"), o cartão ajuda a achar o que falta:
 
 - **O certificado é de outro endereço**: no app Duck DNS, o domínio não é o do endereço público. Confira e reinicie o CorrerIA.
-- **Sem :8443 no fim do endereço**: só chega se o roteador mandar a porta 443 para a 8443. Ponha a porta no endereço.
-- **Nenhuma conexão de fora desde que o app abriu**: pelo celular, com o Wi-Fi desligado, abra o endereço do conector. Se continuar assim, nada de fora está chegando: confira o IP do domínio no Duck DNS (o app Duck DNS do Home Assistant atualiza sozinho), a porta 8443 (TCP) no roteador e a porta em **Configurações › Aplicativos › CorrerIA › Rede**. Se o IP do roteador for diferente do IP que os sites mostram, a operadora usa CGNAT, e é preciso pedir a ela um IP público.
+- **As IAs só conectam na porta 443**: o endereço tem outra porta no fim. Tire a porta do endereço e, no roteador, mande a 443 para a 8443 (ou use o túnel).
+- **Sem :8443 no fim do endereço**: só chega se o roteador mandar a porta 443 para a 8443.
+- **Nenhuma conexão de fora desde que o app abriu**: pelo celular, com o Wi-Fi desligado, abra `https://seu-endereço/.well-known/oauth-authorization-server` (aparece um texto com "issuer" quando chega). Se continuar assim, nada de fora está chegando: confira o IP do domínio no Duck DNS (o app Duck DNS do Home Assistant atualiza sozinho), o encaminhamento no roteador e a porta em **Configurações › Aplicativos › CorrerIA › Rede**. Se o IP do roteador for diferente do IP que os sites mostram, a operadora usa CGNAT, e é preciso pedir a ela um IP público (ou usar o túnel). Se a 8443 abre de fora e a 443 não, a operadora bloqueia a 443: use o túnel.
 - **Chegou de fora, mas não abriu**: chegou, mas o https não fechou (por exemplo, o aparelho recusou o certificado).
+
+### Túnel da Cloudflare (sem abrir porta)
+
+Para quando a operadora bloqueia a porta 443 (ou usa CGNAT): o Home Assistant sai para a internet pelo túnel e a Cloudflare recebe as IAs na 443 dela, com o certificado dela. Nenhuma porta fica aberta no roteador, e o Duck DNS deixa de ser necessário para o conector.
+
+Precisa de um **domínio seu** com o DNS na Cloudflare (o do Duck DNS não serve) e de uma conta na Cloudflare.
+
+1. **Na Cloudflare**: crie a conta, ponha o seu domínio (ex.: `casa-exemplo.com.br`) e, no lugar onde comprou o domínio, troque os servidores DNS pelos dois que a Cloudflare indicar. Ligue os **WebSockets** do domínio (Rede).
+2. **No CorrerIA › MCP**: escreva o **Endereço público** com um nome no seu domínio, sem porta (ex.: `https://correria.casa-exemplo.com.br`), e ligue **Pelo túnel da Cloudflare**. Aparece, pronto para copiar, o que vai no app Cloudflared: o seu endereço e o serviço `http://IP-do-Home-Assistant:8444` (a porta do túnel, só na rede de casa: não encaminhe essa porta no roteador).
+3. **No Home Assistant**: em **Configurações › Aplicativos › Loja de aplicativos › ⋮ › Repositórios**, adicione `https://github.com/homeassistant-apps/app-cloudflared` e instale o **Cloudflared** (não inicie ainda). Na aba **Configuração**, deixe **External Home Assistant Hostname** vazio (ou ponha um nome para o próprio Home Assistant) e, em **Additional Hosts**, cole o que o CorrerIA mostrou (no modo YAML do app, fica embaixo de `additional_hosts:`). Salve e inicie. No **Registro** do Cloudflared aparece um endereço de autorização: abra num navegador e autorize o seu domínio. O app cria o túnel e o nome no DNS sozinho.
+4. **Confira**: pelo celular, abra `https://correria.casa-exemplo.com.br/.well-known/oauth-authorization-server` (aparece um texto com "issuer"). No CorrerIA › MCP, o cartão mostra **Chegou uma conexão pelo túnel**.
+5. **Na IA**: o conector é o **Endereço do conector** (ex.: `https://correria.casa-exemplo.com.br/mcp`), como no passo a passo acima.
+
+O webhook do WhatsApp pode usar o mesmo endereço (a URL de retorno muda junto). Com o túnel funcionando, o encaminhamento da 8443 no roteador pode sair.
 
 A conexão fica com a pessoa que aprovou (as mudanças são registradas no nome dela). Em **Conectados** aparecem as IAs conectadas e quando usaram; **Desconectar** tira na hora. O que elas mudam aparece em **Últimas mudanças** (recolhidas), embaixo do conector. Desligado, o endereço do conector some da internet (as conexões voltam a valer quando ligar de novo).
 
