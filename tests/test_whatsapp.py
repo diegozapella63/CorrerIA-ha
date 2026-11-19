@@ -110,6 +110,24 @@ class TestCliente(unittest.TestCase):
         self.assertGreater(len(self.meta.textos()), 1)
         self.assertTrue(all(len(t) <= W.LIMITE for _, t in self.meta.textos()))
 
+    def test_botoes(self):
+        """1.10.0: o Sim e o Não em botões de resposta; um texto maior que o corpo dos botões (1024) vai antes, em texto."""
+        ids = self.wa.botoes(ANA_WA, "Vou fazer isto:\n- Lançar **R$ 10**", (("sim", "Sim"), ("nao", "Não")))
+        self.assertEqual(ids, ["wamid.resp"])
+        c = self.meta.pedidos[0][3]
+        self.assertEqual(c, {"messaging_product": "whatsapp", "recipient_type": "individual", "to": ANA_WA, "type": "interactive",
+                             "interactive": {"type": "button", "body": {"text": "Vou fazer isto:\n- Lançar *R$ 10*"},
+                                             "action": {"buttons": [{"type": "reply", "reply": {"id": "sim", "title": "Sim"}},
+                                                                    {"type": "reply", "reply": {"id": "nao", "title": "Não"}}]}}})
+        self.meta.pedidos.clear()
+        self.wa.botoes(ANA_WA, "\n\n".join(["palavra " * 60] * 6), (("sim", "Sim"), ("nao", "Não")))
+        tipos = [c["type"] for m, p, h, c in self.meta.pedidos]
+        self.assertEqual(tipos[-1], "interactive")
+        self.assertIn("text", tipos)
+        self.assertTrue(all(len(t) <= W.LIMITE_BOTOES for _, t in self.meta.textos()[-1:]))
+        # o toque num botão chega como uma resposta: vale o título
+        self.assertEqual(W.texto_da_mensagem({"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "sim", "title": "Sim"}}}), "Sim")
+
     def test_lida_e_digitando(self):
         self.wa.lida("wamid.1")
         self.wa.lida("wamid.2", digitando=False)

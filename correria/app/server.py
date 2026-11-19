@@ -569,14 +569,14 @@ def executar(acoes, pessoa, cliente):
 
 
 def responder_ia(chave, texto, hist, pessoa, canal, cliente):
-    """A pergunta pela IA do Home Assistant com as ferramentas dos apps: (resposta, nomes dos apps) ou None (nenhum app
-    com ferramentas, ou a IA fora do ar com um app que responde sozinho: vai pelo caminho antigo)."""
+    """A pergunta pela IA do Home Assistant com as ferramentas dos apps: (resposta, nomes dos apps, espera o sim) ou None
+    (nenhum app com ferramentas, ou a IA fora do ar com um app que responde sozinho: vai pelo caminho antigo)."""
     pend = pegar_pendente(chave)
     if pend:
         if SIM_RE.match(texto):
-            return executar(pend, pessoa, cliente)
+            return (*executar(pend, pessoa, cliente), False)
         if NAO_RE.match(texto):
-            return "Tudo bem, não mudei nada.", []
+            return "Tudo bem, não mudei nada.", [], False
     if not FERR.tem():
         return None
     CANAL.tipo = "whatsapp" if canal == "whatsapp" else "conversa"
@@ -586,18 +586,21 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
         log("IA:", e)
         if any(a["rota"] for a in APPS.lista()):
             return None
-        return f"A IA do Home Assistant não respondeu agora ({str(e).rstrip('.')}). Tente de novo daqui a pouco.", []
+        return f"A IA do Home Assistant não respondeu agora ({str(e).rstrip('.')}). Tente de novo daqui a pouco.", [], False
     if r["pendente"]:
         guardar_pendente(chave, r["pendente"])
-    return r["resposta"], r["apps"]
+    return r["resposta"], r["apps"], bool(r["pendente"])
 
 
-def responder_pergunta(texto, pessoa, numero=None):
+def responder_pergunta(texto, pessoa, numero=None, confirmar=None):
     """A pergunta vai para a IA com as ferramentas dos apps (ou, sem nenhum app com ferramentas, para o app do assunto
-    que responde com a IA dele); devolve (resposta, app). Serve para o WhatsApp."""
+    que responde com a IA dele); devolve (resposta, app). Serve para o WhatsApp. confirmar (uma lista): ganha True quando
+    a resposta espera o sim (1.10.0: vai com os botões Sim e Não)."""
     hist = historico(numero) if numero else []
     r = responder_ia("wa:" + whatsapp.canonico(numero) if numero else "wa:", texto, hist, pessoa, "whatsapp", "WhatsApp")
     if r is not None:
+        if confirmar is not None and r[2]:
+            confirmar.append(True)
         return r[0], {"app": "_ia", "nome": ", ".join(r[1]) or "CorrerIA"}
     app = APPS.escolher(texto, ultimo_app(numero) if numero else None)
     if not app:
@@ -610,9 +613,19 @@ def responder_pergunta(texto, pessoa, numero=None):
         return f"Não consegui falar com o {app['nome']} agora. Tente de novo daqui a pouco.", app
 
 
-def enviar(wa, para, pessoa, texto, app=None):
+SIM_NAO = (("sim", "Sim"), ("nao", "Não"))
+
+
+def enviar(wa, para, pessoa, texto, app=None, botoes=None):
     try:
-        wa.texto(para, texto)
+        if botoes:
+            try:  # 1.10.0: o Sim e o Não em botões; se a Meta recusar, vai o texto (escrever sim também vale)
+                wa.botoes(para, texto, botoes)
+            except whatsapp.ErroWhatsApp as e:
+                log("WhatsApp (botões):", e)
+                wa.texto(para, texto)
+        else:
+            wa.texto(para, texto)
         registrar("enviada", pessoa["nome"], whatsapp.para_whatsapp(texto), app["nome"] if app else "")
     except whatsapp.ErroWhatsApp as e:
         registrar("erro", "WhatsApp", str(e))
@@ -666,10 +679,11 @@ def responder_texto(wa, de, pessoa, texto, ja_registrada=False):
         return
     if not ja_registrada:
         registrar("recebida", pessoa["nome"], texto)
-    resposta, app = responder_pergunta(texto, pessoa, de)
+    confirmar = []
+    resposta, app = responder_pergunta(texto, pessoa, de, confirmar)
     if app:
         guardar_conversa(de, texto, resposta, app)
-    enviar(wa, de, pessoa, resposta, app)
+    enviar(wa, de, pessoa, resposta, app, botoes=SIM_NAO if confirmar else None)
 
 
 def tratar_anexo(wa, m, de, pessoa):
@@ -1375,8 +1389,9 @@ def conversar(corpo, pessoa, chave):
         guardar_pendente("tela:" + chave, None)
     else:
         r = responder_ia("tela:" + chave, texto, hist, pessoa, "correria", "CorrerIA")
+    confirmar = False
     if r is not None:  # a IA com as ferramentas dos apps
-        resposta, app = r[0], ({"app": "_ia", "nome": ", ".join(r[1])} if r[1] else None)
+        resposta, app, confirmar = r[0], ({"app": "_ia", "nome": ", ".join(r[1])} if r[1] else None), r[2]
     else:
         app = APPS.escolher(texto, ultimo, tipo=tipo)
         if not app:
@@ -1388,6 +1403,8 @@ def conversar(corpo, pessoa, chave):
                 log("CorrerIA:", e)
                 resposta = f"Não consegui falar com o {app['nome']} agora. {e}"
     resp = {"papel": "ia", "texto": whatsapp.para_whatsapp(resposta), "em": agora_iso()}
+    if confirmar:  # 1.10.0: espera o sim: a tela mostra os botões Sim e Não embaixo
+        resp["confirmar"] = True
     if app:
         resp.update(app=app["nome"], app_id=app["app"])
     lista += [eu, resp]

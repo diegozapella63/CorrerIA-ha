@@ -512,18 +512,33 @@
       return `<p>${ls.map(linha).join('<br>')}</p>`;
     }).join('');
   }
-  const SUGESTOES = { gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?'], cronologia: ['O que tem na agenda amanhã?'],
-    resolvia: ['Quais tarefas vencem hoje?'], inventario: ['Quanto valem os itens da sala?'], memoria: ['O que eu anotei esta semana?'] };
+  // 1.10.0: as perguntas de cada app; à vista ficam 6, uma de cada app por vez, e em Editar perguntas mais 20 modelos
+  const SUGESTOES = {
+    gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?', 'Qual é o meu patrimônio hoje?', 'Lança 45 de mercado', 'Quanto sobrou este mês?', 'Quanto rende a carteira por mês?'],
+    cronologia: ['O que tem na agenda amanhã?', 'Quais remédios faltam hoje?', 'Quem está ganhando o placar?', 'Marca dentista sexta às 15h', 'Quais rotinas estão atrasadas?'],
+    resolvia: ['Quais tarefas vencem hoje?', 'Por onde eu começo hoje?', 'Adiciona leite na lista de compras', 'O que está atrasado?', 'Quantas tarefas eu tenho?'],
+    inventario: ['Quanto valem os itens da sala?', 'Quantos eletrônicos eu tenho?', 'Quais cômodos valem mais?', 'Onde está o liquidificador?', 'Quanto vale a casa toda?'],
+    memoria: ['O que eu anotei esta semana?', 'O que abre agora?', 'Onde anotei o telefone do encanador?', 'Quais blocos são meus?'],
+    economia: ['Onde a compra fica mais barata?', 'Tem cupom bom agora?', 'O que está acabando?', 'Quanto vai dar a compra da lista?'],
+    casa: ['Quais luzes estão acesas?', 'Apaga a luz da sala', 'A porta da frente está trancada?', 'Qual é a temperatura da casa?'],
+  };
+  const GERAIS = ['Resume o meu dia', 'O que eu tenho para fazer hoje?', 'O que vence nos próximos dias, em todos os apps?'];
+  function perguntasDosApps(e) {
+    const ids = e.apps.map(a => a.app).concat(e.casa && e.casa.ligado && e.casa.disponivel ? ['casa'] : []);
+    const filas = ids.map(id => (SUGESTOES[id] || []).slice()).filter(f => f.length), out = [];
+    while (filas.some(f => f.length)) for (const f of filas) if (f.length) out.push(f.shift());  // uma de cada app por vez
+    return ids.length ? [...new Set(out.concat(GERAIS))] : [];
+  }
   /* 1.1.0: Perguntas prontas: as dos apps ligados até a pessoa editar (Editar perguntas, guardadas no aparelho em
      correria-perguntas); na conversa vazia ficam à vista, e o ✨ ao lado da caixa abre as mesmas a qualquer momento */
   const PERG = 'correria-perguntas';
   function perguntas(e) {
-    const pad = e.apps.flatMap(a => SUGESTOES[a.app] || []).slice(0, 4);
+    const todas = perguntasDosApps(e), pad = todas.slice(0, 6), modelos = todas.slice(6, 26);
     try {
       const v = JSON.parse(localStorage.getItem(PERG) || 'null');
-      if (Array.isArray(v)) return { lista: v.filter(x => typeof x === 'string' && x.trim()), pad };
+      if (Array.isArray(v)) return { lista: v.filter(x => typeof x === 'string' && x.trim()), pad, modelos };
     } catch (x) { /* sem o armazenamento do aparelho: as dos apps */ }
-    return { lista: pad, pad };
+    return { lista: pad, pad, modelos };
   }
   function guardarPerguntas(lista) {
     try { if (lista == null) localStorage.removeItem(PERG); else localStorage.setItem(PERG, JSON.stringify(lista)); } catch (x) { /* modo privado */ }
@@ -540,6 +555,9 @@
         ${ed.lista.map((q, i) => `<div class="ch-ed-lin"><span>${esc(q)}</span><button class="ch-ed-x" data-a="ch-ed-tirar" data-v="${i}" aria-label="Tirar “${esc(q)}”" title="Tirar">${ic('x', 'ic-s')}</button></div>`).join('')}
         <div class="ch-ed-nova"><input id="ch-ed-txt" class="inp" maxlength="120" placeholder="Nova pergunta" aria-label="Nova pergunta" enterkeyhint="done" value="${esc(ed.rascunho || '')}">
           <button class="btn out" data-a="ch-ed-add">${ic('plus', 'ic-s')}Adicionar</button></div>
+        ${((mais) => mais.length ? `<p class="ch-ed-h ch-ed-mais">${ic('sparkles', 'ic-s')}Mais perguntas (${mais.length})</p>
+          ${mais.map(q => `<button class="ch-ed-lin ch-ed-modelo" data-a="ch-ed-por" data-v="${esc(q)}" aria-label="Pôr “${esc(q)}”"><span>${esc(q)}</span><span class="ch-ed-mais-ic">${ic('plus', 'ic-s')}</span></button>`).join('')}` : '')(
+          perguntas(e).modelos.filter(q => !ed.lista.includes(q)))}
         <div class="ch-ed-bts"><button class="btn out" data-a="ch-ed-padrao">${ic('refresh', 'ic-s')}Padrão</button><button class="btn pri" data-a="ch-ed-pronto">${ic('check', 'ic-s')}Pronto</button></div></div>`;
     const { lista } = perguntas(e);
     return `${lista.length ? `<div class="ch-sug">${lista.map(t => `<button class="chip" data-a="ch-sug" data-v="${esc(t)}">${ic('sparkles', 'ic-s')}${esc(t)}</button>`).join('')}</div>` : ''}
@@ -556,7 +574,10 @@
           ${blocoPerguntas(e)}</div>`;
       }
     } else {
-      corpo = M.map(m => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+      // 1.10.0: a mudança que espera o sim (a última mensagem): o Sim e o Não para tocar, embaixo
+      const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
+        ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
@@ -1155,10 +1176,15 @@
     } else if (a === 'ch-sug') {
       Object.assign(S.ch, { rapidas: false, editando: null });
       enviarConversa(el.dataset.v);
+    } else if (a === 'ch-resp') {  // 1.10.0: o Sim ou o Não de uma mudança, num toque
+      enviarConversa(el.dataset.v);
     } else if (a === 'ch-rapidas') {
       Object.assign(S.ch, { rapidas: !(S.ch.rapidas || S.ch.editando), editando: null, menu: false }); render();
     } else if (a === 'ch-ed-abrir') {
       Object.assign(S.ch, { editando: { lista: perguntas(S.e).lista.slice(), rascunho: '' }, menu: false }); render();
+    } else if (a === 'ch-ed-por') {
+      if (!S.ch.editando.lista.includes(el.dataset.v)) S.ch.editando.lista.push(el.dataset.v);
+      render();
     } else if (a === 'ch-ed-tirar') {
       S.ch.editando.lista.splice(Number(el.dataset.v), 1); render();
     } else if (a === 'ch-ed-add') {

@@ -23,6 +23,10 @@ TOKEN = "EAAtoken-de-teste-0000-1234"
 RESPOSTA = ".ch-msg.ia .ch-bolha:not(.ch-pensando)"  # a resposta (o "pensando" também é uma bolha da IA)
 
 
+# 1.10.0: as 6 perguntas prontas com o GerencIA ligado
+G6 = ["Quanto gastei este mês?", "O que vence esta semana?", "Qual é o meu patrimônio hoje?", "Lança 45 de mercado", "Quanto sobrou este mês?", "Quanto rende a carteira por mês?"]
+
+
 class Tela(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -626,7 +630,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.abrir_conversa()
         self.assertEqual(self.texto(".cab h1"), "Conversa")
         self.pg.wait_for_selector(".ch-sug .chip")  # as sugestões aparecem quando a conversa guardada chega
-        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
+        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), G6)
         self.assertEqual(self.pg.get_attribute("#ch-pri", "aria-label"), "Falar", "vazio: o botão é o microfone")
         self.assertEqual(self.app.pedidos, [])
         self.pg.fill("#ch-txt", "Quanto gastei?")
@@ -639,6 +643,38 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.input_value("#ch-txt"), "")
         self.assertEqual(self.app.pedidos[0][3]["canal"], "correria")
         self.assertEqual(self.meta.pedidos, [], "não passa pela Meta")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
+    def test_sim_e_nao_para_tocar(self):
+        """1.10.0: a mudança que espera o sim (a última mensagem, com confirmar) mostra o Sim e o Não, do mesmo tamanho e
+        lado a lado; um toque manda a resposta; depois os botões somem. Uma mensagem de antes com confirmar não tem botões."""
+        import json as _json
+        espera = [{"papel": "eu", "texto": "lança 32,50 de feira", "em": "2026-11-18T10:00:00"},
+                  {"papel": "ia", "texto": "Vou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nToque em *Sim* para confirmar.", "em": "2026-11-18T10:00:01",
+                   "confirmar": True, "app": "GerencIA", "app_id": "_ia"}]
+        feito = espera + [{"papel": "eu", "texto": "Sim", "em": "2026-11-18T10:00:05"},
+                          {"papel": "ia", "texto": "Feito!\n- Lançado: Feira", "em": "2026-11-18T10:00:06", "app": "GerencIA", "app_id": "_ia"}]
+        enviados = []
+
+        def conversa(route):
+            if route.request.method == "POST":
+                enviados.append(_json.loads(route.request.post_data or "{}"))
+                return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": feito, "conversa": "c1"}))
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": espera, "pessoa": "Ana", "ola": "", "conversa": "c1"}))
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        self.pg.on("pageerror", lambda e: self.erros.append(str(e)))
+        self.pg.route("**/api/conversa", conversa)
+        self.pg.goto(self.url)
+        self.pg.wait_for_selector(".ch-sim .btn")
+        self.assertEqual(self.pg.locator(".ch-sim .btn").all_inner_texts(), ["Não", "Sim"])
+        caixas = self.pg.evaluate("[...document.querySelectorAll('.ch-sim .btn')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.top)]; })")
+        self.assertEqual(caixas[0], caixas[1], "do mesmo tamanho, lado a lado")
+        self.pg.click('.ch-sim [data-v="Sim"]')
+        self.pg.wait_for_selector(".ch-msg.ia >> text=Feito!")
+        self.assertEqual(enviados, [{"texto": "Sim"}])
+        self.assertEqual(self.pg.locator(".ch-sim").count(), 0, "respondido: sem os botões")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
 
     def test_enter_envia(self):
@@ -916,29 +952,36 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.abrir_conversa()
         self.pg.wait_for_selector('[data-a="ch-ed-abrir"]')
         self.pg.click('[data-a="ch-ed-abrir"]')
-        self.assertEqual(self.pg.locator(".ch-ed-lin span").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
+        lin = ".ch-ed-lin:not(.ch-ed-modelo) > span"
+        self.assertEqual(self.pg.locator(lin).all_inner_texts(), G6)
+        # 1.10.0: os modelos: as outras perguntas dos apps ligados (aqui só o GerencIA) e as de todos os apps
+        self.assertEqual(self.pg.locator(".ch-ed-modelo > span:first-child").all_inner_texts(), ["Resume o meu dia", "O que eu tenho para fazer hoje?", "O que vence nos próximos dias, em todos os apps?"])
+        self.pg.click('.ch-ed-modelo >> nth=0')
+        self.assertEqual(self.pg.locator(lin).all_inner_texts()[-1], "Resume o meu dia", "um toque põe o modelo na lista")
+        self.assertEqual(self.pg.locator(".ch-ed-modelo").count(), 2)
+        self.pg.click('[data-a="ch-ed-tirar"] >> nth=6')
         self.pg.click('[data-a="ch-ed-tirar"] >> nth=0')
         self.pg.fill("#ch-ed-txt", "Quanto sobrou no mês?")
         self.pg.click('[data-a="ch-ed-add"]')
         self.assertEqual(self.pg.input_value("#ch-ed-txt"), "", "Adicionar limpa a caixa")
         self.pg.fill("#ch-ed-txt", "Qual a maior despesa?")
         self.pg.press("#ch-ed-txt", "Enter")
-        self.assertEqual(self.pg.locator(".ch-ed-lin span").all_inner_texts(), ["O que vence esta semana?", "Quanto sobrou no mês?", "Qual a maior despesa?"])
+        self.assertEqual(self.pg.locator(lin).all_inner_texts(), G6[1:] + ["Quanto sobrou no mês?", "Qual a maior despesa?"])
         larg = self.pg.evaluate("[...document.querySelectorAll('.ch-ed-bts .btn')].map(b => Math.round(b.getBoundingClientRect().width))")
         self.assertEqual(len(set(larg)), 1, f"Padrão e Pronto do mesmo tamanho ({larg})")
         self.pg.screenshot(path=os.path.join(S.DATA_DIR, "perguntas.png"))
         self.pg.click('[data-a="ch-ed-pronto"]')
-        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), ["O que vence esta semana?", "Quanto sobrou no mês?", "Qual a maior despesa?"])
+        self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), G6[1:] + ["Quanto sobrou no mês?", "Qual a maior despesa?"])
         self.pg.reload()
         self.pg.wait_for_selector(".ch-sug .chip")
-        self.assertEqual(self.pg.locator(".ch-sug .chip").count(), 3, "guardadas no aparelho")
+        self.assertEqual(self.pg.locator(".ch-sug .chip").count(), 7, "guardadas no aparelho")
         # com a conversa andando: o ✨ ao lado da caixa abre as mesmas
         self.assertEqual(self.pg.locator('[data-a="ch-rapidas"]').count(), 0, "vazia: as perguntas já estão à vista")
-        self.pg.click('[data-a="ch-sug"] >> nth=1')
+        self.pg.click('[data-a="ch-sug"] >> nth=5')
         self.pg.wait_for_selector(RESPOSTA)
         self.assertEqual(self.app.pedidos[-1][3]["texto"], "Quanto sobrou no mês?")
         self.pg.click('[data-a="ch-rapidas"]')
-        self.assertEqual(self.pg.locator(".ch-rapidas .chip").count(), 3)
+        self.assertEqual(self.pg.locator(".ch-rapidas .chip").count(), 7)
         self.assertEqual(self.pg.get_attribute('[data-a="ch-rapidas"]', "aria-expanded"), "true")
         self.pg.click('.ch-rapidas [data-a="ch-sug"] >> nth=2')
         self.pg.wait_for_function("() => document.querySelectorAll('.ch-msg.eu').length === 2")
@@ -948,7 +991,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.click('.ch-rapidas [data-a="ch-ed-abrir"]')
         self.pg.click('[data-a="ch-ed-padrao"]')
         self.pg.click('[data-a="ch-ed-pronto"]')
-        self.assertEqual(self.pg.locator(".ch-rapidas .chip").all_inner_texts(), ["Quanto gastei este mês?", "O que vence esta semana?"])
+        self.assertEqual(self.pg.locator(".ch-rapidas .chip").all_inner_texts(), G6)
         self.assertIsNone(self.pg.evaluate("localStorage.getItem('correria-perguntas')"), "as dos apps: nada guardado")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.assertEqual(self.erros, [])

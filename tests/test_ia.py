@@ -56,7 +56,7 @@ class TestAgente(unittest.TestCase):
         ag = self.agente({"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 32.5},
                                       "resumo": "Lançar R$ 32,50 de Feira hoje"}], "resposta": "Certo."})
         r = ag.responder(self.hist("lança 32,50 de feira"), ANA, "correria", "CorrerIA", AGORA)
-        self.assertEqual(r["resposta"], "Certo.\n\nVou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nResponda *sim* para confirmar.")
+        self.assertEqual(r["resposta"], "Certo.\n\nVou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nToque em *Sim* para confirmar.")
         self.assertEqual(r["pendente"], [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 32.5},
                                           "resumo": "Lançar R$ 32,50 de Feira hoje", "app": "GerencIA"}])
         self.assertEqual(self.app.feitos, [], "nada gravado antes do sim")

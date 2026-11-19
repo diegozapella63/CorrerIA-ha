@@ -158,7 +158,8 @@ class Agente:
                 if len(gravar) > MAX_ACOES:  # 1.9.0: as que não couberam não somem caladas
                     linhas += f"\n(Mais {len(gravar) - MAX_ACOES} ficam para depois: peça de novo depois do sim.)"
                 frase = (texto + "\n\n") if texto else ""
-                return {"resposta": f"{frase}Vou fazer {'isto' if len(pend) == 1 else 'isto tudo'}:\n{linhas}\n\nResponda *sim* para confirmar.",
+                # 1.10.0: o Sim e o Não vêm em botões, na tela e no WhatsApp (escrever sim também vale)
+                return {"resposta": f"{frase}Vou fazer {'isto' if len(pend) == 1 else 'isto tudo'}:\n{linhas}\n\nToque em *Sim* para confirmar.",
                         "pendente": pend, "apps": sorted({p["app"] for p in pend} | set(usados))}
             todas_ler = [(f, c) for f, c in achadas if not f["grava"]]
             ler = todas_ler[:MAX_CHAMADAS]

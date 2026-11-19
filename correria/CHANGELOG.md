@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.10.0
+
+- **Sim e Não para tocar**: quando a IA vai mudar algo nos apps, a conversa mostra os botões **Sim** e **Não** embaixo da mensagem, e o WhatsApp também, com botões. Escrever sim continua valendo.
+- **Perguntas prontas**: 6 à vista, uma de cada app ligado, e em **Editar perguntas** mais 20 modelos dos apps (um toque põe a pergunta na lista).
+
 ## 1.9.0
 
 - **O fundo e os cartões seguem o tema do Home Assistant**, no claro e no escuro: o mesmo fundo do Home Assistant e dos outros apps da família (antes, cada app tinha o seu). Com um tema seu no Home Assistant, o app usa as cores dele; ao trocar o tema ou o modo no Home Assistant, o app muda junto.

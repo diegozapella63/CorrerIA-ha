@@ -94,6 +94,9 @@ def para_whatsapp(texto):
     return t.strip()
 
 
+LIMITE_BOTOES = 1024  # o corpo de uma mensagem com botões
+
+
 def partes(texto, limite=LIMITE):
     """Texto longo em pedaços que cabem numa mensagem, quebrando de preferência entre parágrafos."""
     t = str(texto or "").strip()
@@ -162,6 +165,17 @@ class WhatsApp:
                                                                      "to": so_digitos(para), "type": "text", "text": {"preview_url": False, "body": p}})
             ids += [m.get("id") for m in r.get("messages") or [] if isinstance(m, dict)]
         return ids
+
+    def botoes(self, para, texto, botoes):
+        """1.10.0: o texto com botões de resposta embaixo (até 3, como Sim e Não: [(id, título)]). O corpo de uma mensagem
+        com botões vai até 1024 letras: o que passar vai antes, em texto. Devolve os ids das mensagens."""
+        pedacos = partes(para_whatsapp(texto), LIMITE_BOTOES)
+        ids = self.texto(para, "\n\n".join(pedacos[:-1])) if len(pedacos) > 1 else []
+        r = self._pedir("POST", f"{self.numero_id}/messages", {
+            "messaging_product": "whatsapp", "recipient_type": "individual", "to": so_digitos(para), "type": "interactive",
+            "interactive": {"type": "button", "body": {"text": pedacos[-1] if pedacos else "?"},
+                            "action": {"buttons": [{"type": "reply", "reply": {"id": i, "title": t[:20]}} for i, t in botoes[:3]]}}})
+        return ids + [m.get("id") for m in r.get("messages") or [] if isinstance(m, dict)]
 
     def lida(self, msg_id, digitando=True):
         """Os dois tracinhos azuis e o "digitando..." enquanto a IA pensa (some com a resposta ou em 25 s)."""

@@ -558,7 +558,8 @@ class TestComFerramentas(Base):
     def test_mudar_so_com_o_sim(self):
         self.ia(LANCAR)
         r = self.mandar("lança 32,50 de feira")
-        self.assertEqual(r[0][1], "Vou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nResponda *sim* para confirmar.")
+        self.assertEqual(r[0][1], "Vou fazer isto:\n- Lançar R$ 32,50 de Feira hoje\n\nToque em *Sim* para confirmar.")
+        self.assertEqual(self.meta.botoes(), [[("sim", "Sim"), ("nao", "Não")]], "1.10.0: o Sim e o Não em botões")
         self.assertEqual(self.app.feitos, [])
         r = self.mandar("Sim!")
         self.assertEqual(r[0][1], "Feito!\n- Lançado: Feira · R$ 32.5. id: l1")
@@ -608,10 +609,12 @@ class TestComFerramentas(Base):
         self.ia(LANCAR)
         r = S.conversar({"texto": "lança 32,50 de feira"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
         self.assertEqual(r["mensagens"][-1]["app"], "GerencIA")
-        self.assertIn("Responda *sim*", r["mensagens"][-1]["texto"])
+        self.assertIn("Toque em *Sim*", r["mensagens"][-1]["texto"])
+        self.assertIs(r["mensagens"][-1].get("confirmar"), True, "1.10.0: a tela mostra o Sim e o Não")
         self.assertIn("na tela do app CorrerIA", self.falsa.pedidos[0])
-        r = S.conversar({"texto": "pode"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
+        r = S.conversar({"texto": "Sim"}, {"id": "person.ana", "nome": "Ana"}, "u-ana")
         self.assertTrue(r["mensagens"][-1]["texto"].startswith("Feito!"))
+        self.assertNotIn("confirmar", r["mensagens"][-1], "feito: sem os botões")
         self.assertEqual(self.app.feitos[-1]["cliente"], "CorrerIA")
 
     def test_conversas_velhas_saem(self):

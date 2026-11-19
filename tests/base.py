@@ -87,7 +87,14 @@ class MetaFalsa(ServidorFalso):
         self.rotas[f"/{self.NUMERO_ID}"] = (200, {"display_phone_number": "+55 11 4000-0000", "verified_name": "CorrerIA Code", "id": self.NUMERO_ID})
 
     def textos(self):
-        return [(c["to"], c["text"]["body"]) for m, p, h, c in self.pedidos if isinstance(c, dict) and c.get("type") == "text"]
+        """O texto de cada mensagem mandada (também o corpo das com botões), na ordem."""
+        return [(c["to"], c["text"]["body"] if c.get("type") == "text" else c["interactive"]["body"]["text"])
+                for m, p, h, c in self.pedidos if isinstance(c, dict) and c.get("type") in ("text", "interactive")]
+
+    def botoes(self):
+        """Os botões de cada mensagem com botões: [[(id, título)]]."""
+        return [[(b["reply"]["id"], b["reply"]["title"]) for b in c["interactive"]["action"]["buttons"]]
+                for m, p, h, c in self.pedidos if isinstance(c, dict) and c.get("type") == "interactive"]
 
     def lidas(self):
         return [c for m, p, h, c in self.pedidos if isinstance(c, dict) and c.get("status") == "read"]
