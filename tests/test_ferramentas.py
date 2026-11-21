@@ -18,7 +18,32 @@ class TestFerramentas(unittest.TestCase):
     def test_todas_com_o_app_na_frente(self):
         ids = [x["id"] for x in self.f.todas()]
         self.assertEqual(ids, ["cronologia_resumo", "cronologia_lancar", "cronologia_apagar"])
-        self.assertEqual(self.f.instrucoes(), "- CronologIA (um assunto): CronologIA: dicas.")
+        linhas = self.f.instrucoes().split("\n")
+        self.assertEqual(linhas[0], "- CronologIA (um assunto): CronologIA: dicas.")
+        # 1.16.0: o contexto todo da família: os que estão com a integração desligada (com o assunto) e o que dizer deles
+        self.assertEqual(len(linhas), 3)
+        self.assertTrue(linhas[1].startswith("Apps da família com a integração desligada (você não vê nem muda os dados deles): EconomIA (compras da casa:"), linhas[1])
+        for nome in ("GerencIA (finanças da casa:", "InventarIA (inventário da casa:", "MemorIA (anotações em blocos", "ResolvIA (listas de tarefas da casa:"):
+            self.assertIn(nome, linhas[1])
+        self.assertNotIn("CronologIA (", linhas[1], "o ligado não está entre os desligados")
+        self.assertIn("diga que a integração dele com o CorrerIA está desligada e que ela liga no próprio app, em Mais › Configurações › Integrações › CorrerIA. Não procure isso nos outros apps.", linhas[1])
+        self.assertIn("O nome de um app na pergunta, mesmo em minúsculas, sem acento ou pela metade (resolvia, memória", linhas[2])
+        self.assertIn('Para "o que tem no <app>", comece pela ferramenta de resumo ou de lista dele.', linhas[2])
+
+    def test_instrucoes_um_app_ligado_que_nao_responde(self):
+        self.cron.chave = "outra"  # o app recusa a chave
+        self.f.apps._ferr.clear()
+        t = self.f.instrucoes()
+        self.assertIn("Ligados, mas sem responder agora (se perguntarem por eles, diga isso): CronologIA.", t)
+        self.assertNotIn("- CronologIA", t)
+
+    def test_instrucoes_sem_nenhum_app_ligado(self):
+        import shutil
+        shutil.rmtree(self.share + "/cronologia")
+        t = self.f.instrucoes()
+        self.assertTrue(t.startswith("Apps da família com a integração desligada"), t[:80])
+        self.assertIn("CronologIA (agenda da família:", t)
+        self.assertEqual(F.Ferramentas(type("SemFamilia", (), {"lista": lambda s: []})(), print).instrucoes(), "", "uns apps de teste sem a família: nada")
 
     def test_app_so_com_a_ia_dele_vira_perguntar(self):
         g = ServidorFalso({"/api/integracao/conversa": lambda h, c: (200, {"resposta": f"Resposta: {c['texto']} ({c['canal']})"})})

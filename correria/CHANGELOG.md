@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.16.0
+
+- **A IA conhece todos os apps da família**: na Conversa, no WhatsApp e nas IAs conectadas, ela sabe quais apps estão ligados, quais estão com a integração desligada (e o assunto de cada um) e que o nome de um app na pergunta é o app. Perguntar "o que tem no ResolvIA?" com ele desligado agora responde que a integração está desligada e onde ligar, em vez de procurar em outro app.
+
 ## 1.15.0
 
 - **Integrações › Apps**: agora aparecem **todos os apps da família**. Os que estão com a opção CorrerIA desligada vêm depois dos ligados, apagados, com **Integração desligada** e onde ligar.

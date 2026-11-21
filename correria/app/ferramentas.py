@@ -50,20 +50,36 @@ class Ferramentas:
         return out
 
     def instrucoes(self):
-        """Uma linha por app: o que ele é e as dicas dele."""
-        linhas = []
+        """Uma linha por app: o que ele é e as dicas dele. 1.16.0: e o contexto todo da família, para a IA saber de qual
+        app a pessoa fala: os ligados que não responderam agora, os que estão com a integração desligada (com o assunto
+        de cada um) e que o nome de um app na pergunta é o app, não um item dentro de outro."""
+        linhas, mudos = [], []
         for app in self.apps.lista():
             dica = ""
             if app["ferramentas"]:
                 try:
                     dica = self.apps.ferramentas(app)["instrucoes"]
                 except A.ErroApp:
+                    mudos.append(app["nome"])
                     continue
             elif not app["rota"]:
                 continue
             linhas.append(f"- {app['nome']}" + (f" ({app['assunto']})" if app["assunto"] else "") + (f": {dica}" if dica else ""))
         if self.casa:
             linhas.append(f"- {C.APP['nome']} ({C.APP['assunto']}): {C.INSTRUCOES}")
+        desligados = getattr(self.apps, "desligados", lambda: [])()
+        if mudos:
+            linhas.append("Ligados, mas sem responder agora (se perguntarem por eles, diga isso): " + ", ".join(mudos) + ".")
+        if desligados:
+            linhas.append("Apps da família com a integração desligada (você não vê nem muda os dados deles): "
+                          + "; ".join(f"{a['nome']} ({a['assunto']})" for a in desligados)
+                          + ". Se a pessoa perguntar por um deles ou pelo assunto dele, diga que a integração dele com o CorrerIA está "
+                          "desligada e que ela liga no próprio app, em Mais › Configurações › Integrações › CorrerIA. Não procure "
+                          "isso nos outros apps.")
+        if linhas:
+            linhas.append("O nome de um app na pergunta, mesmo em minúsculas, sem acento ou pela metade (resolvia, memória, cronologia, "
+                          "gerência, inventário, economia), é o app, nunca um item dentro de outro app. Para \"o que tem no <app>\", "
+                          "comece pela ferramenta de resumo ou de lista dele.")
         return "\n".join(linhas)
 
     def achar(self, fid, lista=None):
