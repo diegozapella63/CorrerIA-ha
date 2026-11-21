@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.17.3
+
+- **Conversa no celular**: o Enter do teclado vai para a próxima linha; quem envia é o botão. Com teclado de verdade, o Enter continua enviando.
+
 ## 1.17.2
 
 - **Teclado no celular**: ao abrir uma janela com um campo de texto, a tela não fica mais deslocada (a barra de cima sumia até um toque).

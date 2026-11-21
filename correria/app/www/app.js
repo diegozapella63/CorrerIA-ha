@@ -682,7 +682,7 @@
         ${aberto ? `<div class="ch-rapidas">${blocoPerguntas(e)}</div>` : ''}${menu}
         ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
         <div class="ch-barra${ouvindo ? ' ouvindo' : ''}">${esquerda}
-          <textarea id="ch-txt" class="inp" rows="1" data-size="off" placeholder="${lugar}" enterkeyhint="send"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
+          <textarea id="ch-txt" class="inp" rows="1" data-size="off" placeholder="${lugar}" enterkeyhint="${matchMedia('(hover: none) and (pointer: coarse)').matches ? 'enter' : 'send'}"${f ? ' disabled' : ''}>${esc(c.texto)}</textarea>
           ${rap ? `<button class="ch-bt ch-qbt${aberto ? ' on' : ''}" data-a="ch-rapidas" aria-label="Perguntas prontas" title="Perguntas prontas" aria-expanded="${aberto ? 'true' : 'false'}">${ic('sparkles')}</button>` : ''}
           ${botaoPri(e)}</div>
       </div>`;
@@ -1355,7 +1355,10 @@
      (o do Android manda 229). No celular, o Enter do teclado da tela quebra a linha. */
   let teclaDeVerdade = false;
   document.addEventListener('keydown', ev => { if (ev.key && ev.key.length === 1 && ev.keyCode !== 229 && !ev.isComposing) teclaDeVerdade = true; }, true);
-  const comTeclado = () => teclaDeVerdade || matchMedia('(any-hover: hover), (any-pointer: fine)').matches;
+  // 1.17.3: o celular é o aparelho cujo jeito principal de usar é o dedo (antes, uma caneta ou um mouse que o aparelho
+  // dissesse ter já fazia o Enter enviar); com uma tecla de verdade apertada, é teclado
+  const noCelular = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
+  const comTeclado = () => teclaDeVerdade || !noCelular();
   document.addEventListener('keydown', ev => {
     // 1.4.0: Ctrl+Espaço abre a Conversa e, aberta, recolhe (na Tela cheia; fora dela, o cursor vai para a caixa)
     if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.code === 'Space' || ev.key === ' ')) {
