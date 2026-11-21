@@ -87,6 +87,7 @@ class TestAgente(unittest.TestCase):
         self.assertEqual(r["resposta"], "Não consegui responder agora. Pode perguntar de outro jeito?")
         self.assertEqual(len(self.ia.pedidos), 4)
         self.assertIn("Agora responda com o que já tem", self.ia.pedidos[-1])
+        self.assertIn("não mande a pessoa procurar", self.ia.pedidos[-1])
 
     def test_o_que_nao_coube_nao_some_calado(self):
         """1.9.0: um resultado cortado, as leituras além das 4 e as mudanças além das 8 são ditas (antes sumiam caladas)."""

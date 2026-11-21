@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.16.1
+
+- **A IA procura, não manda procurar**: perguntas como "o que eu tenho para tirar fotos?" agora fazem a IA buscar no inventário (e nos outros apps que fizerem sentido) e responder com o que achou, em vez de sugerir que você confira no app.
+
 ## 1.16.0
 
 - **A IA conhece todos os apps da família**: na Conversa, no WhatsApp e nas IAs conectadas, ela sabe quais apps estão ligados, quais estão com a integração desligada (e o assunto de cada um) e que o nome de um app na pergunta é o app. Perguntar "o que tem no ResolvIA?" com ele desligado agora responde que a integração está desligada e onde ligar, em vez de procurar em outro app.

@@ -80,6 +80,12 @@ class Ferramentas:
             linhas.append("O nome de um app na pergunta, mesmo em minúsculas, sem acento ou pela metade (resolvia, memória, cronologia, "
                           "gerência, inventário, economia), é o app, nunca um item dentro de outro app. Para \"o que tem no <app>\", "
                           "comece pela ferramenta de resumo ou de lista dele.")
+            # 1.16.1: quem procura é a IA (ela respondia "sugiro verificar no InventarIA" em vez de buscar lá)
+            linhas.append("Quem procura é você: nunca diga para a pessoa verificar, conferir ou procurar num app que está ligado. "
+                          "Chame a ferramenta de busca ou de lista dele e responda com o que achou. Uma pergunta sobre o que a pessoa "
+                          "tem, usa ou guardou (\"o que eu tenho para…\", \"tenho algum…\", \"onde está…\") é do inventário: busque lá, "
+                          "com mais de uma palavra se a primeira não achar (câmera, tripé, lente, celular). Se o assunto cabe em mais de "
+                          "um app, procure em todos antes de responder. Só diga que não achou depois de procurar, e diga onde procurou.")
         return "\n".join(linhas)
 
     def achar(self, fid, lista=None):

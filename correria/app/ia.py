@@ -125,7 +125,8 @@ class Agente:
         if resultados:
             partes.append("Resultados das ferramentas que você chamou agora:\n" + "\n\n".join(resultados))
         if ultima:
-            partes.append("Agora responda com o que já tem, sem chamar mais ferramentas de leitura.")
+            partes.append("Agora responda com o que já tem, sem chamar mais ferramentas de leitura. Se algo ficou sem conferir, "
+                          "diga o que você não chegou a ver; não mande a pessoa procurar.")
         partes.append(FORMATO)
         return "\n\n".join(partes)
 
