@@ -643,6 +643,20 @@ class TestComFerramentas(Base):
         self.app.publicar(S.SHARE_DIR, "gerencia", rota="/api/integracao/conversa")
         self.app.rotas["/api/integracao/conversa"] = (200, {"resposta": "Pela IA do GerencIA."})
         self.assertEqual(self.mandar("oi")[0][1], "Pela IA do GerencIA.")
+        # 1.16.2: a IA fora do ar ou sobrecarregada: diz logo, sem o JSON do provedor e sem passar pelo app (que usa a mesma IA)
+        cru = 'Error generating content: {"error": {"code": 503, "message": "The model is overloaded. Please try again later.", "status": "UNAVAILABLE"}}'
+        self.assertEqual(S.erro_da_ia(cru, "IA Azul"), "IA Azul está fora do ar ou sobrecarregada agora. Tente de novo daqui a pouco.")
+        self.assertEqual(S.erro_da_ia("Entidade desconhecida.", "IA Azul"), "IA Azul: Entidade desconhecida.")
+        self.ia(S.ia.ErroIA(S.erro_da_ia(cru, "IA Azul")))
+        n = len(self.app.pedidos)
+        self.assertEqual(self.mandar("oi")[0][1], "IA Azul está fora do ar ou sobrecarregada agora. Tente de novo daqui a pouco.")
+        self.assertEqual([p for p in self.app.pedidos[n:] if p[1] == "/api/integracao/conversa"], [], "não pergunta ao app")
+        # e se o app devolver o erro cru da IA dele como resposta, ele não vai para a conversa
+        self.ia(S.ia.ErroIA("Nenhuma entidade de IA."))
+        self.app.rotas["/api/integracao/conversa"] = (200, {"resposta": '{\n"error": {\n"code": 503,\n"status": "UNAVAILABLE"\n}\n}'})
+        self.assertEqual(self.mandar("oi")[0][1], S.apps.FORA_DO_AR)
+        self.assertFalse(S.apps.erro_cru("Você gastou R$ 503,00 no mercado."))
+        self.assertFalse(S.apps.erro_cru(""))
 
     def test_conversa_da_tela(self):
         self.ia(LANCAR)

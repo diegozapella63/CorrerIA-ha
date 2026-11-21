@@ -467,6 +467,8 @@ def erro_da_ia(msg, nome):
     quem = nome or "A IA padrão do Home Assistant"
     if uso.resultado(msg) == "cota":
         return f"{quem} ficou sem cota (o limite de uso acabou). Espere a cota voltar ou escolha outra em IA para conversar."
+    if apps.erro_cru(msg):  # 1.16.2: fora do ar ou sobrecarregada: sem o JSON do provedor
+        return f"{quem} está fora do ar ou sobrecarregada agora. Tente de novo daqui a pouco."
     return f"{quem}: {msg}" if nome else msg
 
 
@@ -597,6 +599,10 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
         r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente)
     except ia.ErroIA as e:
         log("IA:", e)
+        # 1.16.2: fora do ar, sobrecarregada ou sem cota: a mesma IA não responde pelo app; diz logo, numa frase
+        passageiro = apps.erro_cru(str(e)) or "fora do ar ou sobrecarregada" in str(e) or uso.resultado(str(e)) == "cota"
+        if passageiro:
+            return (apps.FORA_DO_AR if apps.erro_cru(str(e)) else str(e)), [], False
         if any(a["rota"] for a in APPS.lista()):
             return None
         return f"A IA do Home Assistant não respondeu agora ({str(e).rstrip('.')}). Tente de novo daqui a pouco.", [], False

@@ -661,7 +661,7 @@
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
-    const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Escreva a sua pergunta';
+    const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Sua pergunta';
     // 1.1.0: um botão só para o anexo (Tirar foto, Escolher fotos, Escolher arquivo), e o ✨ das perguntas prontas
     const esquerda = ouvindo ? `<button class="ch-bt" data-a="ch-falar-x" aria-label="Cancelar" title="Cancelar">${ic('x')}</button>`
       : le ? `<button class="ch-bt${c.menu ? ' on' : ''}" data-a="ch-menu" aria-label="Anexar" title="Anexar" aria-expanded="${c.menu ? 'true' : 'false'}"${f ? ' disabled' : ''}>${ic('clip')}</button>` : '';

@@ -46,6 +46,16 @@ FAMILIA = (
 )
 
 
+FORA_DO_AR = "A IA não respondeu agora: está fora do ar ou sobrecarregada. Tente de novo daqui a pouco."
+_ERRO_CRU = re.compile(r'"status"\s*:\s*"[A-Z_]{4,}"|"code"\s*:\s*(?:429|5\d\d)\b|\b(?:UNAVAILABLE|overloaded|Service Unavailable)\b', re.I)
+
+
+def erro_cru(texto) -> bool:
+    """O texto é o erro do provedor da IA como ele veio (JSON com status e code, ou UNAVAILABLE), e não uma resposta."""
+    t = str(texto or "")
+    return bool(_ERRO_CRU.search(t)) and ("{" in t or len(t) < 400)
+
+
 class ErroApp(Exception):
     pass
 
@@ -153,7 +163,9 @@ class Apps:
             raise ErroApp(f"O {app['nome']} não responde perguntas, só pelas ferramentas.")
         corpo = {"texto": texto, "historico": historico, "pessoa": pessoa, "canal": canal, **({"anexo": anexo} if anexo else {})}
         resp = self._pedir(app, app["rota"], corpo, timeout=timeout)
-        return str(resp.get("resposta") or "").strip() or "Não entendi. Pode dizer de outro jeito?"
+        txt = str(resp.get("resposta") or "").strip() or "Não entendi. Pode dizer de outro jeito?"
+        # 1.16.2: o erro cru da IA do app ({"error": {"code": 503, "status": "UNAVAILABLE"}}) não vai para a conversa
+        return FORA_DO_AR if erro_cru(txt) else txt
 
     def ferramentas(self, app, cache=60):
         """As ferramentas do app: {instrucoes, ferramentas: [{nome, titulo, descricao, entrada, grava, apaga}]}, só as

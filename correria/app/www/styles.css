@@ -257,6 +257,9 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-pe > * { max-width: 608px; margin-inline: auto; }
 .ch-barra { display: flex; align-items: flex-end; gap: 8px; }
 .ch-barra .inp { flex: 1; min-height: 46px; max-height: 140px; resize: none; padding: 11px 14px; border-radius: 23px; }
+/* 1.16.2: vazia, a caixa não rola (o texto de exemplo quebrava em duas linhas e criava uma barra de rolagem) */
+.ch-barra .inp:placeholder-shown { overflow: hidden; }
+.ch-barra .inp::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch-bt { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); background: var(--card-2); }
 .ch-bt.pri { background: var(--accent); color: var(--on-accent); }
 /* ouvindo: o botão fica vermelho e a borda cresce com a voz */

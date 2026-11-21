@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.16.2
+
+- **Conversa**: a caixa de escrever não cria mais barra de rolagem quando está vazia (o texto de exemplo ficou **Sua pergunta**, numa linha só).
+- **IA fora do ar**: quando a IA está sobrecarregada, a Conversa diz isso numa frase, em vez de mostrar o erro técnico.
+
 ## 1.16.1
 
 - **A IA procura, não manda procurar**: perguntas como "o que eu tenho para tirar fotos?" agora fazem a IA buscar no inventário (e nos outros apps que fizerem sentido) e responder com o que achou, em vez de sugerir que você confira no app.

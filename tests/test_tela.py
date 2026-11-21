@@ -732,6 +732,15 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector(".ch-sug .chip")  # as sugestões aparecem quando a conversa guardada chega
         self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), G6)
         self.assertEqual(self.pg.get_attribute("#ch-pri", "aria-label"), "Falar", "vazio: o botão é o microfone")
+        # 1.16.2: a caixa vazia não rola nem corta o texto de exemplo (ele quebrava em duas linhas, com uma barra de rolagem)
+        self.assertEqual(self.pg.get_attribute("#ch-txt", "placeholder"), "Sua pergunta")
+        for larg in (390, 320):
+            self.pg.set_viewport_size({"width": larg, "height": 800})
+            cx = self.pg.evaluate("""() => { const t = document.querySelector('#ch-txt'), c = document.createElement('canvas').getContext('2d'), s = getComputedStyle(t);
+                c.font = s.fontWeight + ' ' + s.fontSize + ' ' + s.fontFamily;
+                return [t.scrollHeight <= t.clientHeight + 1, s.overflowY, c.measureText(t.placeholder).width, t.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)]; }""")
+            self.assertTrue(cx[0] and cx[1] == "hidden" and cx[2] <= cx[3], f"{larg} px: sem rolagem e o texto de exemplo inteiro ({cx})")
+        self.pg.set_viewport_size({"width": 390, "height": 800})
         self.assertEqual(self.app.pedidos, [])
         self.pg.fill("#ch-txt", "Quanto gastei?")
         self.pg.click('[data-a="ch-enviar"]')
