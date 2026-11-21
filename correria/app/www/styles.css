@@ -57,6 +57,8 @@ svg { display: block; }
 .bt-icone { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); background: var(--card); border: 1px solid var(--line); }
 .bt-icone:active { background: var(--card-2); transform: scale(.95); }
 body[data-tela="conversa"] .cab { margin-bottom: 18px; }
+/* 1.13.1: na Conversa, o cabeçalho fica sempre no alto ao rolar as mensagens (fora da Tela cheia, que já o prende) */
+body[data-tela="conversa"]:not(.cheia) .cab { position: sticky; top: 0; z-index: 15; background: var(--bg); margin: -22px -16px 18px; padding: 22px 16px 12px; }
 .sync { margin-bottom: 18px; }
 .cab-tela { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 18px; }
 .cab-tela h1 { margin: 0; font: 700 clamp(32px, 8.5vw, 42px)/1.05 var(--font-d); }
@@ -554,6 +556,7 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
     padding: 22px 14px 18px; overflow-y: auto; border-right: 1px solid var(--line); background: var(--bg); scrollbar-width: thin; }
   body.lado #app { max-width: 960px; padding: 28px 40px 72px; }
   body.lado[data-tela="conversa"] #app { max-width: none; padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+  body.lado[data-tela="conversa"]:not(.cheia) .cab { margin: -28px -40px 18px; padding: 28px 40px 12px; }
   body.lado .ch-pe { left: var(--side-w); padding-left: 40px; padding-right: 40px; }
   body.lado .ch-pe > * { max-width: none; }
   body.lado .ch-msg { max-width: min(78%, 900px); }

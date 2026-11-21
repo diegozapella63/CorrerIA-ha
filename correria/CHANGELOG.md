@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.13.1
+
+- **Conversa**: o cabeçalho (CorrerIA › Conversa e os botões) fica sempre no alto, mesmo ao rolar as mensagens. Antes ele saía da tela junto com elas.
+
 ## 1.13.0
 
 - **Conector MCP › Pelo túnel da Cloudflare**: para quando a operadora bloqueia a porta 443 (ou usa CGNAT). Ligado, o CorrerIA abre uma porta só na rede de casa para o app **Cloudflared** do Home Assistant e mostra, pronto para copiar, o que vai nele. As IAs chegam pela 443 da Cloudflare, sem abrir porta no roteador. O cartão diz quando chegou uma conexão pelo túnel.

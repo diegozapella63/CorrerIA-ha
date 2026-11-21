@@ -1515,6 +1515,21 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
                 self.assertTrue(hs, aba)
                 self.assertEqual([x for x in hs if x[0] != 50], [], f"{largura} px › {aba}: tudo com 50 px")
 
+    def test_cabecalho_fica_no_alto_ao_rolar(self):
+        """1.13.1: na Conversa, o cabeçalho (CorrerIA › Conversa e os botões) fica no alto quando as mensagens rolam,
+        no celular e no computador com a barra lateral; na Tela cheia ele já fica preso dentro do painel."""
+        self.abrir()
+        self.pg.evaluate("document.querySelector('#ch-lista').insertAdjacentHTML('beforeend', '<p style=\"height:3000px\">mensagem</p>')")
+        for largura in (390, 1280):
+            self.pg.set_viewport_size({"width": largura, "height": 760})
+            self.pg.evaluate("window.scrollTo(0, 900)")
+            self.pg.wait_for_timeout(100)
+            topo = self.pg.evaluate("() => { const r = document.querySelector('.cab').getBoundingClientRect(); return [r.top, r.bottom]; }")
+            self.assertLess(abs(topo[0]), 1, f"{largura} px: o cabeçalho cola no alto da tela")
+            self.assertGreater(topo[1], 40, f"{largura} px: o cabeçalho continua aparecendo")
+            self.assertTrue(self.pg.is_visible('.cab [data-a="mais"], .cab h1'), f"{largura} px: os botões e o título continuam visíveis")
+            self.pg.evaluate("window.scrollTo(0, 0)")
+
 
 if __name__ == "__main__":
     unittest.main()
