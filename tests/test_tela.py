@@ -107,8 +107,8 @@ class Tela(unittest.TestCase):
         self.pg.click('.ch-vazio [data-a="opcoes"]')
         self.pg.wait_for_selector(".abas")
         self.assertEqual(self.texto(".cab-tela h1"), "Configurações")
-        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"])
-        self.assertEqual(self.texto(".abas .on"), "Apps", "começa em Apps")
+        self.assertEqual(self.pg.locator(".abas button").all_inner_texts(), ["Integrações", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"])
+        self.assertEqual(self.texto(".abas .on"), "Integrações", "começa em Integrações (1.14.0: antes, Apps)")
         self.pg.click('.abas [data-v="whatsapp"]')
         self.assertEqual(self.pg.locator(".sync").count(), 0, "0.16.1: sem o \"Falta terminar a configuração\" no alto (o cartão já diz)")
         # 0.17.0: o WhatsApp liga e desliga como o conector MCP; desligado de início (nada configurado), só a chave
@@ -246,7 +246,7 @@ class Tela(unittest.TestCase):
         self.pg.reload()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()
-        self.assertEqual(self.texto(".abas .on"), "Apps", "a aba fica guardada")
+        self.assertEqual(self.texto(".abas .on"), "Integrações", "a aba fica guardada")
         self.assertEqual(self.texto("#apps .app-l .le"), "O CronologIA recusou a chave. Confira se a opção do CorrerIA está ligada nele.")
 
     # ---- 0.16.0: a IA para conversar, como nos outros apps (fora do Home Assistant, duas de exemplo)
@@ -367,7 +367,7 @@ class Tela(unittest.TestCase):
         from datetime import datetime, timezone
         cc = ("/ssl/fullchain.pem", "/ssl/privkey.pem")
         vence = datetime(2027, 1, 1, tzinfo=timezone.utc)
-        S.salvar_config({"mcp": True, "whatsapp": True, "endereco": "https://casa-exemplo.duckdns.org"})
+        S.salvar_config({"mcp": True, "whatsapp": True, "endereco": "https://casa-exemplo.duckdns.org", "endereco_mcp": "https://casa-exemplo.duckdns.org"})
         with mock.patch.object(S, "certificado", return_value=cc), mock.patch.object(S, "validade_certificado", return_value=(vence, "outra-casa.duckdns.org")):
             self.abrir()
             self.opcoes("mcp")
@@ -376,7 +376,7 @@ class Tela(unittest.TestCase):
             self.assertIn("Sem :8443 no fim do endereço, só chega aqui se o roteador mandar a porta 443 para a 8443.", t)
             self.assertIn("Nenhuma conexão de fora desde que o app abriu · Pelo 5G, abra o endereço do conector.", t)
             self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
-        S.salvar_config({"endereco": "https://casa-exemplo.duckdns.org:8443"})
+        S.salvar_config({"endereco": "https://casa-exemplo.duckdns.org:8443", "endereco_mcp": "https://casa-exemplo.duckdns.org:8443"})
         S.FORA.update(em=S.agora_iso(), ok=False, erro="o aparelho recusou o certificado")
         with mock.patch.object(S, "certificado", return_value=cc), mock.patch.object(S, "validade_certificado", return_value=(vence, "casa-exemplo.duckdns.org")):
             self.pg.reload()
@@ -395,14 +395,14 @@ class Tela(unittest.TestCase):
         """1.13.0: no MCP, Pelo túnel da Cloudflare (para quando a operadora bloqueia a 443): ligado, o que vai no app
         Cloudflared, pronto para copiar (o endereço público e a porta do túnel), e a última conexão que chegou por ele;
         sem as linhas do certificado e da porta. Com outra porta no endereço, o aviso de que as IAs só usam a 443."""
-        S.salvar_config({"mcp": True, "endereco": "https://casa-exemplo.duckdns.org:8443"})
+        S.salvar_config({"mcp": True, "whatsapp": True, "endereco": "https://casa-exemplo.duckdns.org:8443", "endereco_mcp": "https://casa-exemplo.duckdns.org:8443"})
         self.addCleanup(S.ligar_tunel, False)
         self.abrir()
         self.opcoes("mcp")
         self.assertIn("As IAs só conectam na porta 443 · Tire o :8443 do endereço e, no roteador, mande a 443 para a 8443 (ou use o túnel da Cloudflare).", self.texto("#mcp"))
         self.assertEqual(self.pg.get_attribute('[data-a="tunel"]', "aria-checked"), "false")
         self.assertEqual(self.pg.locator("#f-tunel").count(), 0, "desligado: nada do túnel")
-        S.salvar_config({"endereco": "https://correria.casa-exemplo.com.br"})
+        S.salvar_config({"endereco_mcp": "https://correria.casa-exemplo.com.br"})
         with mock.patch.object(S, "PORTA_TUNEL", 0):
             self.pg.reload()
             self.opcoes("mcp")
@@ -422,6 +422,16 @@ class Tela(unittest.TestCase):
         self.opcoes("mcp")
         self.assertRegex(self.texto("#mcp [data-fora]"), r"^Chegou uma conexão pelo túnel hoje às \d\d:\d\d\.$")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        # 1.14.0: o túnel é do conector; o webhook, com outro endereço (o do Duck DNS), continua com o caminho dele
+        self.pg.click('.abas [data-v="whatsapp"]')
+        t = self.texto("#webhook")
+        self.assertNotIn("túnel", t)
+        self.assertIn("Sem certificado: instale o app Duck DNS", t)
+        S.salvar_config({"endereco": "https://correria.casa-exemplo.com.br"})
+        self.pg.reload()
+        self.opcoes("whatsapp")
+        self.assertRegex(self.texto("#webhook [data-fora]"), r"^Chegou uma conexão pelo túnel hoje às \d\d:\d\d\.$", "o mesmo endereço: o webhook também vem pelo túnel")
+        self.pg.click('.abas [data-v="mcp"]')
         self.pg.click('[data-a="tunel"]')
         self.aviso("Túnel desligado")
         self.assertIsNone(S.SERVIDOR_TUNEL["s"], "desligado, a porta fecha")
@@ -449,9 +459,17 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto(".abas .on"), "MCP", "salva sem sair da aba")
         self.assertEqual(self.pg.input_value("#f-endereco-mcp"), "https://casa-exemplo.duckdns.org:8443")
         self.assertEqual(self.pg.input_value("#f-mcp"), "https://casa-exemplo.duckdns.org:8443/mcp")
+        # 1.14.0: o endereço do conector é dele: o do webhook não muda junto (e o contrário)
+        self.assertEqual(self.texto('label[for="f-endereco-mcp"]'), "Endereço público do conector")
         self.pg.click('.abas [data-v="whatsapp"]')
-        self.assertEqual(self.pg.input_value("#f-endereco"), "https://casa-exemplo.duckdns.org:8443", "o mesmo endereço do webhook")
+        self.assertEqual(self.pg.input_value("#f-endereco"), "", "o do webhook é outro campo")
+        self.pg.fill("#f-endereco", "outra-casa.duckdns.org:8443")
+        self.pg.press("#f-endereco", "Tab")
+        self.aviso("Endereço salvo")
         self.pg.click('.abas [data-v="mcp"]')
+        self.assertEqual(self.pg.input_value("#f-endereco-mcp"), "https://casa-exemplo.duckdns.org:8443")
+        self.assertEqual(self.pg.input_value("#f-mcp"), "https://casa-exemplo.duckdns.org:8443/mcp")
+        self.assertEqual((S.ler_config()["endereco"], S.ler_config()["endereco_mcp"]), ("https://outra-casa.duckdns.org:8443", "https://casa-exemplo.duckdns.org:8443"))
         self.assertEqual(self.texto("#mcp .passos"), "Toque em Copiar.\nNa IA, em Conectores, adicione um conector personalizado e cole o endereço.\n"
                          "Ao entrar, abre uma página com um código: aprove aqui o pedido com o mesmo código.")
         self.assertNotRegex(self.texto("#mcp"), "Claude|Gemini|ChatGPT")
@@ -593,7 +611,7 @@ class Tela(unittest.TestCase):
 
     def test_opcoes_tela_cheia_e_casa(self):
         """1.5.0: Configurações › Opções › Tela cheia (com a CronologIA): em quanto tempo a Conversa recolhe sozinha, 3
-        minutos de início; Configurações › Apps › Casa: mexer na casa pelo Assist, ligado de início."""
+        minutos de início; Configurações › Integrações › Casa: mexer na casa pelo Assist, ligado de início."""
         self.publicar_app()
         os.makedirs(os.path.join(S.SHARE_DIR, "cronologia"), exist_ok=True)
         with open(os.path.join(S.SHARE_DIR, "cronologia", "integracao.json"), "w") as f:
@@ -1409,7 +1427,7 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         with mock.patch.dict(os.environ, {"CORRERIA_HOST": "a1b2c3d4-correria"}):
             self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
             self.pg.wait_for_selector('.abas [data-v="opcoes"]')
-            self.assertEqual(self.pg.eval_on_selector_all(".abas button", "bs => bs.map(b => b.textContent.trim())"), ["Apps", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"], "Opções por último")
+            self.assertEqual(self.pg.eval_on_selector_all(".abas button", "bs => bs.map(b => b.textContent.trim())"), ["Integrações", "WhatsApp", "MCP", "Dados", "Aparência", "Opções"], "Opções por último")
             self.pg.click('.abas [data-v="aparencia"]')
             self.assertEqual(self.pg.locator("#atalho").count(), 0, "fora da Aparência")
             self.pg.click('.abas [data-v="opcoes"]')
@@ -1459,6 +1477,50 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         self.pg.wait_for_timeout(200)
         self.assertTrue(self.pg.eval_on_selector("#uso .uso-ult", "d => d.open"), "aberta, continua aberta quando a tela se redesenha")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
+
+    def test_uso_da_ia_o_consumo_de_cada_ia_em_uso(self):
+        """1.14.0: no fim do Uso da IA, uma linha para cada IA em uso (a de conversar e a de pesquisar), com o site do
+        consumo e do saldo, como nos outros apps; sem saber qual é o provedor, só onde fica."""
+        ias = [{"id": "ai_task.google_ai_task", "nome": "Google AI Task"}, {"id": "ai_task.claude_ai_task", "nome": "Claude AI Task"}, {"id": "ai_task.casa", "nome": "IA da casa"}]
+        with mock.patch.object(S, "ias_ha", return_value=ias):
+            S.salvar_config({"ia_entidade": "ai_task.google_ai_task", "ia_pesquisa": "ai_task.claude_ai_task"})
+            self.abrir()
+            self.opcoes("apps")
+            notas = self.pg.locator("#uso .uso-nota")
+            self.assertEqual(notas.all_inner_texts(), ["Gemini: consumo e cota no Google AI Studio, em Dashboard › Usage; o saldo dos créditos, em Billing.",
+                                                      "Claude: consumo e custo no Claude Console; o saldo dos créditos, em Billing."])
+            links = self.pg.eval_on_selector_all("#uso .uso-nota a", "els => els.map(a => [a.textContent, a.href, a.target, a.rel])")
+            self.assertEqual(links, [["Google AI Studio", "https://aistudio.google.com/", "_blank", "noopener noreferrer"],
+                                     ["Claude Console", "https://platform.claude.com/usage", "_blank", "noopener noreferrer"],
+                                     ["Billing", "https://platform.claude.com/settings/billing", "_blank", "noopener noreferrer"]])
+            self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "nada sai da tela")
+            S.salvar_config({"ia_entidade": "ai_task.casa", "ia_pesquisa": ""})
+            self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+            self.pg.wait_for_function("document.querySelectorAll('#uso .uso-nota').length === 1")
+            self.assertEqual(self.texto("#uso .uso-nota"), "O consumo exato fica no painel do provedor da IA.")
+        # na padrão do Home Assistant, com as IAs de lá de um provedor só: o dele
+        with mock.patch.object(S, "ias_ha", return_value=ias[:1]):
+            S.salvar_config({"ia_entidade": ""})
+            self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+            self.pg.wait_for_function("document.querySelector('#uso .uso-nota a')")
+            self.assertEqual(self.pg.locator("#uso .uso-nota").all_inner_texts(), ["Gemini: consumo e cota no Google AI Studio, em Dashboard › Usage; o saldo dos créditos, em Billing."])
+
+    def test_os_sites_abrem_num_toque(self):
+        """1.14.0: onde a tela fala de um site (o painel da Meta, a Cloudflare), o nome abre o site."""
+        S.salvar_config({"whatsapp": True, "mcp": True, "endereco": "casa-exemplo.duckdns.org:8443"})
+        self.abrir()
+        self.opcoes("whatsapp")
+        meta = "https://developers.facebook.com/apps/"
+        self.assertEqual(self.texto("#whatsapp .lead"), "A conta do WhatsApp Business, criada no painel da Meta.")
+        self.assertEqual(self.pg.eval_on_selector_all("#whatsapp .lead a, #webhook .passos a", "els => els.map(a => [a.textContent, a.href, a.target])"),
+                         [["painel da Meta", meta, "_blank"], ["Meta", meta, "_blank"]])
+        self.pg.click('.abas [data-v="mcp"]')
+        self.assertEqual(self.pg.eval_on_selector_all("#mcp .lead a", "els => els.map(a => [a.textContent, a.href, a.target])"), [["Cloudflare", "https://dash.cloudflare.com/", "_blank"]])
+        S.salvar_config({"whatsapp": False})
+        self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
+        self.pg.click('.abas [data-v="whatsapp"]')
+        self.pg.wait_for_function("!document.querySelector('#webhook')")
+        self.assertEqual(self.pg.eval_on_selector("#whatsapp .lead a", "a => a.href"), meta, "desligado também")
 
     def test_sensores(self):
         """0.14.0: Sensores no Home Assistant, depois do Uso da IA, desligado até ligar."""

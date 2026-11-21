@@ -374,6 +374,9 @@ body[data-tela="conversa"] #toast { bottom: calc(96px + env(safe-area-inset-bott
 .uso-tipos li { padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; color: var(--muted); }
 .uso-tipos b { color: var(--text); font-weight: 600; }
 .uso-ult { margin: 0; }
+/* 1.14.0: onde ver o consumo e o saldo de cada IA em uso (uma linha por provedor) */
+.uso-nota { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.uso-nota + .uso-nota { margin-top: 4px; }
 .uso-ult summary { display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; color: var(--accent-text); font-weight: 600; cursor: pointer; list-style: none; }
 .uso-ult summary::-webkit-details-marker { display: none; }
 .uso-ult summary .ic-s { transition: transform .15s; }

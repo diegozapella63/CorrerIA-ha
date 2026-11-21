@@ -1,6 +1,6 @@
 """Uso da IA (como nos outros apps da família): o Home Assistant não devolve tokens nem custo, então o CorrerIA conta as
 próprias chamadas a ai_task.generate_data e estima os tokens pelo tamanho do texto (uns 4 caracteres por token).
-Fica em /data/uso_ia.json (os totais de 120 dias e as últimas 40 chamadas) e aparece em Configurações › Apps › Uso da IA.
+Fica em /data/uso_ia.json (os totais de 120 dias e as últimas 40 chamadas) e aparece em Configurações › Integrações › Uso da IA.
 Tipos: whatsapp (as mensagens do WhatsApp), conversa (a conversa da tela) e pesquisa (1.6.0: a pesquisa na internet da conversa)."""
 import json
 import os

@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.14.0
+
+- **MCP › Endereço público do conector**: agora é separado do endereço do **Webhook na Meta**. O WhatsApp pode chegar por um endereço (o do Duck DNS, com a porta 8443) e as IAs por outro (um domínio pelo túnel da Cloudflare, na 443). Quem atualiza continua com o mesmo endereço nos dois, até mudar um deles.
+- **Configurações › Integrações**: a aba **Apps** passou a se chamar **Integrações**, como nos outros apps.
+- **Sites que abrem num toque**: onde a tela fala do painel da Meta ou da Cloudflare, o nome abre o site.
+- **Uso da IA**: no fim, uma linha para cada IA em uso (a de conversar e a de pesquisar), com o site onde ver o consumo e o saldo, como nos outros apps.
+
 ## 1.13.1
 
 - **Conversa**: o cabeçalho (CorrerIA › Conversa e os botões) fica sempre no alto, mesmo ao rolar as mensagens. Antes ele saía da tela junto com elas.

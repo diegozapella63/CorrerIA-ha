@@ -122,6 +122,9 @@ def ler_config():
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
            "verificacao": str(c.get("verificacao") or ""), "endereco": str(c.get("endereco") or ""), "ligado": c.get("ligado") is not False,
            "mcp": c.get("mcp") is True, "sensores": c.get("sensores") is True, "tunel": c.get("tunel") is True,
+           # 1.14.0: o endereço público do conector MCP é dele (o do webhook pode ser outro, como o Duck DNS com a porta
+           # 8443 para a Meta e um domínio pelo túnel da Cloudflare para as IAs); quem atualiza começa com o mesmo nos dois
+           "endereco_mcp": str(c["endereco_mcp"] or "") if isinstance(c.get("endereco_mcp"), str) else str(c.get("endereco") or ""),
            # 1.5.0: a casa do Home Assistant (o Assist) como um app, ligada de início; a Conversa da tela cheia recolhe
            # sozinha depois de recolher minutos sem uso (1, 3, 5 ou 10; 3 de início)
            "casa": c.get("casa") is not False, "recolher": c.get("recolher") if c.get("recolher") in RECOLHER else 3,
@@ -161,8 +164,8 @@ def _fim(segredo):
     return ("••••" + segredo[-4:]) if len(segredo) >= 8 else ("••••" if segredo else "")
 
 
-def limpar_endereco(e):
-    """O endereço público (https://casa-exemplo.duckdns.org:8443), sem /webhook nem barra no fim."""
+def limpar_endereco(e, mcp=False):
+    """O endereço público (https://casa-exemplo.duckdns.org:8443), sem /webhook (o do conector: sem /mcp) nem barra no fim."""
     e = str(e or "").strip()
     if not e:
         return ""
@@ -170,8 +173,8 @@ def limpar_endereco(e):
         e = "https://" + e
     u = urllib.parse.urlparse(e)
     if not u.hostname or " " in e:
-        raise ValueError("Endereço inválido. Ex.: https://casa-exemplo.duckdns.org:8443")
-    caminho = re.sub(r"/webhook/?$", "", u.path.rstrip("/"))
+        raise ValueError("Endereço inválido. Ex.: " + ("https://correria.casa-exemplo.com.br" if mcp else "https://casa-exemplo.duckdns.org:8443"))
+    caminho = re.sub(r"/mcp/?$" if mcp else r"/webhook/?$", "", u.path.rstrip("/"))
     return f"{u.scheme}://{u.netloc}{caminho}"
 
 
@@ -191,6 +194,8 @@ def salvar_config(corpo):
                 c[k] = v
         if "endereco" in corpo:
             c["endereco"] = limpar_endereco(corpo.get("endereco"))
+        if "endereco_mcp" in corpo:  # 1.14.0: o do conector MCP, separado do do webhook
+            c["endereco_mcp"] = limpar_endereco(corpo.get("endereco_mcp"), mcp=True)
         if "ligado" in corpo:
             c["ligado"] = corpo.get("ligado") is not False
         if "mcp" in corpo:
@@ -428,7 +433,7 @@ NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
 ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
 CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log)
-# 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Apps › Casa)
+# 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Integrações › Casa)
 FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None)  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
 NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
@@ -827,7 +832,7 @@ class ServidorWebhook(ThreadingHTTPServer):
 
 
 # ---------------------------------------------------------------- sensores no Home Assistant (0.14.0)
-# Com Sensores ligado (Configurações › Apps; vem desligado): quantos dias faltam para o certificado de /ssl vencer (o
+# Com Sensores ligado (Configurações › Integrações; vem desligado): quantos dias faltam para o certificado de /ssl vencer (o
 # Duck DNS renova sozinho; um que não renovou para o WhatsApp e o conector) e se o WhatsApp está conectado (a conta
 # conferida na Meta a cada 30 minutos). Publicados quando mudam e a cada 15 minutos; desligado, saem do Home Assistant.
 SENSORES = ("sensor.correria_certificado", "binary_sensor.correria_whatsapp")
@@ -1218,8 +1223,10 @@ def estado():
         "versao": VERSAO,
         "config": {"numero_id": c["numero_id"], "token": _fim(c["token"]), "segredo": _fim(c["segredo"]), "verificacao": c["verificacao"],
                    "endereco": c["endereco"], "webhook": (c["endereco"] + "/webhook") if c["endereco"] else "", "ligado": c["ligado"], "whatsapp": wa_ligado(c)},
-        "mcp": {"ligado": c["mcp"], "url": (c["endereco"] + "/mcp") if c["endereco"] else "", "pedidos": AUT.abertos() if c["mcp"] else [],
-                "conexoes": AUT.conexoes()},
+        "mcp": {"ligado": c["mcp"], "endereco": c["endereco_mcp"], "url": (c["endereco_mcp"] + "/mcp") if c["endereco_mcp"] else "",
+                # 1.14.0: o endereço público do conector é dele: o certificado confere com ele, não com o do webhook
+                "cert_confere": _cert_do_endereco(cc, c["endereco_mcp"])["cert_confere"],
+                "pedidos": AUT.abertos() if c["mcp"] else [], "conexoes": AUT.conexoes()},
         "ia": ESTADO["ia"] or {"ok": None, "erro": "", "em": None, "simulada": AGENTE.simulada, "nome": nome_da_ia(c)},
         "ias": {"lista": ias_ha(), "escolhida": c["ia_entidade"], "pesquisa": c["ia_pesquisa"]},
         "sensores": {"ligado": c["sensores"]},
@@ -1642,7 +1649,7 @@ class WebhookTunel(Webhook):
         host = re.sub(r"[^A-Za-z0-9.\-:\[\]]", "", self.headers.get("Host") or "")
         nome = host.rsplit(":", 1)[0].strip("[]") if host.count(":") <= 1 or host.startswith("[") else host
         if "." not in nome or _e_ip(nome):
-            host = urllib.parse.urlparse(ler_config()["endereco"]).netloc or host or f"localhost:{PORTA_TUNEL}"
+            host = urllib.parse.urlparse(ler_config()["endereco_mcp"]).netloc or host or f"localhost:{PORTA_TUNEL}"
         return f"https://{host}"
 
 

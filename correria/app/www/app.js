@@ -1,5 +1,5 @@
 /* CorrerIA · a tela (JavaScript puro, sem build). Abre na conversa com a IA (os apps); a engrenagem leva às
-   Opções, em abas: Apps (os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e MCP (o
+   Opções, em abas: Integrações (1.14.0; antes, Apps: os apps, a IA e as últimas mensagens), WhatsApp (a Meta, o webhook, quem conversa) e MCP (o
    conector para outras IAs). Ações por data-a; tudo vem de /api/estado. */
 (function () {
   'use strict';
@@ -77,7 +77,7 @@
   // tela: '' (a conversa, onde o app abre), 'mais' (o menu, como nos outros apps), 'opcoes' (Configurações) ou 'sobre';
   // aba: a de Configurações (fica guardada neste aparelho)
   // Opções (0.13.0): o Atalho no celular, como nos outros apps; só dentro do Home Assistant (fora dele, a aba some)
-  const ABAS = [['apps', 'Apps', 'layers'], ['whatsapp', 'WhatsApp', 'chat'], ['mcp', 'MCP', 'plug'], ['dados', 'Dados', 'database'], ['aparencia', 'Aparência', 'palette'], ['opcoes', 'Opções', 'toggle']];
+  const ABAS = [['apps', 'Integrações', 'layers'], ['whatsapp', 'WhatsApp', 'chat'], ['mcp', 'MCP', 'plug'], ['dados', 'Dados', 'database'], ['aparencia', 'Aparência', 'palette'], ['opcoes', 'Opções', 'toggle']];
   // 1.7.0: Opções sempre (as conversas velhas valem em qualquer lugar)
   const abasDe = () => ABAS;
   const guardada = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -176,6 +176,9 @@
   /* ---------- a tela */
   // 0.16.0 (padrão da família): toda linha com título tem um ícone pequeno antes dele; todo campo também
   const tituloLinha = (icone, titulo) => `<b>${ic(icone, 'ic-s')}${titulo}</b>`;
+  // 1.14.0: onde a tela fala de um site (o painel da Meta, o da Cloudflare, o do provedor da IA), o nome abre o site
+  const site = (href, texto) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${texto}</a>`;
+  const META = 'https://developers.facebook.com/apps/';
   const rotulo = (para, icone, titulo) => `<label for="${para}">${ic(icone, 'ic-s')}${titulo}</label>`;
   const cab = (icone, titulo, extra = '') => `<div class="rot" role="button" tabindex="0" data-dobra="${esc(titulo)}" aria-expanded="${!fechadas().has(titulo)}"><span class="rot-ic">${ic(icone)}</span><h2>${titulo}</h2>${extra}<span class="dobra-ic" aria-hidden="true">${ic('chev', 'ic-s')}</span></div>`;
   // 0.17.0 (padrão da família): toda seção (cartão) contrai e expande num toque no cabeçalho; o aparelho lembra as fechadas
@@ -200,9 +203,9 @@
     const usar = `<div class="linha-sw"><div>${tituloLinha('chat', 'Usar o WhatsApp')}<span>${c.whatsapp ? 'Ligado: as pessoas da casa conversam com os apps pelo WhatsApp.' : 'Desligado.'}</span></div>
         <button class="sw${c.whatsapp ? ' on' : ''}" data-a="whatsapp" role="switch" aria-checked="${!!c.whatsapp}" aria-label="Usar o WhatsApp"></button></div>`;
     if (!c.whatsapp) return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
-      <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>${usar}</section>`;
+      <p class="lead">A conta do WhatsApp Business, criada no ${site(META, 'painel da Meta')}.</p>${usar}</section>`;
     return `<section class="card" id="whatsapp">${cab('chat', 'WhatsApp')}
-      <p class="lead">A conta do WhatsApp Business, criada no painel da Meta (developers.facebook.com).</p>${usar}
+      <p class="lead">A conta do WhatsApp Business, criada no ${site(META, 'painel da Meta')}.</p>${usar}
       <div class="sub-op"><div class="sub-box">
       ${e.pronto ? `<div class="linha-sw"><div>${tituloLinha('send', 'Responder pelo WhatsApp')}<span>${c.ligado ? 'Ligado.' : 'Pausado: as mensagens chegam, mas ninguém responde.'}</span></div>
         <button class="sw${c.ligado ? ' on' : ''}" data-a="ligado" role="switch" aria-checked="${c.ligado}" aria-label="Responder pelo WhatsApp"></button></div>` : ''}
@@ -221,16 +224,20 @@
   // 1.11.0: o caminho de fora até aqui: de que endereço é o certificado, a porta no endereço e a última conexão de fora
   // (assim dá para saber se o que falta é o Duck DNS, o roteador ou o certificado)
   function caminhoDeFora(e, semCert, { mcp = false } = {}) {
-    const w = e.webhook || {}, end = (e.config || {}).endereco || '', f = w.fora || {}, out = [], t = w.tunel || {};
+    // 1.14.0: o conector MCP tem o endereço público dele (e.mcp.endereco); o webhook, o seu
+    const w = e.webhook || {}, M = e.mcp || {}, end = (mcp ? M.endereco : (e.config || {}).endereco) || '', f = w.fora || {}, out = [], t = w.tunel || {};
+    const confere = mcp ? M.cert_confere : w.cert_confere;
+    const nomeDe = x => { try { return x ? new URL(x).hostname : ''; } catch (_) { return ''; } };
     // 1.13.0: pelo túnel da Cloudflare, o https e a porta 443 são os dela: só a última conexão que chegou por ele
-    if (t.ligado) {
+    // (o túnel é do conector; o webhook só passa por ele quando o endereço é o mesmo)
+    if (t.ligado && (mcp || (end && nomeDe(end) === nomeDe(M.endereco)))) {
       if (!t.aberto) out.push(`<div class="status erro" data-fora><span><b>A porta ${t.porta} não abriu</b> · Reinicie o CorrerIA.</span></div>`);
       else if (end) out.push(t.em ? `<div class="status" data-fora>Chegou uma conexão pelo túnel ${quando(t.em)}.</div>`
         : `<div class="status manual" data-fora><span><b>Nada chegou pelo túnel desde que o app abriu</b> · Confira o app Cloudflared e abra o endereço do conector.</span></div>`);
       return out.join('');
     }
     if (!w.https) out.push(`<div class="status manual">${semCert}</div>`);
-    else if (w.cert_confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
+    else if (confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
     else out.push(`<div class="status">Certificado ${w.cert_nome ? 'de ' + esc(w.cert_nome) : esc(w.certificado)} · porta ${w.porta}</div>`);
     let u = null;
     try { u = end ? new URL(end) : null; } catch (_) { u = null; }
@@ -253,7 +260,7 @@
       <p class="lead">O endereço pelo qual a Meta entrega as mensagens. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>
       <div class="campo">${rotulo('f-endereco', 'globe', 'Endereço público')}
         <input id="f-endereco" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : c.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
-      ${c.webhook ? `<ol class="passos"><li>Na Meta, em WhatsApp › Configuração › <b>Webhook</b>, toque em Editar.</li><li>Cole a <b>URL de retorno</b> e o <b>Token de verificação</b> abaixo e toque em Verificar e salvar.</li><li>Em Campos do webhook, assine <b>messages</b>.</li></ol>
+      ${c.webhook ? `<ol class="passos"><li>Na ${site(META, 'Meta')}, em WhatsApp › Configuração › <b>Webhook</b>, toque em Editar.</li><li>Cole a <b>URL de retorno</b> e o <b>Token de verificação</b> abaixo e toque em Verificar e salvar.</li><li>Em Campos do webhook, assine <b>messages</b>.</li></ol>
       <div class="campo">${rotulo('f-url', 'link', 'URL de retorno')}<div class="copiar"><input id="f-url" class="inp" readonly value="${esc(c.webhook)}"><button class="btn peq out" data-a="copiar" data-v="f-url" aria-label="Copiar a URL de retorno">${ic('copy', 'ic-s')}Copiar</button></div></div>` : ''}
       <div class="campo">${rotulo('f-verif', 'shield', 'Token de verificação')}<div class="copiar"><input id="f-verif" class="inp" readonly value="${esc(c.verificacao)}"><button class="btn peq out" data-a="copiar" data-v="f-verif" aria-label="Copiar o token de verificação">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${cert}${meta}
@@ -289,7 +296,7 @@
     </section>`;
   }
 
-  /* ---------- Configurações › Apps › IA (0.16.0): qual IA conversa (no WhatsApp e aqui), como nos outros apps; o nome dela
+  /* ---------- Configurações › Integrações › IA (0.16.0): qual IA conversa (no WhatsApp e aqui), como nos outros apps; o nome dela
      no que deu certo ou errado (sem cota, por exemplo) e no Uso da IA. 1.6.0: e a que pesquisa na internet (a conversa da
      tela), vazia igual à de conversar */
   function cardIA(e) {
@@ -323,8 +330,9 @@
         <div class="conexao-t"><b>${esc(c.nome)}</b><span>${[c.pessoa, c.usado ? 'usou ' + quando(c.usado) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
         <button class="btn peq out" data-a="mcp-desconectar" data-v="${esc(c.id)}">${ic('unlink', 'ic-s')}Desconectar</button></div>`).join('');
     const w = e.webhook || {};  // 0.15.0: o endereço público e o certificado aqui também (antes: "Escreva o endereço público na aba WhatsApp")
-    const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público')}
-        <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : e.config.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
+    // 1.14.0: o endereço público do conector é dele (antes era o mesmo campo do webhook, nas duas abas)
+    const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público do conector')}
+        <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco_mcp" value="${esc(S.form.endereco_mcp != null ? S.form.endereco_mcp : (m.endereco || ''))}" placeholder="https://correria.casa-exemplo.com.br"></div>
       ${caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da Cloudflare.", { mcp: true })}`;
     const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Toque em <b>Copiar</b>.</li><li>Na IA, em Conectores, adicione um <b>conector personalizado</b> e cole o endereço.</li><li>Ao entrar, abre uma página com um <b>código</b>: aprove aqui o pedido com o mesmo código.</li></ol>`}`
@@ -336,7 +344,7 @@
     const t = w.tunel || {};
     const ipHa = /^\d{1,3}(\.\d{1,3}){3}$/.test(location.hostname) ? location.hostname : 'IP-do-Home-Assistant';
     let hostPub = '';
-    try { hostPub = e.config.endereco ? new URL(e.config.endereco).hostname : ''; } catch (_) { hostPub = ''; }
+    try { hostPub = m.endereco ? new URL(m.endereco).hostname : ''; } catch (_) { hostPub = ''; }
     const yaml = `- hostname: ${hostPub || 'correria.seu-dominio.com.br'}\n  service: http://${ipHa}:${t.porta || 8444}`;
     const tunel = `<div class="linha-sw"><div>${tituloLinha('cloud', 'Pelo túnel da Cloudflare')}<span>${t.ligado ? 'Sem abrir porta no roteador.' : 'Para quando a operadora bloqueia a porta 443.'}</span></div>
         <button class="sw${t.ligado ? ' on' : ''}" data-a="tunel" role="switch" aria-checked="${!!t.ligado}" aria-label="Pelo túnel da Cloudflare"></button></div>
@@ -347,7 +355,7 @@
     const mudancas = `<details class="uso-ult mudancas" id="mudancas"${S.mudAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas mudanças (${R.length})</summary>
       ${listaMsgs(R, 'Nenhuma mudança ainda.')}${R.length ? `<button class="btn peq out" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</details>`;
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
-      <p class="lead">Os apps dentro de outras IAs, como um conector. O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a ${w.porta}, ou pelo túnel da Cloudflare.</p>${sw}
+      <p class="lead">Os apps dentro de outras IAs, como um conector. O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a ${w.porta}, ou pelo túnel da ${site('https://dash.cloudflare.com/', 'Cloudflare')}.</p>${sw}
       <div class="sub-op"><div class="sub-box">${pedidos}${publico}${tunel}${endereco}
         ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
         ${mudancas}</div></div>
@@ -392,7 +400,7 @@
   function telaMais() {
     const linha = (a, icone, titulo, txt) => `<button class="linha" data-a="${a}"><span class="rot-ic">${ic(icone)}</span><span class="linha-t"><b>${titulo}</b><small>${txt}</small></span>${ic('chev', 'ic-s chev')}</button>`;
     return `${topoTela('Mais', 'Conversa')}
-      <section class="card linha-card mais-menu">${linha('opcoes', 'gear', 'Configurações', 'Apps, WhatsApp, MCP, dados e aparência.')}
+      <section class="card linha-card mais-menu">${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
         ${linha('sobre', 'info', 'Sobre', 'CorrerIA Code, os apps e o GitHub.')}</section>`;
   }
 
@@ -425,12 +433,29 @@
       <div class="campo">${rotulo('f-atalho', 'phone', 'Caminho')}<div class="copiar pilha"><input id="f-atalho" class="inp" readonly value="${esc(e.atalho)}"><button class="btn peq out" data-a="copiar" data-v="f-atalho" aria-label="Copiar o caminho">${ic('copy', 'ic-s')}Copiar</button></div></div></section>`;
   }
 
-  /* ---------- Configurações › Apps › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
+  /* ---------- Configurações › Integrações › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
      padrão dos outros apps (0.15.0): Hoje, 7 dias e Este mês; uma barra por dia (tocar mostra o dia); os tipos; Últimas chamadas recolhidas */
   const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa', pesquisa: 'Pesquisa na internet' };
   const RES_USO = { cota: 'sem cota', formato: 'resposta fora do formato', erro: 'erro' };
   const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
   const chamadas = n => `${n} ${n === 1 ? 'chamada' : 'chamadas'}`;
+  // 1.14.0: onde ver o consumo e o saldo de cada IA em uso (a de conversar e a de pesquisar), como nos outros apps
+  const PROVEDORES = [
+    [/google|gemini/, () => `Gemini: consumo e cota no ${site('https://aistudio.google.com/', 'Google AI Studio')}, em Dashboard › Usage; o saldo dos créditos, em Billing.`],
+    [/openai|chatgpt|gpt/, () => `OpenAI: consumo e custo em ${site('https://platform.openai.com/usage', 'platform.openai.com/usage')}.`],
+    [/anthropic|claude/, () => `Claude: consumo e custo no ${site('https://platform.claude.com/usage', 'Claude Console')}; o saldo dos créditos, em ${site('https://platform.claude.com/settings/billing', 'Billing')}.`],
+  ];
+  function provedoresIA(e) {
+    const I = e.ias || {}, L = I.lista || [], de = id => { const x = L.find(y => y.id === id); return x ? `${x.id} ${x.nome}` : (id || ''); };
+    const acha = t => PROVEDORES.filter(([re]) => re.test(String(t).toLowerCase()));
+    let achados = acha([de(I.escolhida), de(I.pesquisa), (e.ia || {}).nome || '', ...((e.uso_ia || {}).ultimas || []).map(c => c.ia || '')].join(' '));
+    if (!achados.length) {  // na padrão do Home Assistant: o provedor das IAs de lá, se for um só
+      const todos = new Set(L.flatMap(x => acha(`${x.id} ${x.nome}`)));
+      if (todos.size === 1) achados = [...todos];
+    }
+    return achados.length ? achados.map(([, nota]) => `<p class="uso-nota">${nota()}</p>`).join('') : '<p class="uso-nota">O consumo exato fica no painel do provedor da IA.</p>';
+  }
+
   function cardUso(e) {
     const u = e.uso_ia;
     if (!u || !u.hoje || !(u.dias || []).length) return '';
@@ -458,6 +483,7 @@
       <p class="uso-cap" aria-live="polite">${diaLongo(sel.dia)}: <b>${chamadas(sel.chamadas || 0)}</b>${resto(sel)}.</p>
       ${tipos.length ? `<ul class="uso-tipos" aria-label="Nos últimos 7 dias">${tipos.map(([k, n]) => `<li>${esc(TIPO_USO[k] || k)} <b>${n}</b></li>`).join('')}</ul>` : ''}
       <details class="uso-ult"${S.usoAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas chamadas${(u.ultimas || []).length ? ` (${u.ultimas.length})` : ''}</summary><ul>${ult || '<li>Nenhuma chamada ainda.</li>'}</ul></details>
+      ${provedoresIA(e)}
     </section>`;
   }
   // 14:32 hoje; 11/11 14:32 nos outros dias (como nos outros apps)
@@ -468,7 +494,7 @@
     return d.toDateString() === new Date().toDateString() ? 'hoje ' + hm : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`;
   }
 
-  /* ---------- 1.5.0: Configurações › Apps › Casa: o Home Assistant como mais um app (o Assist liga e desliga o que está
+  /* ---------- 1.5.0: Configurações › Integrações › Casa: o Home Assistant como mais um app (o Assist liga e desliga o que está
      exposto a ele; ver como está, sem mexer), ligada de início; as mudanças, como as dos apps, depois do sim */
   function cardCasa(e) {
     const c = e.casa || {}, on = !!c.ligado;
@@ -498,7 +524,7 @@
         <span class="dica">Depois desse tempo sem uso. Fixada (o alfinete), nunca.</span></div></section>`;
   }
 
-  /* ---------- Configurações › Apps › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
+  /* ---------- Configurações › Integrações › Sensores no Home Assistant (depois do Uso da IA, como nos outros apps) */
   function cardSensores(e) {
     const on = !!(e.sensores && e.sensores.ligado);
     const lista = [
@@ -1369,9 +1395,9 @@
       if (r) { S.form[el.dataset.f] = el.dataset.f === 'numero_id' ? null : ''; render(); if (r.pronto) await acao('conferir', {}, null).then(x => x && x.conta && toast('Conferido com a Meta')); }
       return;
     }
-    if (el.dataset.f === 'endereco') {
-      const r = await acao('config', { endereco: el.value }, 'Endereço salvo');
-      if (r) S.form.endereco = null;
+    if (el.dataset.f === 'endereco' || el.dataset.f === 'endereco_mcp') {  // 1.14.0: o do webhook e o do conector, cada um o seu
+      const r = await acao('config', { [el.dataset.f]: el.value }, 'Endereço salvo');
+      if (r) S.form[el.dataset.f] = null;
       render();
     } else if (el.dataset.pessoa) {
       await acao('pessoa', { id: el.dataset.pessoa, numero: el.value }, el.value.trim() ? 'Número salvo' : 'Número tirado');

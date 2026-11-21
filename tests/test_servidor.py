@@ -175,6 +175,44 @@ class TestConfig(Base):
         self.assertEqual(S.limpar_endereco("https://casa-exemplo.duckdns.org:8443/webhook/"), "https://casa-exemplo.duckdns.org:8443")
         self.assertEqual(S.limpar_endereco("  "), "")
 
+    def test_o_endereco_do_conector_e_dele(self):
+        """1.14.0: o endereço público do conector MCP é separado do do webhook: a Meta pode chegar pelo Duck DNS, na
+        porta 8443, e as IAs por outro domínio (o do túnel da Cloudflare, na 443)."""
+        S.salvar_config({"endereco": "casa-exemplo.duckdns.org:8443", "endereco_mcp": "correria.casa-exemplo.com.br/mcp/"})
+        c = S.ler_config()
+        self.assertEqual((c["endereco"], c["endereco_mcp"]), ("https://casa-exemplo.duckdns.org:8443", "https://correria.casa-exemplo.com.br"))
+        e = S.estado()
+        self.assertEqual((e["config"]["webhook"], e["mcp"]["endereco"], e["mcp"]["url"]),
+                         ("https://casa-exemplo.duckdns.org:8443/webhook", "https://correria.casa-exemplo.com.br", "https://correria.casa-exemplo.com.br/mcp"))
+        S.salvar_config({"endereco": "outra-casa.duckdns.org:8443"})
+        self.assertEqual(S.ler_config()["endereco_mcp"], "https://correria.casa-exemplo.com.br", "mudar o do webhook não mexe no do conector")
+        S.salvar_config({"endereco_mcp": ""})
+        e = S.estado()
+        self.assertEqual((e["mcp"]["endereco"], e["mcp"]["url"], e["config"]["endereco"]), ("", "", "https://outra-casa.duckdns.org:8443"), "vazio: sem conector, e o webhook fica")
+        with self.assertRaisesRegex(ValueError, r"Endereço inválido\. Ex\.: https://correria\.casa-exemplo\.com\.br"):
+            S.salvar_config({"endereco_mcp": "https:// nada"})
+        self.assertEqual(S.limpar_endereco("casa-exemplo.duckdns.org/mcp"), "https://casa-exemplo.duckdns.org/mcp", "o /mcp só sai do endereço do conector")
+
+    def test_quem_atualiza_comeca_com_o_mesmo_endereco_nos_dois(self):
+        """1.14.0: antes havia um endereço só. Quem já tinha continua com ele no conector, até escrever outro."""
+        c = S.ler_json(S.CONFIG_ARQ)
+        c.pop("endereco_mcp", None)
+        c["endereco"] = "https://casa-exemplo.duckdns.org"
+        S.gravar_config(c)
+        self.assertEqual(S.ler_config()["endereco_mcp"], "https://casa-exemplo.duckdns.org")
+        self.assertEqual(S.estado()["mcp"]["url"], "https://casa-exemplo.duckdns.org/mcp")
+        S.salvar_config({"endereco": "casa-exemplo.duckdns.org:8443"})
+        c = S.ler_config()
+        self.assertEqual((c["endereco"], c["endereco_mcp"]), ("https://casa-exemplo.duckdns.org:8443", "https://casa-exemplo.duckdns.org"), "o do conector fica como estava")
+
+    def test_o_certificado_do_conector_e_do_endereco_dele(self):
+        from datetime import datetime, timezone
+        S.salvar_config({"endereco": "casa-exemplo.duckdns.org:8443", "endereco_mcp": "correria.casa-exemplo.com.br"})
+        with mock.patch.object(S, "certificado", return_value=("/ssl/fullchain.pem", "/ssl/privkey.pem")), \
+                mock.patch.object(S, "validade_certificado", return_value=(datetime(2027, 1, 1, tzinfo=timezone.utc), "casa-exemplo.duckdns.org")):
+            e = S.estado()
+        self.assertEqual((e["webhook"]["cert_confere"], e["mcp"]["cert_confere"]), (True, False))
+
     def test_pessoas(self):
         S.salvar_pessoa("person.ana", "(11) 98765-0001")
         self.assertEqual(S.ler_config()["pessoas"], {"person.ana": ANA}, "sem o código do país: Brasil")
@@ -800,7 +838,7 @@ class TestMcpHttp(Base):
         self.assertEqual(pedir(self.url + "/registrar", "POST", {"redirect_uris": ["https://claude.ai/x"]})[0], 404)
 
     def test_caminho_todo(self):
-        S.salvar_config({"mcp": True, "endereco": "casa-exemplo.duckdns.org:8443"})
+        S.salvar_config({"mcp": True, "endereco_mcp": "casa-exemplo.duckdns.org:8443"})
         st, meta = self.j(self.url + "/.well-known/oauth-protected-resource/mcp")
         self.assertEqual((st, meta["resource"], meta["authorization_servers"]), (200, self.url + "/mcp", [self.url]), "o endereço como foi chamado")
         st, srv = self.j(self.url + "/.well-known/oauth-authorization-server")
@@ -863,7 +901,7 @@ class TestMcpHttp(Base):
         est = S.estado()
         a = est["apps"][0]
         self.assertEqual((a["app"], a["ferramentas"], a["gravam"], a["conversa"], a["erro"]), ("gerencia", 3, 2, False, ""))
-        self.assertEqual(est["mcp"], {"ligado": False, "url": "", "pedidos": [], "conexoes": []})
+        self.assertEqual(est["mcp"], {"ligado": False, "endereco": "", "url": "", "cert_confere": None, "pedidos": [], "conexoes": []})
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -1348,7 +1386,7 @@ class TestTunel(unittest.TestCase):
     def test_o_endereco_e_o_da_cloudflare(self):
         S.ligar_tunel(True)
         S.ligar_tunel(True)  # de novo: a mesma porta
-        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://correria.casa-exemplo.com.br"}):
+        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://casa-exemplo.duckdns.org:8443", "endereco_mcp": "https://correria.casa-exemplo.com.br"}):
             j = self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br", **{"CF-Connecting-IP": "8.8.8.8"})
             self.assertEqual(j["issuer"], "https://correria.casa-exemplo.com.br", "https, sem porta")
             self.assertEqual((S.FORA["via"], S.FORA["ok"]), ("tunel", True))
@@ -1362,7 +1400,7 @@ class TestTunel(unittest.TestCase):
 
     def test_sem_o_cabecalho_da_cloudflare_nao_conta_de_fora(self):
         S.ligar_tunel(True)
-        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://correria.casa-exemplo.com.br"}):
+        with mock.patch.object(S, "ler_config", return_value={**S.ler_config(), "mcp": True, "endereco": "https://casa-exemplo.duckdns.org:8443", "endereco_mcp": "https://correria.casa-exemplo.com.br"}):
             self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br")
             self.pedir("/.well-known/oauth-authorization-server", Host="correria.casa-exemplo.com.br", **{"CF-Connecting-IP": "192.168.0.7"})
         self.assertIsNone(S.TUNEL["em"], "de dentro de casa não é de fora")

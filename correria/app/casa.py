@@ -2,7 +2,7 @@
 fechar a cortina, pôr o ar em 23 graus), o pedido vai, do jeito que a pessoa falou, para o Assist do próprio Home
 Assistant (o agente de conversa dele, conversation.home_assistant), que só mexe no que está exposto a ele
 (Configurações › Assistentes de voz › Expor). Para saber como algo está, os estados vêm de /api/states, sem mexer
-em nada. Liga e desliga em Configurações › Apps › Casa (ligada de início). Só biblioteca padrão."""
+em nada. Liga e desliga em Configurações › Integrações › Casa (ligada de início). Só biblioteca padrão."""
 import re
 import unicodedata
 
