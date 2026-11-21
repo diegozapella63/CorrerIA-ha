@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.18.0
+
+- **Rondas**: o botão novo no alto da Conversa abre a **Ronda da casa**. Escolha um cômodo e o CorrerIA passa pelos apps, **uma pergunta de cada vez**: as tarefas (ResolvIA), os itens e os consumíveis (InventarIA) e as compras (EconomIA: mercado, farmácia e pet shop, cada um na sua vez). Na primeira pergunta de cada app ele mostra o que há; você responde na conversa (as mudanças continuam esperando o seu **Sim**) ou toca em **Próxima**. No fim, escolha o próximo cômodo; os já feitos ficam marcados.
+- A ronda só tem as etapas dos apps ligados ao CorrerIA e do que está ligado em cada um (sem **Usar consumíveis** no InventarIA, não há a etapa deles).
+
 ## 1.17.3
 
 - **Conversa no celular**: o Enter do teclado vai para a próxima linha; quem envia é o botão. Com teclado de verdade, o Enter continua enviando.

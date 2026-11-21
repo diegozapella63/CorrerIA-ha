@@ -196,9 +196,16 @@ def simulado(texto, lista, resultados):
     """Previsível, para testar o caminho todo sem IA: lançar (gerencia_lancar), o resumo de um app e responder."""
     t = (texto or "").lower()
     ids = {f["id"] for f in lista}
+    ronda = re.search(r"etapa \d+ de \d+", t) and re.search(r"\bUse (\w+)", texto or "")  # 1.18.0: uma etapa de uma ronda
     if resultados:
         primeiras = "\n".join(resultados[-1].split("→", 1)[-1].strip().splitlines()[:6])
-        return {"resposta": f"Pelo que vi:\n{primeiras}"}
+        pergunta = re.search(r"exatamente assim: «(.+?)»", texto or "") if ronda else None
+        return {"resposta": f"Pelo que vi:\n{primeiras}" + (f"\n{pergunta.group(1)}" if pergunta else "")}
+    if ronda and ronda.group(1) in ids:
+        f = next(x for x in lista if x["id"] == ronda.group(1))
+        onde = re.search(r"cômodo «(.+?)»", (texto or "")[ronda.start():])
+        args = {"comodo": onde.group(1)} if onde and "comodo" in ((f.get("entrada") or {}).get("properties") or {}) else {}
+        return {"chamar": [{"ferramenta": f["id"], "argumentos": args}], "resposta": ""}
     m = re.search(r"\b(?:lan[cç]a|gastei)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:reais\s*)?(?:de|no|na|em)?\s*([a-zà-ú]+)?", t)
     if m and "gerencia_lancar" in ids:
         valor = float(m.group(1).replace(",", "."))

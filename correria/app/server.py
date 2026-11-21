@@ -35,6 +35,7 @@ import ferramentas
 import ia
 import mcp
 import oauth
+import rondas
 import uso
 import whatsapp
 
@@ -1518,6 +1519,9 @@ def conversar(corpo, pessoa, chave):
             raise ValueError("O arquivo é grande demais (até 15 MB).")
         eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
+    rd = RONDAS_ATIVAS.get(chave)
+    if rd:  # 1.18.0: no meio de uma ronda, a IA sabe de que etapa é a resposta (a pessoa só vê o rótulo)
+        hist = hist + [{"papel": "eu", "texto": rondas.contexto(rd["id"], rd["etapas"][rd["i"]], rd["onde"])}]
     r = None
     if anexo and foto_para_ferramenta(texto, tipo, ultimo):
         # 1.17.0: uma foto para guardar (numa tarefa): fica à mão e a IA com as ferramentas decide onde
@@ -1549,6 +1553,87 @@ def conversar(corpo, pessoa, chave):
     lista += [eu, resp]
     _gravar_tela(chave, lista)
     return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave)}
+
+
+# ---------- Rondas (1.18.0): um roteiro fixo pelos apps, uma etapa de cada vez, dentro da Conversa da tela ----------
+# A ronda em andamento de cada login fica na memória (some ao reiniciar o app: é só recomeçar). Cada etapa entra na conversa
+# como uma mensagem da pessoa (só o rótulo: "Ronda da casa · Sala · Tarefas (1 de 4)") e a resposta da IA, que leu o app da
+# etapa e faz a pergunta; o que a pessoa responder segue pela Conversa de sempre, com o sim antes de qualquer mudança.
+RONDAS_ATIVAS = {}
+
+
+def rondas_estado(chave, pessoa=None, listar=False):
+    """{ativa: a ronda em andamento ou None, rondas: as que dá para fazer (só com listar: chama o InventarIA)}."""
+    r = RONDAS_ATIVAS.get(chave)
+    ativa = None
+    if r:
+        e = rondas.etapa_de(r["id"], r["etapas"][r["i"]])
+        ativa = {"id": r["id"], "nome": rondas.RONDAS[r["id"]]["nome"], "onde": r["onde"], "n": r["i"] + 1, "total": len(r["etapas"]),
+                 "etapa": e["titulo"], "grupo": e["grupo"], "app": e["nome_app"]}
+    out = {"ativa": ativa, "feitos": list(RONDAS_FEITOS.get(chave, {}).get("feitos") or [])}
+    if listar:
+        out["rondas"] = rondas.disponiveis(FERR, pessoa) if FERR.tem() else []
+    return out
+
+
+def ronda_passo(corpo, pessoa, chave):
+    """Começar, ir para a próxima etapa, voltar ou sair de uma ronda. Devolve a conversa e o estado da ronda."""
+    acao = str(corpo.get("acao") or "")
+    r = RONDAS_ATIVAS.get(chave)
+    if acao == "sair":
+        RONDAS_ATIVAS.pop(chave, None)
+        return {"mensagens": conversa_tela(chave)[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
+    if acao == "iniciar":
+        rid = str(corpo.get("ronda") or "")
+        onde = " ".join(str(corpo.get("onde") or "").split())[:60]
+        disp = next((x for x in rondas.disponiveis(FERR, pessoa) if x["id"] == rid), None) if FERR.tem() else None
+        if not disp:
+            raise ValueError("Esta ronda não está disponível: ligue o CorrerIA nos apps (Mais › Configurações › Integrações).")
+        if not onde or (disp["onde"] and onde not in disp["onde"]):
+            raise ValueError("Escolha o cômodo.")
+        if RONDAS_FEITOS.get(chave, {}).get("id") != rid:
+            RONDAS_FEITOS.pop(chave, None)
+        r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": [e["id"] for e in disp["etapas"]]}
+    elif not r:
+        raise ValueError("Nenhuma ronda em andamento.")
+    elif acao == "proxima":
+        if r["i"] + 1 >= len(r["etapas"]):  # a última etapa: o cômodo fica feito e a ronda espera o próximo
+            feitos = [x for x in (RONDAS_FEITOS.get(chave, {}).get("feitos") or []) if x != r["onde"]] + [r["onde"]]
+            RONDAS_ATIVAS.pop(chave, None)
+            lista = conversa_tela(chave)
+            lista += [{"papel": "eu", "texto": f"{rondas.RONDAS[r['id']]['nome']} · {r['onde']} · concluída", "em": agora_iso(), "ronda": True},
+                      {"papel": "ia", "texto": f"Ronda de {r['onde']} concluída. Quando quiser, escolha o próximo cômodo.", "em": agora_iso(), "app": "CorrerIA", "app_id": "_ia"}]
+            _gravar_tela(chave, lista)
+            RONDAS_FEITOS[chave] = {"id": r["id"], "feitos": feitos}
+            return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave, pessoa, listar=True)}
+        r["i"] += 1
+    elif acao == "voltar":
+        r["i"] = max(0, r["i"] - 1)
+    else:
+        raise ValueError("acao vale iniciar, proxima, voltar ou sair.")
+    eid, total = r["etapas"][r["i"]], len(r["etapas"])
+    guardar_pendente("tela:" + chave, None)  # mudou de etapa: o que esperava o sim da anterior não vale mais
+    lista = conversa_tela(chave)
+    hist = [{"papel": m.get("papel"), "texto": m.get("texto") or ""} for m in lista][-MAX_HISTORICO:]
+    eu = {"papel": "eu", "texto": rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, total), "em": agora_iso(), "ronda": True}
+    ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total)
+    etapa = rondas.etapa_de(r["id"], eid)
+    if ped is None:  # a etapa só pergunta: sem a IA, na hora
+        texto, nomes, confirmar = rondas.pergunta(r["id"], eid, r["onde"]), [etapa["nome_app"]], False
+    else:
+        resp = responder_ia("tela:" + chave, ped, hist, pessoa, "correria", "CorrerIA")
+        if resp is None:
+            resp = (rondas.pergunta(r["id"], eid, r["onde"]), [etapa["nome_app"]], False)
+        texto, nomes, confirmar = resp
+    ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
+    if confirmar:
+        ia_msg["confirmar"] = True
+    lista += [eu, ia_msg]
+    _gravar_tela(chave, lista)
+    return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
+
+
+RONDAS_FEITOS = {}  # os cômodos já feitos na ronda de cada login (para a tela marcar), enquanto o app está no ar
 
 
 class Tela(BaseHTTPRequestHandler):
@@ -1602,7 +1687,10 @@ class Tela(BaseHTTPRequestHandler):
         if p == "/api/conversa":
             pessoa, chave = pessoa_da_tela(self.headers)
             return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "ola": ola_da_tela(self.headers),
-                                     "conversa": conversa_aberta(chave)})
+                                     "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)})
+        if p == "/api/rondas":  # 1.18.0: as rondas que dá para fazer agora (os cômodos vêm do InventarIA)
+            pessoa, chave = pessoa_da_tela(self.headers)
+            return self.enviar(200, rondas_estado(chave, pessoa, listar=True))
         if p == "/api/conversas":
             return self.enviar(200, {"conversas": conversas_tela(pessoa_da_tela(self.headers)[1])})
         nome = "index.html" if p in ("/", "") else p.lstrip("/")
@@ -1652,7 +1740,12 @@ class Tela(BaseHTTPRequestHandler):
                 return self.enviar(200, estado())
             if p == "/api/conversa":
                 pessoa, chave = pessoa_da_tela(self.headers)
-                return self.enviar(200, conversar(c, pessoa, chave))
+                return self.enviar(200, dict(conversar(c, pessoa, chave), ronda=rondas_estado(chave)))
+            if p == "/api/ronda":  # 1.18.0: começar, próxima etapa, voltar ou sair
+                pessoa, chave = pessoa_da_tela(self.headers)
+                return self.enviar(200, ronda_passo(c, pessoa, chave))
+            if p in ("/api/conversa/limpar", "/api/conversa/nova", "/api/conversa/abrir", "/api/conversa/apagar"):
+                RONDAS_ATIVAS.pop(pessoa_da_tela(self.headers)[1], None)  # 1.18.0: a ronda é da conversa em que começou
             if p == "/api/conversa/limpar":  # apaga a conversa aberta (o botão antigo; hoje a lista tem o Apagar de cada uma)
                 chave = pessoa_da_tela(self.headers)[1]
                 _gravar_tela(chave, [])

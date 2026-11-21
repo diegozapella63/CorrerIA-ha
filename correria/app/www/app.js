@@ -26,6 +26,7 @@
     camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
+    ronda: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
     chev: '<path d="m9 18 6-6-6-6"/>',
@@ -93,6 +94,7 @@
     get: () => fetch('api/estado', { cache: 'no-store' }).then(ok),
     post: (rota, corpo) => fetch('api/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).then(ok),
     conversa: () => fetch('api/conversa', { cache: 'no-store' }).then(ok),
+    rondas: () => fetch('api/rondas', { cache: 'no-store' }).then(ok),
     conversas: () => fetch('api/conversas', { cache: 'no-store' }).then(ok),
   };
   async function ok(r) {
@@ -658,7 +660,7 @@
       // 1.10.0: a mudança que espera o sim (a última mensagem): o Sim e o Não para tocar, embaixo
       const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
         ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
-      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
@@ -675,10 +677,12 @@
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? `<span class="ola-sep"> · </span>Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts">${lateral() ? '' : `<button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}`}
+          ${e.apps.length ? `<button class="bt-icone${c.rondas || c.ronda ? ' on' : ''}" data-a="rondas" aria-label="Rondas" title="Rondas" aria-expanded="${c.rondas ? 'true' : 'false'}">${ic('ronda')}</button>` : ''}
           ${botaoCheia(e)}${lateral() ? '' : `<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button>`}</div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
       <div class="ch-pe">
+        ${c.rondas ? blocoRondas() : faixaRonda()}
         ${aberto ? `<div class="ch-rapidas">${blocoPerguntas(e)}</div>` : ''}${menu}
         ${c.anexo ? `<div class="ch-prev">${/^data:image\//.test(c.anexo.b64 || '') ? `<img src="${c.anexo.b64}" alt="">` : ic('clip', 'ic-s')}<span>${esc(c.anexo.nome)}</span><button data-a="ch-anexo-rm" aria-label="Tirar o arquivo">${ic('x', 'ic-s')}</button></div>` : ''}
         <div class="ch-barra${ouvindo ? ' ouvindo' : ''}">${esquerda}
@@ -1125,8 +1129,63 @@
     render();
   });
   function carregarConversa() {
-    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; render(); })
+    return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; S.ch.ronda = (r.ronda && r.ronda.ativa) || null; S.ch.rondaFeitos = (r.ronda && r.ronda.feitos) || []; render(); })
       .catch(err => { S.ch.msgs = []; toast(err.message); render(); });
+  }
+  /* ---------- Rondas (1.18.0): um roteiro fixo pelos apps, uma etapa de cada vez, dentro da Conversa. O botão no alto
+     abre a escolha (a ronda e o cômodo); em andamento, a faixa em cima da caixa diz a etapa e tem Voltar, Próxima e Sair.
+     Cada etapa chega como uma mensagem da IA, que leu o app e faz a pergunta; a resposta segue pela Conversa de sempre. */
+  async function abrirRondas() {
+    const c = S.ch;
+    if (c.rondas && c.rondas.aberto) { c.rondas = null; render(); return; }
+    Object.assign(c, { rondas: { aberto: true, lista: null, livre: '' }, rapidas: false, editando: null, menu: false });
+    render();
+    try { const r = await api.rondas(); if (c.rondas) { c.rondas.lista = r.rondas || []; c.rondaFeitos = r.feitos || []; } }
+    catch (err) { c.rondas = null; toast(err.message); }
+    render();
+  }
+  async function rondaPasso(corpo) {
+    const c = S.ch;
+    if (c.enviando) return;
+    c.rondas = null; c.enviando = true;
+    if (corpo.acao !== 'sair') c.msgs = (c.msgs || []).concat([{ papel: 'eu', texto: corpo.rotulo || 'Ronda', ronda: true }]);
+    render();
+    try {
+      const r = await api.post('ronda', { acao: corpo.acao, ronda: corpo.ronda, onde: corpo.onde });
+      c.msgs = r.mensagens || [];
+      c.conversa = r.conversa || null;
+      c.ronda = (r.ronda && r.ronda.ativa) || null;
+      c.rondaFeitos = (r.ronda && r.ronda.feitos) || c.rondaFeitos || [];
+      c.lista = undefined;
+      if (r.ronda && r.ronda.rondas && !c.ronda && corpo.acao === 'proxima') c.rondas = { aberto: true, lista: r.ronda.rondas, livre: '' };  // concluída: o próximo cômodo
+    } catch (err) {
+      if (corpo.acao !== 'sair') c.msgs = c.msgs.slice(0, -1);
+      toast(err.message);
+    }
+    c.enviando = false;
+    render();
+    armarRecolher();
+  }
+  function blocoRondas() {
+    const R = S.ch.rondas, feitos = S.ch.rondaFeitos || [];
+    if (!R.lista) return `<div class="ch-ronda-esc"><p class="vazio">Carregando…</p></div>`;
+    if (!R.lista.length) return `<div class="ch-ronda-esc"><p class="vazio">Nenhuma ronda disponível: ligue o CorrerIA no ResolvIA, no InventarIA ou no EconomIA.</p></div>`;
+    return `<div class="ch-ronda-esc">${R.lista.map(r => `<div class="ch-ronda-op">
+        ${tituloLinha('ronda', esc(r.nome))}<p class="ch-ronda-res">${esc([...new Set(r.etapas.map(x => x.grupo))].join(' › '))} · ${r.etapas.length} perguntas</p>
+        ${r.livre ? `<div class="ch-ed-nova"><input id="ch-ronda-onde" class="inp" maxlength="60" placeholder="Qual cômodo?" aria-label="Cômodo" enterkeyhint="done" value="${esc(R.livre || '')}">
+            <button class="btn pri" data-a="ronda-ir" data-v="${esc(r.id)}">${ic('check', 'ic-s')}Começar</button></div>`
+          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${feitos.includes(n) ? ' feito' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${feitos.includes(n) ? ic('check', 'ic-s') : ''}${esc(n)}</button>`).join('')}</div>`}
+      </div>`).join('')}</div>`;
+  }
+  function faixaRonda() {
+    const r = S.ch.ronda;
+    if (!r) return '';
+    const ult = r.n >= r.total;
+    return `<div class="ch-ronda" role="group" aria-label="${esc(r.nome)}">
+        <p class="ch-ronda-t">${ic('ronda', 'ic-s')}<b>${esc(r.onde)}</b><span>${esc(r.grupo)}: ${esc(r.etapa)} · ${r.n} de ${r.total}</span>
+          <button class="bt-icone" data-a="ronda-sair" aria-label="Sair da ronda" title="Sair da ronda">${ic('x', 'ic-s')}</button></p>
+        <div class="ch-ronda-bts"><button class="btn out" data-a="ronda-voltar"${r.n <= 1 || S.ch.enviando ? ' disabled' : ''}>${ic('back', 'ic-s')}Voltar</button>
+          <button class="btn pri" data-a="ronda-proxima"${S.ch.enviando ? ' disabled' : ''}>${ic(ult ? 'check' : 'chev', 'ic-s')}${ult ? 'Concluir' : 'Próxima'}</button></div></div>`;
   }
   async function enviarConversa(texto) {
     const c = S.ch;
@@ -1140,6 +1199,7 @@
       const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}) });
       c.msgs = r.mensagens || [];
       c.conversa = r.conversa || null;
+      if (r.ronda) c.ronda = r.ronda.ativa || null;
       c.lista = undefined;  // a lista muda (a conversa nova entra, a de agora sobe)
     } catch (err) {
       c.msgs = c.msgs.slice(0, -1);
@@ -1267,6 +1327,17 @@
       enviarConversa(el.dataset.v);
     } else if (a === 'ch-resp') {  // 1.10.0: o Sim ou o Não de uma mudança, num toque
       enviarConversa(el.dataset.v);
+    } else if (a === 'rondas') {
+      abrirRondas();
+    } else if (a === 'ronda-ir') {
+      const onde = el.dataset.onde || (($('#ch-ronda-onde') || {}).value || '').trim();
+      if (!onde) { toast('Escreva o cômodo.'); return; }
+      rondaPasso({ acao: 'iniciar', ronda: el.dataset.v, onde, rotulo: `Ronda · ${onde}` });
+    } else if (a === 'ronda-proxima' || a === 'ronda-voltar') {
+      const r = S.ch.ronda;
+      if (r) rondaPasso({ acao: a === 'ronda-proxima' ? 'proxima' : 'voltar', rotulo: `${r.nome} · ${r.onde}` });
+    } else if (a === 'ronda-sair') {
+      rondaPasso({ acao: 'sair' });
     } else if (a === 'ch-rapidas') {
       Object.assign(S.ch, { rapidas: !(S.ch.rapidas || S.ch.editando), editando: null, menu: false }); render();
     } else if (a === 'ch-ed-abrir') {
@@ -1305,7 +1376,7 @@
     } else if (a === 'ch-nova' || a === 'conv-abrir') {
       pararFala();
       try {
-        const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v });
+        const r = a === 'ch-nova' ? await api.post('conversa/nova', {}) : await api.post('conversa/abrir', { id: el.dataset.v }); S.ch.ronda = null; S.ch.rondas = null;
         Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas, texto: a === 'ch-nova' ? '' : S.ch.texto, anexo: null, rapidas: false, menu: false });
         // 1.8.0: pela barra lateral, de outra tela, abre a Conversa
         if (S.tela === 'conversas') voltar(); else if (S.tela && lateral()) abrirTela(''); else render();
@@ -1313,7 +1384,7 @@
       } catch (err) { toast(err.message); if (a === 'conv-abrir') carregarLista(); }
     } else if (a === 'conv-apagar') {
       try {
-        const r = await api.post('conversa/apagar', { id: el.dataset.v });
+        const r = await api.post('conversa/apagar', { id: el.dataset.v }); S.ch.ronda = null; S.ch.rondas = null;
         Object.assign(S.ch, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas || [] });
         render(); toast('Conversa apagada');
       } catch (err) { toast(err.message); }
@@ -1453,7 +1524,7 @@
       if (c.lista === undefined) c.lista = (await api.conversas()).conversas || [];
       const L = c.lista, i = L.findIndex(x => x.id === c.conversa), j = i + d;  // i = -1: a conversa nova, antes de todas
       if (j < 0 || j >= L.length) { deslizar(d, true); return; }
-      const r = await api.post('conversa/abrir', { id: L[j].id });
+      const r = await api.post('conversa/abrir', { id: L[j].id }); S.ch.ronda = null; S.ch.rondas = null;
       if (S.tela) return;
       Object.assign(c, { msgs: r.mensagens || [], conversa: r.conversa || null, lista: r.conversas || L });
       render();

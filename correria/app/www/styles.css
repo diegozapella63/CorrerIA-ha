@@ -577,3 +577,20 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 
 /* 1.13.0: o que vai no app Cloudflared, para copiar como está */
 .inp.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; field-sizing: content; resize: none; min-height: 0; height: auto; margin-bottom: 10px; }
+
+/* ---------- Rondas (1.18.0): a escolha (a ronda e o cômodo) e a faixa da etapa, em cima da caixa da Conversa ---------- */
+.ch-ronda-esc, .ch-ronda { margin: 0 0 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.ch-ronda-esc { max-height: 46vh; overflow-y: auto; }
+.ch-ronda-op + .ch-ronda-op { margin-top: 14px; }
+.ch-ronda-op > b { display: flex; align-items: center; gap: 8px; }
+.ch-ronda-res { margin: 2px 0 10px; color: var(--muted); font-size: 13.5px; }
+.ch-ronda-onde { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ch-ronda-onde .btn { min-width: 0; white-space: normal; }
+.ch-ronda-onde .btn.feito { color: var(--muted); }
+.ch-ronda-t { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; min-width: 0; }
+.ch-ronda-t b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-ronda-t span { flex: 1; min-width: 0; color: var(--muted); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-ronda-bts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ch-msg.eu.ronda .ch-bolha { background: none; border: 1px dashed var(--line); color: var(--muted); font-size: 13.5px; }
+@media (min-width: 1000px) { .ch-ronda-onde { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 430px) { .cab-bts { gap: 6px; } .cab-bts .bt-icone { width: 40px; height: 40px; } }

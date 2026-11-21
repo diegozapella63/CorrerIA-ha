@@ -786,6 +786,62 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.locator(".ch-sim").count(), 0, "respondido: sem os botões")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
 
+    def test_ronda_da_casa(self):
+        """1.18.0: o botão Rondas no alto da Conversa abre a escolha (a ronda e os cômodos do InventarIA); o cômodo começa a
+        ronda: a etapa entra na conversa e a faixa em cima da caixa tem Voltar e Próxima, do mesmo tamanho; na última,
+        Concluir, e a escolha volta com o cômodo feito marcado. Nada passa da largura no celular."""
+        from tests.test_rondas import AppDaRonda, ferr, COM_COMODO
+        feitos = []
+        for app, nome, lista, resp in (
+                ("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO)], {"tarefas": "1 tarefa: Trocar a lâmpada (hoje)."}),
+                ("inventario", "InventarIA", [ferr("resumo"), ferr("buscar_itens", COM_COMODO)],
+                 {"resumo": {"comodos": [{"nome": "Sala de jantar"}, {"nome": "Cozinha"}], "opcoes": {"consumiveis": False}}, "buscar_itens": "2 itens: Mesa, Cadeira."})):
+            a = AppDaRonda(nome, lista, resp)
+            self.addCleanup(a.fechar)
+            a.publicar(S.SHARE_DIR, app)
+            feitos.append(a)
+        self.addCleanup(S.RONDAS_ATIVAS.clear)
+        self.addCleanup(S.RONDAS_FEITOS.clear)
+        self.addCleanup(S._gravar_tela, "_", [])
+        self.abrir()
+        self.pg.click('[data-a="rondas"]')
+        self.pg.wait_for_selector(".ch-ronda-onde .btn")
+        self.assertEqual(self.texto(".ch-ronda-op > b"), "Ronda da casa")
+        self.assertEqual(self.pg.locator(".ch-ronda-op > b svg").count(), 1, "o ícone antes do título")
+        self.assertEqual(self.texto(".ch-ronda-res"), "Tarefas › Itens · 5 perguntas", "só as etapas dos apps ligados")
+        self.assertEqual(self.pg.locator(".ch-ronda-onde .btn").all_inner_texts(), ["Sala de jantar", "Cozinha"])
+        self.pg.click(".ch-ronda-onde .btn >> text=Sala de jantar")
+        self.pg.wait_for_selector(".ch-msg.ia >> text=Tem algo para arrumar em Sala de jantar?")
+        self.assertEqual(self.texto(".ch-msg.eu.ronda .ch-bolha"), "Ronda da casa · Sala de jantar · Tarefas: Arrumar (1 de 5)")
+        self.assertEqual(self.texto(".ch-ronda-t b"), "Sala de jantar")
+        self.assertEqual(self.texto(".ch-ronda-t span"), "Tarefas: Arrumar · 1 de 5")
+        self.assertEqual(self.pg.locator(".ch-ronda-bts .btn").all_inner_texts(), ["Voltar", "Próxima"])
+        self.assertTrue(self.pg.locator('[data-a="ronda-voltar"]').is_disabled(), "na primeira etapa, sem voltar")
+        caixas = self.pg.evaluate("[...document.querySelectorAll('.ch-ronda-bts .btn')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.top)]; })")
+        self.assertEqual(caixas[0], caixas[1], "do mesmo tamanho, lado a lado")
+        self.assertEqual(self.pg.locator(".ch-ronda-bts .btn svg").count(), 2, "todo botão com texto tem ícone")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        for fim in ("Alguma outra tarefa para Sala de jantar?", "Chegou algum item novo em Sala de jantar?", "Algum item saiu de Sala de jantar?", "Algum item de Sala de jantar mudou?"):
+            self.pg.click('[data-a="ronda-proxima"]:not([disabled])')
+            self.pg.wait_for_selector(f".ch-msg.ia >> text={fim}")
+        self.assertEqual(self.pg.locator(".ch-ronda-bts .btn").all_inner_texts(), ["Voltar", "Concluir"])
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+        self.pg.click('[data-a="ronda-proxima"]:not([disabled])')
+        self.pg.wait_for_selector(".ch-ronda-onde .btn.feito")
+        self.assertEqual(self.pg.locator(".ch-ronda-onde .btn.feito").all_inner_texts(), ["Sala de jantar"], "o cômodo feito fica marcado")
+        self.assertEqual(self.pg.locator(".ch-ronda-bts").count(), 0)
+        self.pg.click(".ch-ronda-onde .btn >> text=Cozinha")
+        self.pg.wait_for_selector(".ch-ronda-t b >> text=Cozinha")
+        self.pg.click('[data-a="ronda-sair"]')
+        self.pg.wait_for_selector(".ch-ronda", state="detached")
+        self.pg.reload()
+        self.pg.wait_for_selector("#ch-txt")
+        self.assertEqual(self.pg.locator(".ch-ronda").count(), 0)
+
+    def test_ronda_sem_apps_nao_tem_botao(self):
+        self.abrir()
+        self.assertEqual(self.pg.locator('[data-a="rondas"]').count(), 0)
+
     def test_enter_envia(self):
         """1.4.1: com teclado, o Enter envia e o Shift+Enter quebra a linha (como no WhatsApp Web); no celular, o Enter do
         teclado da tela quebra a linha, até chegar uma tecla de um teclado de verdade."""

@@ -143,6 +143,23 @@ No computador (a partir de 1000 px de largura), fica a barra lateral dos outros 
 
 Para não guardar conversas para sempre, em **Configurações › Opções › Conversas**, em **Guardar as conversas por**, escolha por quanto tempo sem uso uma conversa fica: **7**, **30** (o de início) ou **90 dias**, ou **Sempre**. Vale para as conversas daqui e para as mensagens do WhatsApp guardadas no CorrerIA (as do celular de cada pessoa continuam no WhatsApp dela).
 
+## Rondas
+
+Uma ronda é um roteiro pronto que passa pelos apps, uma etapa de cada vez, dentro da Conversa (só na tela do CorrerIA; não no WhatsApp). O botão fica no alto da Conversa.
+
+**Ronda da casa**: escolha o cômodo e responda a uma pergunta de cada vez.
+
+1. **Tarefas** (ResolvIA): *Tem algo para arrumar?* · *Alguma outra tarefa?*
+2. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item saiu?* · *Algum item mudou?*
+3. **Consumíveis** (InventarIA): *Algum está acabando?* · *Algum consumível novo?* Eles não têm cômodo, mas a pergunta vem em cada cômodo.
+4. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
+
+Na primeira pergunta de cada app, o CorrerIA mostra antes o que já há ali (as tarefas pendentes, os últimos itens, os consumíveis acabando, a lista de compras).
+
+Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai. Depois da última etapa, escolha o próximo cômodo (os feitos ficam marcados até o app reiniciar).
+
+A ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
+
 ## Atalho no celular
 
 Para abrir o CorrerIA direto da tela inicial do celular (Android), sem passar pelo menu do Home Assistant: em **Mais › Configurações › Opções › Atalho no celular**, toque em **Copiar** embaixo do **Caminho** (algo como `/app/a1b2c3d4_correria`). No app do Home Assistant, abra **Configurações › Aplicativo complementar › Gerenciar atalhos** e, em **Atalho fixado**, escolha o tipo **Painel**, cole o caminho, dê o nome e adicione à tela inicial. O ícone abre o CorrerIA na Conversa. O mesmo cartão existe em todos os apps da família.
