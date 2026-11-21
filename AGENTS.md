@@ -100,7 +100,7 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.
-- **Sites que abrem num toque** (1.14.0): onde a tela fala de um site (o painel da Meta, a Cloudflare, o do provedor de cada IA em uso, no fim do Uso da IA), o nome é um link que abre o site (`site(href, texto)` no app.js, em outra janela), nunca só o endereço escrito.
+- **Sites que abrem num toque** (1.14.0): onde a tela fala de um site (o painel da Meta, a Cloudflare, o Duck DNS, o do provedor de cada IA em uso, no fim do Uso da IA), o nome é um link que abre o site (`site(href, texto)` no app.js, em outra janela; `DUCK()` e `NUVEM()`, 1.14.2), nunca só o endereço escrito. Vale em todo texto: os de cima dos cartões, os passos e os avisos.
 - **Menos é mais**: textos curtos, sem explicar o óbvio, sem avisos repetidos.
 - Botões lado a lado com o mesmo tamanho e alinhados; nada cortado nem saindo da tela.
 - O token e a chave secreta nunca voltam para a tela (só o fim, ••••1234).

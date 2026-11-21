@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.14.2
+
+- **Sites que abrem num toque**: o **Duck DNS** e a **Meta** agora são links também no texto de cima do **Webhook na Meta** e do **Conector MCP**, e nos avisos de certificado (com a Cloudflare).
+
 ## 1.14.1
 
 - Os textos de cima de **Uso da IA**, **Tema** e **Cor do app** ficaram iguais aos dos outros apps.

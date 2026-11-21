@@ -179,6 +179,8 @@
   // 1.14.0: onde a tela fala de um site (o painel da Meta, o da Cloudflare, o do provedor da IA), o nome abre o site
   const site = (href, texto) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${texto}</a>`;
   const META = 'https://developers.facebook.com/apps/';
+  // 1.14.2: o Duck DNS (onde se cria o endereço da casa) e a Cloudflare, em todo lugar onde a tela fala deles
+  const DUCK = () => site('https://www.duckdns.org/', 'Duck DNS'), NUVEM = () => site('https://dash.cloudflare.com/', 'Cloudflare');
   const rotulo = (para, icone, titulo) => `<label for="${para}">${ic(icone, 'ic-s')}${titulo}</label>`;
   const cab = (icone, titulo, extra = '') => `<div class="rot" role="button" tabindex="0" data-dobra="${esc(titulo)}" aria-expanded="${!fechadas().has(titulo)}"><span class="rot-ic">${ic(icone)}</span><h2>${titulo}</h2>${extra}<span class="dobra-ic" aria-hidden="true">${ic('chev', 'ic-s')}</span></div>`;
   // 0.17.0 (padrão da família): toda seção (cartão) contrai e expande num toque no cabeçalho; o aparelho lembra as fechadas
@@ -236,14 +238,14 @@
         : `<div class="status manual" data-fora><span><b>Nada chegou pelo túnel desde que o app abriu</b> · Confira o app Cloudflared e abra o endereço do conector.</span></div>`);
       return out.join('');
     }
-    if (!w.https) out.push(`<div class="status manual">${semCert}</div>`);
-    else if (confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app Duck DNS, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
+    if (!w.https) out.push(`<div class="status manual"><span>${semCert}</span></div>`);  // num span: a linha é flex, e os links partiriam o texto
+    else if (confere === false) out.push(`<div class="status erro"><span><b>O certificado é de ${esc(w.cert_nome)}</b> · No app ${DUCK()}, confira o domínio; depois reinicie o CorrerIA.</span></div>`);
     else out.push(`<div class="status">Certificado ${w.cert_nome ? 'de ' + esc(w.cert_nome) : esc(w.certificado)} · porta ${w.porta}</div>`);
     let u = null;
     try { u = end ? new URL(end) : null; } catch (_) { u = null; }
     if (u && !u.port && Number(w.porta) !== 443) out.push(`<div class="status manual" data-porta><span>Sem <b>:${w.porta}</b> no fim do endereço, só chega aqui se o roteador mandar a porta 443 para a ${w.porta}.</span></div>`);
     // 1.13.0: o Claude (e outras IAs) só conectam na porta 443: com outra porta no endereço, o conector não abre
-    if (mcp && u && u.port && u.port !== '443') out.push(`<div class="status erro" data-porta><span><b>As IAs só conectam na porta 443</b> · Tire o :${esc(u.port)} do endereço e, no roteador, mande a 443 para a ${w.porta} (ou use o túnel da Cloudflare).</span></div>`);
+    if (mcp && u && u.port && u.port !== '443') out.push(`<div class="status erro" data-porta><span><b>As IAs só conectam na porta 443</b> · Tire o :${esc(u.port)} do endereço e, no roteador, mande a 443 para a ${w.porta} (ou use o túnel da ${NUVEM()}).</span></div>`);
     if (end && w.https) out.push(!f.em ? `<div class="status manual" data-fora><span><b>Nenhuma conexão de fora desde que o app abriu</b> · Pelo 5G, abra o endereço do conector.</span></div>`
       : f.ok ? `<div class="status" data-fora>Chegou uma conexão de fora ${quando(f.em)}.</div>`
         : `<div class="status erro" data-fora><span><b>Chegou de fora ${quando(f.em)}, mas não abriu</b> · ${esc(f.erro)}.</span></div>`);
@@ -252,12 +254,12 @@
 
   function cardWebhook(e) {
     const c = e.config, w = e.webhook;
-    const cert = caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (a Meta só aceita https).");
+    const cert = caminhoDeFora(e, `Sem certificado: instale o app ${DUCK()} com o Let's Encrypt (a ${site(META, 'Meta')} só aceita https).`);
     const meta = w.ultimo ? `<div class="status">Última mensagem da Meta ${quando(w.ultimo)}.</div>`
       : w.verificado_em ? `<div class="status">A Meta confirmou o endereço ${quando(w.verificado_em)}.</div>`
         : '<div class="status manual">A Meta ainda não chamou.</div>';
     return `<section class="card" id="webhook">${cab('link', 'Webhook na Meta')}
-      <p class="lead">O endereço pelo qual a Meta entrega as mensagens. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>
+      <p class="lead">O endereço pelo qual a ${site(META, 'Meta')} entrega as mensagens, como o do ${DUCK()}. No roteador, a porta ${w.porta} vai para o Home Assistant.</p>
       <div class="campo">${rotulo('f-endereco', 'globe', 'Endereço público')}
         <input id="f-endereco" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco" value="${esc(S.form.endereco != null ? S.form.endereco : c.endereco)}" placeholder="https://casa-exemplo.duckdns.org:${w.porta}"></div>
       ${c.webhook ? `<ol class="passos"><li>Na ${site(META, 'Meta')}, em WhatsApp › Configuração › <b>Webhook</b>, toque em Editar.</li><li>Cole a <b>URL de retorno</b> e o <b>Token de verificação</b> abaixo e toque em Verificar e salvar.</li><li>Em Campos do webhook, assine <b>messages</b>.</li></ol>
@@ -333,7 +335,7 @@
     // 1.14.0: o endereço público do conector é dele (antes era o mesmo campo do webhook, nas duas abas)
     const publico = `<div class="campo">${rotulo('f-endereco-mcp', 'globe', 'Endereço público do conector')}
         <input id="f-endereco-mcp" class="inp" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-f="endereco_mcp" value="${esc(S.form.endereco_mcp != null ? S.form.endereco_mcp : (m.endereco || ''))}" placeholder="https://correria.casa-exemplo.com.br"></div>
-      ${caminhoDeFora(e, "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da Cloudflare.", { mcp: true })}`;
+      ${caminhoDeFora(e, `Sem certificado: instale o app ${DUCK()} com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da ${NUVEM()}.`, { mcp: true })}`;
     const endereco = m.url ? `<div class="campo">${rotulo('f-mcp', 'plug', 'Endereço do conector')}<div class="copiar"><input id="f-mcp" class="inp" readonly value="${esc(m.url)}"><button class="btn peq out" data-a="copiar" data-v="f-mcp" aria-label="Copiar o endereço do conector">${ic('copy', 'ic-s')}Copiar</button></div></div>
       ${conexoes ? '' : `<ol class="passos"><li>Toque em <b>Copiar</b>.</li><li>Na IA, em Conectores, adicione um <b>conector personalizado</b> e cole o endereço.</li><li>Ao entrar, abre uma página com um <b>código</b>: aprove aqui o pedido com o mesmo código.</li></ol>`}`
       : '';
@@ -355,7 +357,7 @@
     const mudancas = `<details class="uso-ult mudancas" id="mudancas"${S.mudAberto ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas mudanças (${R.length})</summary>
       ${listaMsgs(R, 'Nenhuma mudança ainda.')}${R.length ? `<button class="btn peq out" data-a="limpar" data-v="mcp">${ic('trash', 'ic-s')}Limpar</button>` : ''}</details>`;
     return `<section class="card" id="mcp">${cab('plug', 'Conector MCP')}
-      <p class="lead">Os apps dentro de outras IAs, como um conector. O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a ${w.porta}, ou pelo túnel da ${site('https://dash.cloudflare.com/', 'Cloudflare')}.</p>${sw}
+      <p class="lead">Os apps dentro de outras IAs, como um conector. O endereço, como o do ${DUCK()}, tem que abrir de fora na porta 443: no roteador, a 443 vai para a ${w.porta}, ou pelo túnel da ${NUVEM()}.</p>${sw}
       <div class="sub-op"><div class="sub-box">${pedidos}${publico}${tunel}${endereco}
         ${conexoes ? `<div class="lbl">${ic('users', 'ic-s')}Conectados</div>${conexoes}` : ''}
         ${mudancas}</div></div>

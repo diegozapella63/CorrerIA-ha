@@ -451,7 +451,7 @@ class Tela(unittest.TestCase):
         # 0.15.0: o endereço público e o certificado na própria aba (antes: "Escreva o endereço público na aba WhatsApp")
         self.assertNotIn("aba WhatsApp", self.texto("#mcp"))
         self.assertEqual(self.texto("#mcp .status"), "Sem certificado: instale o app Duck DNS com o Let's Encrypt (as IAs só conectam por https), ou use o túnel da Cloudflare.")
-        self.assertIn("O endereço tem que abrir de fora na porta 443: no roteador, a 443 vai para a 8443, ou pelo túnel da Cloudflare.", self.texto("#mcp .lead"))
+        self.assertIn("O endereço, como o do Duck DNS, tem que abrir de fora na porta 443: no roteador, a 443 vai para a 8443, ou pelo túnel da Cloudflare.", self.texto("#mcp .lead"))
         self.assertEqual(self.pg.locator("#f-mcp").count(), 0)
         self.pg.fill("#f-endereco-mcp", "casa-exemplo.duckdns.org:8443")
         self.pg.press("#f-endereco-mcp", "Tab")
@@ -1516,10 +1516,17 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         self.opcoes("whatsapp")
         meta = "https://developers.facebook.com/apps/"
         self.assertEqual(self.texto("#whatsapp .lead"), "A conta do WhatsApp Business, criada no painel da Meta.")
+        duck, nuvem = ["Duck DNS", "https://www.duckdns.org/", "_blank"], ["Cloudflare", "https://dash.cloudflare.com/", "_blank"]
         self.assertEqual(self.pg.eval_on_selector_all("#whatsapp .lead a, #webhook .passos a", "els => els.map(a => [a.textContent, a.href, a.target])"),
                          [["painel da Meta", meta, "_blank"], ["Meta", meta, "_blank"]])
+        # 1.14.2: o texto de cima do Webhook também (a Meta e o Duck DNS), e os avisos de sem certificado
+        self.assertEqual(self.texto("#webhook .lead"), "O endereço pelo qual a Meta entrega as mensagens, como o do Duck DNS. No roteador, a porta 8443 vai para o Home Assistant.")
+        self.assertEqual(self.pg.eval_on_selector_all("#webhook .lead a", "els => els.map(a => [a.textContent, a.href, a.target])"), [["Meta", meta, "_blank"], duck])
+        self.assertEqual(self.pg.eval_on_selector_all("#webhook .status a", "els => els.map(a => [a.textContent, a.href, a.target])"), [duck, ["Meta", meta, "_blank"]], "sem certificado: o Duck DNS e a Meta")
         self.pg.click('.abas [data-v="mcp"]')
-        self.assertEqual(self.pg.eval_on_selector_all("#mcp .lead a", "els => els.map(a => [a.textContent, a.href, a.target])"), [["Cloudflare", "https://dash.cloudflare.com/", "_blank"]])
+        self.assertEqual(self.pg.eval_on_selector_all("#mcp .lead a", "els => els.map(a => [a.textContent, a.href, a.target])"), [duck, nuvem])
+        self.assertEqual(self.pg.eval_on_selector_all("#mcp .status a", "els => els.map(a => [a.textContent, a.href, a.target])")[:2], [duck, nuvem], "sem certificado: o Duck DNS e a Cloudflare")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('a[target=_blank]')].filter(a => !/noopener/.test(a.rel)).length"), 0)
         S.salvar_config({"whatsapp": False})
         self.pg.evaluate("window.CORRERIA_TESTE.carregar()")
         self.pg.click('.abas [data-v="whatsapp"]')
