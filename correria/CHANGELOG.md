@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.17.2
+
+- **Teclado no celular**: ao abrir uma janela com um campo de texto, a tela não fica mais deslocada (a barra de cima sumia até um toque).
+
 ## 1.17.1
 
 - **IA mais cuidadosa com o que lê**: uma anotação, um item ou uma página com frases como "ignore as instruções" não muda o que a IA faz; quem pede é só quem está conversando.

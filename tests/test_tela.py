@@ -1626,5 +1626,38 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
             self.pg.evaluate("window.scrollTo(0, 0)")
 
 
+# 1.17.2: o teclado do celular não deixa a página em volta do app (a do Home Assistant) rolada: o app dentro de um quadro,
+# numa página rolada, e um campo de texto recebe o foco
+QUADRO_TECLADO = """async (alvo) => {
+  const f = document.createElement('iframe');
+  f.src = location.href; f.style.cssText = 'display:block;width:320px;height:320px';
+  const alto = document.createElement('div'); alto.style.height = '3000px';
+  document.documentElement.style.cssText = 'height:auto;overflow:visible';
+  document.body.style.cssText = 'height:auto;overflow:visible;display:block';
+  document.body.append(f, alto);
+  await new Promise((r) => (f.onload = r));
+  await new Promise((r) => setTimeout(r, 400));
+  window.scrollTo(0, 80);
+  const antes = window.scrollY;
+  const d = f.contentDocument, el = d.createElement(alvo);
+  d.body.appendChild(el);
+  el.dispatchEvent(new f.contentWindow.FocusEvent('focusin', { bubbles: true, composed: true }));
+  await new Promise((r) => setTimeout(r, 200));
+  const depois = window.scrollY;
+  f.remove(); alto.remove();
+  return [antes, depois];
+}"""
+
+
+def _teclado(self):
+    self.abrir()
+    self.assertTrue(self.pg.evaluate("window.__tecladoCalmo === true"))
+    self.assertEqual(self.pg.evaluate(QUADRO_TECLADO, "button"), [80, 80], "um botão não mexe na página de fora")
+    self.assertEqual(self.pg.evaluate(QUADRO_TECLADO, "textarea"), [80, 0], "um campo de texto põe a página de fora no começo")
+
+
+Tela.test_o_foco_num_campo_poe_a_pagina_de_fora_no_comeco = _teclado
+
+
 if __name__ == "__main__":
     unittest.main()

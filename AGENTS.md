@@ -132,6 +132,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 Aqui (o CorrerIA não tem barra de baixo): os três pontos no alto da Conversa abrem o **Mais** (Configurações e, por último, Sobre); Configurações fica com as abas que fazem sentido aqui (**Integrações** (1.14.0; antes se chamava Apps: os apps ligados, a IA, a Casa, o Uso da IA e os Sensores), **WhatsApp**, **MCP**, **Dados**, **Aparência** e **Opções**, esta só com o Atalho no celular e só dentro do Home Assistant); o **Uso da IA** fica na aba Integrações (`uso.py`); Dados só tem **Onde ficam os dados** (nada de exportar: o token, a chave secreta e as conversas não saem daqui); a cor da casa em `config.json` (`cor`, `cor_dia`), o tema no aparelho (`correria-tema`). O endereço do repositório é `CorrerIA-ha` (o remote de verdade): não mude.
 
+**Teclado no celular** (1.17.2): no fim do `app.js`, o `tecladoCalmo` (o mesmo código do `teclado.js` dos outros apps): com o foco num campo de texto, ou quando o teclado muda a altura da tela, as páginas em volta do app (a do Home Assistant) voltam para o começo; a página do próprio app não é tocada.
+
 ## Conversa com o dono
 
 Respostas curtas, em português. Ao terminar uma mudança: o que mudou, a versão e se está publicado. Ele usa o app do Home Assistant no Android.
