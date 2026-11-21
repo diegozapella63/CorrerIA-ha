@@ -147,6 +147,9 @@ textarea.inp { resize: vertical; min-height: 84px; }
 .app-l small { display: block; color: var(--muted); font-size: 13px; }
 .app-l small.le { color: var(--text-2); margin-top: 2px; }
 .app-l small.le.erro { color: var(--danger); }
+/* 1.15.0: um app da família com a integração desligada: apagado, depois dos ligados */
+.app-l.off .rot-ic, .app-l.off b { opacity: .55; }
+.app-l small.le.off { color: var(--muted); font-weight: 600; }
 
 /* ---------- Claude e Gemini */
 .lbl { color: var(--text-2); font: 500 14px/1.3 var(--font); margin: 18px 0 4px; }

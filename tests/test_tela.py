@@ -222,6 +222,12 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator(".ch-sug").count(), 0, "sem app, sem sugestões")
         self.opcoes("apps")
         self.assertIn("Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.", self.texto("#apps"))
+        # 1.15.0: todos os apps da família aparecem, cada um dizendo que está com a integração desligada
+        nomes = [t.strip() for t in self.pg.locator("#apps .app-l.off b").all_inner_texts()]
+        self.assertEqual(nomes, ["CronologIA", "EconomIA", "GerencIA", "InventarIA", "MemorIA", "ResolvIA"])
+        self.assertEqual(set(self.pg.locator("#apps .app-l.off .le").all_inner_texts()), {"Integração desligada."}, "o como ligar já está no aviso de cima")
+        self.assertEqual(self.pg.locator("#apps .app-l.off .rot-ic svg").count(), 6, "cada um com o ícone")
+        self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= innerWidth"))
 
     def test_apps_que_respondem(self):
         self.publicar_app()
@@ -230,6 +236,12 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
         self.assertEqual(self.texto("#apps h2"), "Apps")
         self.assertEqual(self.texto("#apps .app-l .le"), "Responde; também lê fotos e PDF.")
+        # 1.15.0: o ligado primeiro; os outros cinco da família depois, com a integração desligada e como ligar
+        linhas = self.pg.evaluate("[...document.querySelectorAll('#apps .app-l')].map(l => [l.querySelector('b').textContent, l.classList.contains('off'), l.querySelector('.le').textContent])")
+        self.assertEqual([x[:2] for x in linhas], [["GerencIA", False], ["CronologIA", True], ["EconomIA", True], ["InventarIA", True], ["MemorIA", True], ["ResolvIA", True]])
+        self.assertEqual({x[2] for x in linhas[1:]}, {"Integração desligada. No app: Mais › Configurações › Integrações › CorrerIA."})
+        op = self.pg.evaluate("[...document.querySelectorAll('#apps .app-l')].map(l => getComputedStyle(l.querySelector('b')).opacity)")
+        self.assertEqual((op[0], set(op[1:])), ("1", {"0.55"}), "os desligados, apagados")
         self.assertEqual(self.pg.locator("#apps .status").count(), 0, "0.15.0: o áudio é do WhatsApp, fica na aba dele")
         self.assertEqual(self.pg.locator(".sync").count(), 0, "o estado do WhatsApp só na aba dele")
 
@@ -267,6 +279,7 @@ class Tela(unittest.TestCase):
         self.assertEqual([t.strip() for t in self.pg.locator("#f-ia-pesquisa option").all_inner_texts()], ["Igual à de conversar", "IA de exemplo", "Outra IA"])
         self.assertEqual([t.strip() for t in self.pg.locator("#f-ia option").all_inner_texts()], ["Padrão do Home Assistant", "IA de exemplo", "Outra IA"])
         self.assertEqual(self.pg.locator("#f-ia").evaluate("s => getComputedStyle(s).pointerEvents"), "none", "a janela do celular não abre: a do app")
+        self.pg.locator("#f-ia").scroll_into_view_if_needed()  # 1.15.0: com todos os apps na lista, a IA fica mais abaixo
         bx = self.pg.locator("#f-ia").bounding_box()
         self.pg.mouse.click(bx["x"] + bx["width"] / 2, bx["y"] + bx["height"] / 2)
         self.pg.wait_for_selector(".ss-wrap.in .ss-sheet")

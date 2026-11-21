@@ -45,7 +45,7 @@ O CorrerIA abre na **Conversa**. Numa tela grande (1100 px ou mais), com a Crono
 1. **WhatsApp** (aba WhatsApp): ligue **Usar o WhatsApp** e cole o ID do número, o token e a chave secreta (cada um se salva ao sair do campo). Com os três, o app confere com a Meta e mostra o número e o nome; **Conferir com a Meta** confere de novo. Desligado, o CorrerIA não responde nem guarda as mensagens do WhatsApp. O token e a chave não aparecem mais (só o fim, como ••••1234); para trocar, cole outro.
 2. **Webhook na Meta**: escreva o **Endereço público** (ex.: `https://casa-exemplo.duckdns.org:8443`). Na Meta, em **WhatsApp › Configuração › Webhook**, toque em Editar, cole a **URL de retorno** e o **Token de verificação** que o CorrerIA mostra e toque em **Verificar e salvar**. Depois, em Campos do webhook, assine **messages**. O cartão mostra quando a Meta confirmou o endereço e a última mensagem que chegou.
 3. **Quem conversa**: escreva o WhatsApp de cada pessoa da casa (as pessoas do Home Assistant). Só esses números recebem resposta; os outros aparecem em Últimas mensagens como "sem cadastro", sem resposta.
-4. Em cada app, ligue **Mais › Configurações › Integrações › CorrerIA**. Eles aparecem na aba **Integrações**, com o que fazem ("Lê e muda").
+4. Em cada app, ligue **Mais › Configurações › Integrações › CorrerIA**. A aba **Integrações** mostra todos os apps da família: os ligados primeiro, com o que fazem ("Lê e muda"), e os outros com **Integração desligada**.
 5. A **Conversa** (onde o CorrerIA abre) fala com os apps pela tela, sem passar pela Meta: bom para conferir antes de terminar a parte da Meta.
 
 Pronto: mande "oi" do seu WhatsApp para o número do CorrerIA.

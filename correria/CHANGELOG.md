@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.15.0
+
+- **Integrações › Apps**: agora aparecem **todos os apps da família**. Os que estão com a opção CorrerIA desligada vêm depois dos ligados, apagados, com **Integração desligada** e onde ligar.
+
 ## 1.14.2
 
 - **Sites que abrem num toque**: o **Duck DNS** e a **Meta** agora são links também no texto de cima do **Webhook na Meta** e do **Conector MCP**, e nos avisos de certificado (com a Cloudflare).

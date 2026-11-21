@@ -1243,6 +1243,7 @@ def estado():
                     "tunel": {"ligado": c["tunel"], "porta": PORTA_TUNEL, "aberto": bool(SERVIDOR_TUNEL["s"]), "em": TUNEL["em"]}},
         "pessoas": pessoas,
         "apps": lista,
+        "apps_desligados": APPS.desligados(),  # 1.15.0: os da família sem a opção CorrerIA ligada
         "fala": FALA.status(),
         "fala_tela": FALA.status("wav"),
         "registro": [r for r in reg if canal_de(r) == "whatsapp"][:30],

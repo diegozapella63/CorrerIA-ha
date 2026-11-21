@@ -35,6 +35,17 @@ def _sem_acento(t):
     return "".join(c for c in unicodedata.normalize("NFD", str(t or "")) if unicodedata.category(c) != "Mn").lower()
 
 
+# 1.15.0: os apps da família, na ordem da tela (a do nome): a tela mostra todos, e diz qual está com a integração desligada
+FAMILIA = (
+    ("cronologia", "CronologIA", "agenda da família: compromissos, rotinas da casa, remédios, contas, manutenção e placar"),
+    ("economia", "EconomIA", "compras da casa: a lista de compras, os preços das lojas do bairro e online, ofertas e cupons"),
+    ("gerencia", "GerencIA", "finanças da casa: caixa, gastos, contas a pagar, cartões, investimentos e patrimônio"),
+    ("inventario", "InventarIA", "inventário da casa: cômodos, itens com valor, categorias e os bens"),
+    ("memoria", "MemorIA", "anotações em blocos (cadernos): folhas, categorias e links"),
+    ("resolvia", "ResolvIA", "listas de tarefas da casa: o que fazer, prazos, compras, repetição e pontos"),
+)
+
+
 class ErroApp(Exception):
     pass
 
@@ -76,6 +87,11 @@ class Apps:
                         "anexos": [str(t).lower() for t in a.get("anexos") or [] if isinstance(t, str)] if rota else []})
         self._lista, self._quando = out, time.time()
         return out
+
+    def desligados(self):
+        """1.15.0: os apps da família sem a opção CorrerIA ligada (sem o correria.json deles), para a tela mostrar todos."""
+        ligados = {a["app"] for a in self.lista()}
+        return [{"app": k, "nome": nome, "assunto": assunto} for k, nome, assunto in FAMILIA if k not in ligados]
 
     def publicos(self):
         """O que a tela vê (sem a chave)."""

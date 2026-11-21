@@ -292,9 +292,11 @@
     const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};
     const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
+    // 1.15.0: todos os apps da família aparecem; os que estão com a integração desligada, depois dos ligados, dizendo isso
+    const fora = (e.apps_desligados || []).map(a => `<div class="app-l off"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small><small class="le off">Integração desligada.${A.length ? ' No app: Mais › Configurações › Integrações › CorrerIA.' : ''}</small></span></div>`).join('');
     const mic = ft.pronta === false ? `<div class="status manual">Falar na conversa: ${esc(ft.motivo || 'sem fala para texto.')}</div>` : '';
     return `<section class="card" id="apps">${cab('layers', 'Apps')}
-      ${lista}${A.length ? mic : ''}
+      ${lista}${fora}${A.length ? mic : ''}
     </section>`;
   }
 
@@ -993,7 +995,7 @@
     if (!camOk()) {
       CAM.status = 'erro';
       CAM.erro = window.isSecureContext === false
-        ? 'A câmera só abre aqui com o Home Assistant num endereço seguro (https), como o do Nabu Casa. Dá para tirar a foto pelo celular e escolher.'
+        ? 'A câmera só abre aqui com o Home Assistant num endereço seguro (https), como o do Home Assistant Cloud. Dá para tirar a foto pelo celular e escolher.'
         : 'Este navegador não deixa usar a câmera aqui. Dá para tirar a foto pelo celular e escolher.';
       return pintarCamera();
     }
