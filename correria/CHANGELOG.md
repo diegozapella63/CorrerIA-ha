@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.17.1
+
+- **IA mais cuidadosa com o que lê**: uma anotação, um item ou uma página com frases como "ignore as instruções" não muda o que a IA faz; quem pede é só quem está conversando.
+
 ## 1.17.0
 
 - **Foto para uma tarefa**: mande uma foto com um pedido como "põe na tarefa do piso" (no WhatsApp ou pelo clipe da Conversa) e a IA guarda a foto na tarefa do ResolvIA (2.82.0), depois do seu sim. Também vale mandar a foto e pedir em seguida, em até 30 minutos. Uma foto de conta ou fatura continua indo para a leitura, como antes.
