@@ -565,7 +565,44 @@ def guardar_pendente(chave, acoes):
         _gravar_conversas(c)
 
 
-def executar(acoes, pessoa, cliente):
+# 1.17.0: a última foto que cada conversa mandou (na memória, por 30 minutos), para a ferramenta que recebe foto: pôr a
+# foto numa tarefa do ResolvIA. Não fica em disco nem nas conversas guardadas.
+FOTOS = {}
+FOTO_SEG = 30 * 60
+
+
+def guardar_foto(chave, anexo):
+    agora = time.time()
+    for k in [k for k, v in FOTOS.items() if agora - v["em"] > FOTO_SEG]:
+        FOTOS.pop(k, None)
+    if anexo is None:
+        FOTOS.pop(chave, None)
+    else:
+        while len(FOTOS) >= 20 and chave not in FOTOS:
+            FOTOS.pop(min(FOTOS, key=lambda k: FOTOS[k]["em"]))
+        FOTOS[chave] = {"em": agora, "anexo": anexo}
+
+
+def foto_de(chave):
+    v = FOTOS.get(chave)
+    return v["anexo"] if v and time.time() - v["em"] <= FOTO_SEG else None
+
+
+def foto_para_ferramenta(texto, tipo, ultimo=None):
+    """Uma foto que chegou vai para a IA com as ferramentas (para guardar numa tarefa) quando algum app tem ferramenta
+    que recebe esse tipo e: nenhum app lê esse tipo com a IA dele, ou a legenda fala mais do assunto do app da
+    ferramenta (tarefa, lista) do que do app que leria a foto (fatura, conta)."""
+    donos = FERR.recebem(tipo) if FERR.tem() else set()
+    if not donos:
+        return False
+    leitor = APPS.escolher(texto, ultimo, tipo=tipo)
+    if not leitor:
+        return True
+    melhor = max((APPS.pontos(a, texto) for a in APPS.lista() if a["app"] in donos), default=0)
+    return melhor > 0 and melhor > APPS.pontos(leitor, texto)
+
+
+def executar(acoes, pessoa, cliente, chave=None):
     """O "sim": faz cada mudança proposta, pelas ferramentas dos apps. Devolve (texto, nomes dos apps)."""
     lista, linhas, nomes = FERR.todas(), [], []
     for a in acoes:
@@ -573,7 +610,9 @@ def executar(acoes, pessoa, cliente):
         if not f:
             linhas.append(f"- Não deu: {a.get('resumo') or a.get('ferramenta')} (o app não está mais ligado).")
             continue
-        texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente)
+        texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente, anexo=foto_de(chave) if chave and f.get("anexo") else None)
+        if f.get("anexo") and not erro:
+            guardar_foto(chave, None)  # a foto foi para o lugar dela: não vai duas vezes
         linhas.append(f"- {'Não deu: ' if erro else ''}{texto.splitlines()[0] if texto else 'feito.'}")
         if f["app"]["nome"] not in nomes:
             nomes.append(f["app"]["nome"])
@@ -589,14 +628,16 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
     pend = pegar_pendente(chave)
     if pend:
         if SIM_RE.match(texto):
-            return (*executar(pend, pessoa, cliente), False)
+            return (*executar(pend, pessoa, cliente, chave), False)
         if NAO_RE.match(texto):
             return "Tudo bem, não mudei nada.", [], False
     if not FERR.tem():
         return None
     CANAL.tipo = "whatsapp" if canal == "whatsapp" else "conversa"
     try:
-        r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente)
+        foto = foto_de(chave)
+        r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente,
+                             **({"foto": str(foto.get("nome") or "foto")} if foto else {}))
     except ia.ErroIA as e:
         log("IA:", e)
         # 1.16.2: fora do ar, sobrecarregada ou sem cota: a mesma IA não responde pelo app; diz logo, numa frase
@@ -715,6 +756,15 @@ def tratar_anexo(wa, m, de, pessoa):
     nome = str(info.get("filename") or "")[:120]
     rot = ROTULO.get(tipo, tipo)
     registrar("recebida", pessoa["nome"], f"[{rot}] {legenda}".strip())
+    if foto_para_ferramenta(legenda, mime, ultimo_app(de)):
+        # 1.17.0: uma foto para guardar (numa tarefa): fica à mão e a IA com as ferramentas decide onde
+        try:
+            bruto, tipo_meta = wa.midia(info.get("id"))
+        except whatsapp.ErroWhatsApp as e:
+            registrar("erro", "WhatsApp", str(e))
+            return enviar(wa, de, pessoa, f"Não consegui pegar o arquivo: {str(e).rstrip('.')}. Mande de novo, por favor.")
+        guardar_foto("wa:" + whatsapp.canonico(de), {"tipo": tipo_meta or mime, "nome": nome or "foto", "b64": f"data:{tipo_meta or mime};base64," + base64.b64encode(bruto).decode()})
+        return responder_texto(wa, de, pessoa, legenda or "Mandei uma foto.", ja_registrada=True)
     app = APPS.escolher(legenda, ultimo_app(de), tipo=mime)
     if not app:
         return enviar(wa, de, pessoa, NAO_LE if APPS.lista() else SEM_APP)
@@ -1225,6 +1275,8 @@ def estado():
     for a in lista:  # o que cada app faz pelo CorrerIA: quantas ferramentas (e quantas gravam)
         fs = [f for f in todas if f["app"]["app"] == a["app"] and f["nome"] != ferramentas.PERGUNTAR]
         a.update(ferramentas=len(fs), gravam=sum(1 for f in fs if f["grava"]), erro=FERR.erros.get(a["app"], ""))
+        # 1.17.0: o que as ferramentas do app recebem (a foto para uma tarefa): a tela mostra o clipe por isso também
+        a["guarda"] = sorted({t for f in fs for t in (f.get("anexo") or [])})
     return {
         "versao": VERSAO,
         "config": {"numero_id": c["numero_id"], "token": _fim(c["token"]), "segredo": _fim(c["segredo"]), "verificacao": c["verificacao"],
@@ -1467,7 +1519,12 @@ def conversar(corpo, pessoa, chave):
         eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
     r = None
-    if anexo:
+    if anexo and foto_para_ferramenta(texto, tipo, ultimo):
+        # 1.17.0: uma foto para guardar (numa tarefa): fica à mão e a IA com as ferramentas decide onde
+        guardar_foto("tela:" + chave, anexo)
+        r = responder_ia("tela:" + chave, texto or "Mandei uma foto.", hist, pessoa, "correria", "CorrerIA")
+        anexo = None if r is not None else anexo
+    elif anexo:
         guardar_pendente("tela:" + chave, None)
     else:
         r = responder_ia("tela:" + chave, texto, hist, pessoa, "correria", "CorrerIA")

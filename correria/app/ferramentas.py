@@ -88,12 +88,23 @@ class Ferramentas:
                           "um app, procure em todos antes de responder. Só diga que não achou depois de procurar, e diga onde procurou.")
         return "\n".join(linhas)
 
+    def recebem(self, tipo):
+        """1.17.0: os ids dos apps com uma ferramenta que recebe um arquivo desse tipo (uma foto para uma tarefa)."""
+        t = str(tipo or "").lower()
+        return {f["app"]["app"] for f in self.todas() if t and t in (f.get("anexo") or [])}
+
     def achar(self, fid, lista=None):
         return next((f for f in (lista if lista is not None else self.todas()) if f["id"] == fid), None)
 
-    def usar(self, f, argumentos, pessoa, cliente):
-        """Chama a ferramenta; devolve (texto, erro). erro: o app recusou (argumento inválido) ou não respondeu."""
+    def usar(self, f, argumentos, pessoa, cliente, anexo=None):
+        """Chama a ferramenta; devolve (texto, erro). erro: o app recusou (argumento inválido) ou não respondeu.
+        anexo (1.17.0): a foto que a pessoa mandou há pouco; só vai para a ferramenta que recebe aquele tipo."""
         args = argumentos if isinstance(argumentos, dict) else {}
+        if f.get("anexo"):
+            if not anexo or str(anexo.get("tipo") or "").lower() not in f["anexo"]:
+                return "Falta a foto: peça para a pessoa mandar a foto (pelo clipe) e tente de novo.", True
+        else:
+            anexo = None
         if f["app"]["app"] == C.ID:
             casa = self.casa
             if not casa:
@@ -105,7 +116,7 @@ class Ferramentas:
         try:
             if f["nome"] == PERGUNTAR:
                 return self.apps.perguntar(f["app"], str(args.get("pergunta") or "").strip()[:2000] or "Oi", [], pessoa or {}, canal="correria"), False
-            return self.apps.usar(f["app"], f["nome"], args, pessoa, cliente), False
+            return self.apps.usar(f["app"], f["nome"], args, pessoa, cliente, **({"anexo": anexo} if anexo else {})), False
         except A.ErroFerramenta as e:
             return str(e), True
         except A.ErroApp as e:

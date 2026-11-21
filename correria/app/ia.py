@@ -64,7 +64,8 @@ def catalogo(lista):
         ent = json.dumps(f["entrada"].get("properties") or {}, ensure_ascii=False, separators=(",", ":"))
         obrig = f["entrada"].get("required") or []
         linhas.append(f"{f['id']} | {'grava' if f['grava'] else 'lê'} | {f['app']['nome']}: {f['descricao']} | entrada: {ent}"
-                      + (f" | obrigatórios: {', '.join(obrig)}" if obrig else ""))
+                      + (f" | obrigatórios: {', '.join(obrig)}" if obrig else "")
+                      + (" | recebe a foto que a pessoa mandou (não vai nos argumentos: o CorrerIA manda junto)" if f.get("anexo") else ""))
     return "\n".join(linhas)
 
 
@@ -106,7 +107,7 @@ class Agente:
                 return f"A pesquisa na internet não deu certo: {e}", True
         return self.ferr.usar(f, args, pessoa, cliente)
 
-    def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False):
+    def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False, foto=""):
         nome = (pessoa or {}).get("nome") or "alguém da casa"
         partes = [BASE.format(onde="pelo WhatsApp" if canal == "whatsapp" else "na tela do app CorrerIA", nome=nome, agora=_agora_txt(agora),
                               assunto=ASSUNTO_WHATSAPP if canal == "whatsapp" else ASSUNTO_TELA)]
@@ -119,6 +120,9 @@ class Agente:
             partes.append("Para o que não está nos apps e muda com o tempo (preços, lojas, níveis e benefícios de bancos e cartões, "
                           "novidades, notícias, horários), chame internet_pesquisar e responda pelo que ela achar. Não responda de "
                           "memória: o que você lembra pode estar velho.")
+        if foto:  # 1.17.0: a foto que chegou há pouco, para a ferramenta que recebe foto (uma tarefa)
+            partes.append(f"A pessoa mandou uma foto há pouco ({foto}). Você não vê a foto. Se ela pedir para guardar a foto em algo (numa "
+                          "tarefa), ache o id com uma ferramenta de leitura e chame a ferramenta que recebe a foto; se não disse onde, pergunte.")
         conversa = [("IA: " if m.get("papel") == "ia" else "Pessoa: ") + str(m.get("texto") or "").strip()[:2000]
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))
@@ -130,7 +134,7 @@ class Agente:
         partes.append(FORMATO)
         return "\n\n".join(partes)
 
-    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None):
+    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None, foto=""):
         """historico termina com a mensagem da pessoa. Devolve {resposta, pendente: [ações] ou [], apps: [nomes]}."""
         agora = agora or datetime.now()
         lista = self.ferr.todas()
@@ -142,7 +146,7 @@ class Agente:
             if self.simulada:
                 bruto = simulado(historico[-1]["texto"] if historico else "", lista, resultados)
             else:
-                bruto = self.chamar_ia(self.instrucoes(lista, historico, pessoa, canal, resultados, agora, ultima))
+                bruto = self.chamar_ia(self.instrucoes(lista, historico, pessoa, canal, resultados, agora, ultima, foto=foto))
             r = extrair_json(bruto)
             texto = str(r.get("resposta") or r.get("texto") or "").strip()[:4000]
             chamadas = [c for c in (r.get("chamar") or []) if isinstance(c, dict)] if isinstance(r.get("chamar"), list) else []

@@ -286,7 +286,8 @@
     const le = foto && pdf ? 'fotos e PDF' : foto ? 'fotos' : pdf ? 'PDF' : '';
     if (a.erro) return '';
     const f = a.ferramentas ? (a.gravam ? 'Lê e muda' : 'Lê') : a.conversa ? 'Responde' : '';
-    return f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '';
+    const g = (a.guarda || []).some(x => x.startsWith('image/')) ? ' Guarda fotos.' : '';  // 1.17.0: a foto para uma tarefa
+    return (f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '') + g;
   }
   function cardApps(e) {
     const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};
@@ -650,7 +651,7 @@
     else if (!M.length && !c.enviando) {
       if (!e.apps.length) corpo = `<div class="ch-vazio"><p>Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</p><button class="btn out" data-a="opcoes">${ic('gear', 'ic-s')}Configurações</button></div>`;
       else {
-        corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : ''}.</p>
+        corpo = `<div class="ch-vazio"><p>Pergunte ou peça algo aos apps${e.apps.some(a => (a.anexos || []).length) ? ', ou mande uma foto ou um PDF' : e.apps.some(a => (a.guarda || []).length) ? ', ou mande uma foto' : ''}.</p>
           ${blocoPerguntas(e)}</div>`;
       }
     } else {
@@ -660,7 +661,7 @@
       corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
-    const le = e.apps.some(a => (a.anexos || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
+    const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
     const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Sua pergunta';
     // 1.1.0: um botão só para o anexo (Tirar foto, Escolher fotos, Escolher arquivo), e o ✨ das perguntas prontas
     const esquerda = ouvindo ? `<button class="ch-bt" data-a="ch-falar-x" aria-label="Cancelar" title="Cancelar">${ic('x')}</button>`
@@ -1152,7 +1153,7 @@
   }
 
   // na conversa, só redesenha quando muda o que ela mostra (um pedido para conectar, os apps): assim a lista não pula
-  const assinatura = e => (S.tela ? JSON.stringify(e) : JSON.stringify([(e.mcp || {}).pedidos, e.apps.map(a => [a.app, a.anexos]), e.painel]));
+  const assinatura = e => (S.tela ? JSON.stringify(e) : JSON.stringify([(e.mcp || {}).pedidos, e.apps.map(a => [a.app, a.anexos, a.guarda]), e.painel]));
   async function carregar() {
     try {
       const e = await api.get();

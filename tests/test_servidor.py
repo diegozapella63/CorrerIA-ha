@@ -608,6 +608,109 @@ class TestComFerramentas(Base):
         self.ia({"resposta": "Sim o quê?"})
         self.assertEqual(self.mandar("sim")[0][1], "Sim o quê?", "sem nada esperando, sim é só uma mensagem")
 
+    # ---- 1.17.0: a foto que a pessoa mandou vai para a ferramenta que recebe foto (uma tarefa do ResolvIA)
+    FOTO_FERR = [{"nome": "tarefas", "titulo": "Tarefas", "descricao": "As tarefas.", "entrada": {"type": "object", "properties": {}}, "grava": False},
+                 {"nome": "anexar_foto", "titulo": "Pôr a foto na tarefa", "descricao": "Guarda a foto numa tarefa.",
+                  "entrada": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}, "grava": True, "anexo": ["image/jpeg"]}]
+
+    def resolvia(self):
+        app = AppFalso("ResolvIA", ferramentas=self.FOTO_FERR)
+        self.addCleanup(app.fechar)
+        normal = app.rotas["/api/integracao/ferramentas"]
+
+        def rota(h, c):
+            if h.command != "GET" and h.headers.get("Authorization") == f"Bearer {app.chave}" and c.get("nome") == "anexar_foto":
+                app.feitos.append(c)
+                return (200, {"texto": "Foto guardada em Arrumar o piso (Casa): agora tem 1 foto."}) if c.get("anexo") else (400, {"erro": "Falta a foto."})
+            return normal(h, c)
+        app.rotas["/api/integracao/ferramentas"] = rota
+        os.makedirs(os.path.join(S.SHARE_DIR, "resolvia"), exist_ok=True)
+        with open(os.path.join(S.SHARE_DIR, "resolvia", "correria.json"), "w", encoding="utf-8") as f:
+            json.dump({"app": "resolvia", "nome": "ResolvIA", "assunto": "listas de tarefas da casa", "url": app.url, "chave": app.chave,
+                       "versao": "2.82.0", "ferramentas": "/api/integracao/ferramentas"}, f)
+        return app
+
+    def test_foto_para_uma_tarefa_pela_tela(self):
+        rv = self.resolvia()
+        self.addCleanup(S.FOTOS.clear)
+        pessoa, chave = {"id": "person.ana", "nome": "Ana"}, "u-ana"
+        anexar = {"chamar": [{"ferramenta": "resolvia_anexar_foto", "argumentos": {"id": "todo.casa:u1"}, "resumo": "Pôr a foto em Arrumar o piso"}]}
+        self.ia(anexar)
+        foto = "data:image/jpeg;base64,/9j/LWZvdG8="
+        r = S.conversar({"texto": "põe essa foto na tarefa de arrumar o piso", "anexo": {"nome": "piso.jpg", "b64": foto}}, pessoa, chave)
+        ultima = r["mensagens"][-1]
+        self.assertIn("Pôr a foto em Arrumar o piso", ultima["texto"])
+        self.assertTrue(ultima.get("confirmar"), "espera o sim")
+        self.assertIn("A pessoa mandou uma foto há pouco (piso.jpg). Você não vê a foto.", self.falsa.pedidos[0])
+        self.assertIn("resolvia_anexar_foto | grava | ResolvIA: Guarda a foto numa tarefa.", self.falsa.pedidos[0])
+        self.assertIn("recebe a foto que a pessoa mandou", self.falsa.pedidos[0])
+        self.assertEqual(rv.feitos, [], "nada antes do sim")
+        r = S.conversar({"texto": "sim"}, pessoa, chave)
+        self.assertIn("Foto guardada em Arrumar o piso (Casa): agora tem 1 foto.", r["mensagens"][-1]["texto"])
+        f = rv.feitos[-1]
+        self.assertEqual((f["nome"], f["argumentos"], f["anexo"]), ("anexar_foto", {"id": "todo.casa:u1"}, {"tipo": "image/jpeg", "nome": "piso.jpg", "b64": foto}))
+        self.assertIsNone(S.foto_de("tela:" + chave), "a foto foi para o lugar dela: não vai duas vezes")
+        # sem foto à mão, a ferramenta não chega ao app e a resposta diz o que falta
+        self.ia(anexar)
+        S.conversar({"texto": "põe a foto na tarefa do piso"}, pessoa, chave)
+        n = len(rv.feitos)
+        r = S.conversar({"texto": "sim"}, pessoa, chave)
+        self.assertIn("Não deu: Falta a foto", r["mensagens"][-1]["texto"])
+        self.assertEqual(len(rv.feitos), n)
+        self.assertNotIn("A pessoa mandou uma foto", self.falsa.pedidos[-1])
+        # as ferramentas que recebem foto não aparecem para as IAs conectadas (por lá não há como mandar a foto)
+        nomes = [t["name"] for t in S.mcp.Servidor(S.FERR, "9.9.9", "base").tratar({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, {})["result"]["tools"]]
+        self.assertNotIn("resolvia_anexar_foto", nomes)
+        self.assertIn("resolvia_tarefas", nomes)
+
+    def test_foto_de_conta_continua_indo_para_quem_le(self):
+        self.resolvia()
+        self.addCleanup(S.FOTOS.clear)
+        self.app.publicar(S.SHARE_DIR, "gerencia", rota="/api/integracao/conversa")
+        with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), encoding="utf-8") as f:
+            j = json.load(f)
+        j.update(anexos=["image/jpeg"], assunto="finanças da casa: contas e faturas")
+        with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), "w", encoding="utf-8") as f:
+            json.dump(j, f)
+        S.APPS._cache = None if hasattr(S.APPS, "_cache") else None
+        self.app.rotas["/api/integracao/conversa"] = (200, {"resposta": "Li a fatura."})
+        self.assertFalse(S.foto_para_ferramenta("quanto deu essa fatura?", "image/jpeg"), "fala de conta: vai para quem lê a foto")
+        self.assertFalse(S.foto_para_ferramenta("", "image/jpeg"), "sem legenda: para quem lê")
+        self.assertTrue(S.foto_para_ferramenta("põe na tarefa do piso", "image/jpeg"), "fala de tarefa: para a ferramenta")
+        self.assertFalse(S.foto_para_ferramenta("põe na tarefa", "application/pdf"), "um PDF nenhuma ferramenta recebe")
+
+    def test_foto_para_uma_tarefa_pelo_whatsapp(self):
+        rv = self.resolvia()
+        self.addCleanup(S.FOTOS.clear)
+        self.meta.rotas["/FOTO9"] = (200, {"url": f"{self.meta.url}/arquivo/FOTO9", "mime_type": "image/jpeg", "file_size": 9})
+        self.meta.rotas["/arquivo/FOTO9"] = (200, b"\xff\xd8\xff-foto")
+        self.ia({"chamar": [{"ferramenta": "resolvia_anexar_foto", "argumentos": {"id": "todo.casa:u1"}, "resumo": "Pôr a foto em Arrumar o piso"}]})
+        n = len(self.meta.textos())
+        S.receber(entrega({"from": ANA_WA, "id": "wamid.ft", "type": "image", "image": {"id": "FOTO9", "mime_type": "image/jpeg", "caption": "coloca na tarefa do piso"}}))
+        self.assertIn("Pôr a foto em Arrumar o piso", self.meta.textos()[n:][0][1])
+        self.assertEqual(self.registro()[0][2] if self.registro()[0][0] == "recebida" else "[foto] coloca na tarefa do piso", "[foto] coloca na tarefa do piso")
+        r = self.mandar("sim")
+        self.assertIn("Foto guardada em Arrumar o piso", r[0][1])
+        self.assertEqual(rv.feitos[-1]["anexo"]["b64"], "data:image/jpeg;base64,/9j/LWZvdG8=")
+        # a foto que a Meta não entrega: diz, e nada vai para a IA
+        self.meta.rotas.pop("/FOTO9")
+        n = len(self.meta.textos())
+        S.receber(entrega({"from": ANA_WA, "id": "wamid.ft2", "type": "image", "image": {"id": "FOTO9", "mime_type": "image/jpeg", "caption": "na tarefa do piso"}}))
+        self.assertIn("Não consegui pegar o arquivo", self.meta.textos()[n:][0][1])
+
+    def test_fotos_guardadas_por_pouco_tempo_e_poucas(self):
+        self.addCleanup(S.FOTOS.clear)
+        for i in range(25):
+            S.guardar_foto(f"c{i}", {"tipo": "image/jpeg", "nome": str(i), "b64": "x"})
+        self.assertEqual(len(S.FOTOS), 20, "no máximo 20 conversas com foto à mão")
+        self.assertIsNone(S.foto_de("c0"))
+        self.assertEqual(S.foto_de("c24")["nome"], "24")
+        S.FOTOS["c24"]["em"] -= S.FOTO_SEG + 1
+        self.assertIsNone(S.foto_de("c24"), "depois de 30 minutos, não vale mais")
+        S.guardar_foto("c23", None)
+        self.assertNotIn("c24", S.FOTOS, "as vencidas saem")
+        self.assertNotIn("c23", S.FOTOS)
+
     def test_nao_e_outra_pergunta(self):
         self.ia(LANCAR)
         self.mandar("lança 32,50 de feira")

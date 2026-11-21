@@ -63,7 +63,8 @@ class Servidor:
         if metodo.startswith("notifications/"):
             return {}
         if metodo == "tools/list":
-            return {"tools": [ferramenta_mcp(f) for f in self.ferr.todas()]}
+            # 1.17.0: as que recebem a foto da conversa ficam de fora: por aqui não há como mandar a foto
+            return {"tools": [ferramenta_mcp(f) for f in self.ferr.todas() if not f.get("anexo")]}
         if metodo == "tools/call":
             nome, args = params.get("name"), params.get("arguments")
             if args is not None and not isinstance(args, dict):

@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.17.0
+
+- **Foto para uma tarefa**: mande uma foto com um pedido como "põe na tarefa do piso" (no WhatsApp ou pelo clipe da Conversa) e a IA guarda a foto na tarefa do ResolvIA (2.82.0), depois do seu sim. Também vale mandar a foto e pedir em seguida, em até 30 minutos. Uma foto de conta ou fatura continua indo para a leitura, como antes.
+
 ## 1.16.2
 
 - **Conversa**: a caixa de escrever não cria mais barra de rolagem quando está vazia (o texto de exemplo ficou **Sua pergunta**, numa linha só).

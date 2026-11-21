@@ -117,15 +117,19 @@ class Apps:
             return None
         if len(apps) == 1:
             return apps[0]
-        palavras = set(re.findall(r"[a-z]+", _sem_acento(texto)))
-
         def pontos(a):
-            vocab = set(PALAVRAS.get(a["app"], "").split()) | set(re.findall(r"[a-z]{4,}", _sem_acento(a["assunto"])))
-            return len(palavras & vocab)
+            return self.pontos(a, texto)
         notas = sorted(((pontos(a), a) for a in apps), key=lambda x: -x[0])
         if notas[0][0] > 0 and (len(notas) == 1 or notas[0][0] > notas[1][0]):
             return notas[0][1]
         return next((a for a in apps if a["app"] == ultimo), apps[0])
+
+    @staticmethod
+    def pontos(app, texto):
+        """Quantas palavras do assunto do app há no texto."""
+        palavras = set(re.findall(r"[a-z]+", _sem_acento(texto)))
+        vocab = set(PALAVRAS.get(app["app"], "").split()) | set(re.findall(r"[a-z]{4,}", _sem_acento(app["assunto"])))
+        return len(palavras & vocab)
 
     def _pedir(self, app, rota, corpo=None, timeout=60, ferramenta=False):
         """GET (sem corpo) ou POST no app, com a chave. Tenta o nome do app na rede interna e depois o IP. Com
@@ -183,13 +187,17 @@ class Apps:
             entrada = f.get("entrada") if isinstance(f.get("entrada"), dict) and f["entrada"].get("type") == "object" else {"type": "object", "properties": {}}
             vistos.add(f["nome"])
             lista.append({"nome": f["nome"], "titulo": str(f.get("titulo") or f["nome"])[:80], "descricao": str(f.get("descricao") or "")[:1500],
-                          "entrada": entrada, "grava": f.get("grava") is True, "apaga": f.get("apaga") is True})
+                          "entrada": entrada, "grava": f.get("grava") is True, "apaga": f.get("apaga") is True,
+                          # 1.17.0: os tipos de arquivo que a ferramenta recebe junto (a foto que a pessoa mandou)
+                          "anexo": [str(t).lower() for t in f["anexo"] if isinstance(t, str)][:8] if isinstance(f.get("anexo"), list) else []})
         v = {"instrucoes": str(r.get("instrucoes") or "")[:1500], "ferramentas": lista[:MAX_FERRAMENTAS]}
         self._ferr[app["app"]] = (time.time(), app["chave"], v)
         return v
 
-    def usar(self, app, nome, argumentos, pessoa, cliente, timeout=60):
-        """Chama uma ferramenta do app; devolve o texto do resultado (ErroFerramenta: argumento inválido)."""
+    def usar(self, app, nome, argumentos, pessoa, cliente, timeout=60, anexo=None):
+        """Chama uma ferramenta do app; devolve o texto do resultado (ErroFerramenta: argumento inválido). anexo
+        (1.17.0): {tipo, nome, b64}, a foto que a pessoa mandou, para uma ferramenta que recebe arquivo."""
         r = self._pedir(app, app["ferramentas"], {"nome": nome, "argumentos": argumentos if isinstance(argumentos, dict) else {},
-                                                  "pessoa": pessoa or {}, "cliente": cliente}, timeout=timeout, ferramenta=True)
+                                                  "pessoa": pessoa or {}, "cliente": cliente, **({"anexo": anexo} if anexo else {})},
+                        timeout=timeout, ferramenta=True)
         return str(r.get("texto") if r.get("texto") is not None else json.dumps(r, ensure_ascii=False))[:MAX_TEXTO]
