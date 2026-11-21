@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.14.1
+
+- Os textos de cima de **Uso da IA**, **Tema** e **Cor do app** ficaram iguais aos dos outros apps.
+
 ## 1.14.0
 
 - **MCP › Endereço público do conector**: agora é separado do endereço do **Webhook na Meta**. O WhatsApp pode chegar por um endereço (o do Duck DNS, com a porta 8443) e as IAs por outro (um domínio pelo túnel da Cloudflare, na 443). Quem atualiza continua com o mesmo endereço nos dois, até mudar um deles.

@@ -1270,6 +1270,9 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.opcoes("aparencia")
         self.assertEqual(self.pg.locator(".temas button").all_inner_texts(), ["Sistema", "Claro", "Escuro"])
         self.assertEqual(self.texto(".temas .on"), "Sistema", "começa em Sistema")
+        # 1.14.1: os textos de cima iguais aos dos outros apps
+        self.assertEqual(self.texto("#tema .lead"), "Cada aparelho guarda a sua escolha. Sistema segue o do Home Assistant.")
+        self.assertEqual(self.texto("#cor .lead"), "Vale para todos os aparelhos.")
         self.assertEqual(self.pg.evaluate("document.documentElement.dataset.theme"), "light")
         self.pg.click('.temas [data-v="escuro"]')
         self.assertEqual(self.pg.evaluate("document.documentElement.dataset.theme"), "dark")
@@ -1452,6 +1455,7 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         self.abrir()
         self.opcoes("apps")
         self.assertEqual(self.pg.eval_on_selector("#uso .uso-ult li", "e => e.textContent"), "Nenhuma chamada ainda.")
+        self.assertEqual(self.texto("#uso .lead"), "As chamadas do app para a IA. Os tokens são estimados.", "1.14.1: o texto dos outros apps")
         self.assertEqual(self.texto("#uso .uso-cap"), "Hoje: 0 chamadas.")
         S.USO.registrar("whatsapp", 4000, 400, 3.2)
         S.USO.registrar("conversa", 800, 0, 1.0, "HTTP 429 Too Many Requests")

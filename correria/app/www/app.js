@@ -411,13 +411,13 @@
   }
   const TEMAS = [['auto', 'Sistema', 'phone'], ['claro', 'Claro', 'sun'], ['escuro', 'Escuro', 'moon']];
   function cardTema() {
-    return `<section class="card" id="tema">${cab('contrast', 'Tema')}<p class="lead">Vale só para este aparelho. Sistema segue o do Home Assistant.</p>
+    return `<section class="card" id="tema">${cab('contrast', 'Tema')}<p class="lead">Cada aparelho guarda a sua escolha. Sistema segue o do Home Assistant.</p>
       <div class="temas" role="radiogroup" aria-label="Tema">${TEMAS.map(([k, n, i]) => `<button role="radio" aria-checked="${S.tema === k}" class="${S.tema === k ? 'on' : ''}" data-a="tema" data-v="${k}">${ic(i)}<span>${n}</span></button>`).join('')}</div></section>`;
   }
   const TAG = 'M8 0h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8L0 13V7z', FURO = 'M9.7 10a2.7 2.7 0 1 0-5.4 0a2.7 2.7 0 1 0 5.4 0z';
   function cardCor(e) {
     const ap = e.aparencia || {}, dia = ap.cor_dia !== false, atual = corAtual(e);
-    return `<section class="card" id="cor">${cab('palette', 'Cor do app')}<p class="lead">Em todos os aparelhos da casa.</p>
+    return `<section class="card" id="cor">${cab('palette', 'Cor do app')}<p class="lead">Vale para todos os aparelhos.</p>
       <div class="linha-sw"><div>${tituloLinha('calendar', 'Cor do dia')}<span>Muda a cor do app todo dia, a mesma em todos os apps.</span></div>
         <button class="sw${dia ? ' on' : ''}" data-a="cor-dia" role="switch" aria-checked="${dia}" aria-label="Cor do dia"></button></div>
       <div class="cores" role="radiogroup" aria-label="Cor do app">${PALETA.map(c => `<button class="tsw${c.id === atual ? ' on' : ''}" role="radio" aria-checked="${c.id === atual}" style="--a:${c.fill}" data-a="cor" data-v="${c.id}">
@@ -476,7 +476,7 @@
     const tipos = Object.entries(u.semana.tipos || {}).sort((a, b) => b[1] - a[1]);
     const ult = (u.ultimas || []).map(c => `<li><b>${esc(TIPO_USO[c.tipo] || c.tipo)}</b>${RES_USO[c.resultado] ? `<span class="r-erro">${RES_USO[c.resultado]}</span>` : ''}
         <span class="t">${c.ia ? `${esc(c.ia)} · ` : ''}${String(c.segundos).replace('.', ',')} s · ≈ ${mil(c.tokens)} tokens · ${esc(quandoCurto(c.quando))}</span>${c.erro ? `<span class="uso-motivo">${esc(c.erro)}</span>` : ''}</li>`).join('');
-    return `<section class="card" id="uso">${cab('chart', 'Uso da IA')}<p class="lead">As chamadas do CorrerIA para a IA do Home Assistant. Os tokens são estimados.</p>
+    return `<section class="card" id="uso">${cab('chart', 'Uso da IA')}<p class="lead">As chamadas do app para a IA. Os tokens são estimados.</p>
       <div class="uso-ts">${tile('Hoje', u.hoje)}${tile('7 dias', u.semana)}${tile('Este mês', u.mes)}</div>
       <div class="uso-chart" role="group" aria-label="Chamadas de IA nos últimos 7 dias">${barras}</div>
       <div class="uso-dias" aria-hidden="true">${u.dias.map(d => `<span>${nomeDia(d.dia)}</span>`).join('')}</div>
