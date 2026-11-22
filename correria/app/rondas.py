@@ -209,9 +209,11 @@ def abrir(rid, eid, onde, paineis):
     if e["app"] == "inventario":
         base += "/consumiveis" if cons else f"/comodo/{q}" if onde else ""
     elif e["app"] == "resolvia":
-        base += f"?aba=buscar&comodo={q}" if onde else "?aba=prazos"
+        # 1.22.3: os dois jeitos de dizer onde abrir: o resto do endereço (o painel do Home Assistant passa por mensagem, também
+        # a uma tela que já estava aberta) e o ?aba= (lido quando a tela carrega)
+        base += f"/buscar/comodo/{q}?aba=buscar&comodo={q}" if onde else "?aba=prazos"
     elif e["app"] == "cronologia":
-        base += "?aba=calendario" if e["id"] == "agenda" else "?aba=rotinas"
+        base += "/calendario?aba=calendario" if e["id"] == "agenda" else (f"/mais/rotinas/comodo/{q}?aba=rotinas&comodo={q}" if onde else "/mais/rotinas?aba=rotinas")
     return {"texto": f"Abrir no {e['nome_app']}", "href": base}
 
 

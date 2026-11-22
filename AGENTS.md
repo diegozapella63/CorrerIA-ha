@@ -110,6 +110,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.22.1: o pedido do sim é só do app (`ia.py`): uma resposta só de texto com «Toque em Sim», «Vou fazer isto» ou «Pode confirmar?» (`FALSO_SIM_RE`) volta para a IA como erro (chamar a ferramenta de verdade) e, na última rodada, vira «Não consegui preparar essa mudança agora»; no histórico que vai para a IA, o bloco do app vira uma nota (`sem_o_pedido_do_sim`) e o «Pode confirmar?» dela sai da frase (`PERGUNTA_SIM_RE`).
 
+1.22.3: o `href` do ResolvIA e do CronologIA leva o lugar no resto do endereço e no `?aba=` (`/app/<slug>/buscar/comodo/<nome>?aba=buscar&comodo=`, `/app/<slug>/mais/rotinas?aba=rotinas`).
+
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.

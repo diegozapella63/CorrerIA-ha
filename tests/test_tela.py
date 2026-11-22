@@ -848,7 +848,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         # 1.22.0: o link do app da etapa, embaixo da mensagem (um botão com ícone, que abre o ResolvIA no cômodo)
         link = self.pg.locator(".ch-msg.ia").last.locator("a.ch-abrir")
         self.assertEqual(link.inner_text().strip(), "Abrir no ResolvIA")
-        self.assertEqual(link.get_attribute("href"), "/app/x_resolvia?aba=buscar&comodo=Sala%20de%20jantar")
+        self.assertEqual(link.get_attribute("href"), "/app/x_resolvia/buscar/comodo/Sala%20de%20jantar?aba=buscar&comodo=Sala%20de%20jantar")
         self.assertEqual(link.get_attribute("target"), "_top")
         self.assertEqual(link.locator("svg").count(), 1)
         self.assertEqual(self.texto(".ch-ronda-t b"), "Sala de jantar")

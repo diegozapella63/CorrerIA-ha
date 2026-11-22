@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.22.3
+
+- **Rondas**: o **Abrir no ResolvIA** e o **Abrir no CronologIA** passam o lugar de dois jeitos, para abrir no cômodo mesmo com o app já aberto; o do CronologIA abre as Rotinas só com as do cômodo. Precisa do ResolvIA 2.86.1 e do CronologIA 1.109.1.
+
 ## 1.22.2
 
 - **Rondas**: o botão **Abrir no …** aparece só quando a etapa mostra o que há no app (as tarefas, os itens, as rotinas). Numa pergunta só, não aparece mais.
