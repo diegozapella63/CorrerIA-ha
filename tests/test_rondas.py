@@ -131,6 +131,10 @@ class TestRondas(Base):
                          "Há 3 itens. Os últimos: Mesa e Abajur.\n\n*Chegou algum item novo?*")
         self.assertEqual(rondas.arrumar("Há 2.\r\n- Um\n- Dois\n\n\n\nFim.", "casa", "arrumar", "Sala"), "Há 2.\n\n- Um\n- Dois\n\nFim.\n\n*Tem algo novo para arrumar?*")
         self.assertEqual(rondas.arrumar(None, "casa", "pet", "Sala"), "*Precisa de algo do pet shop?*")
+        # 1.21.2: a tela já tem o Próxima: o "pode seguir" da IA sai
+        self.assertEqual(rondas.arrumar("Não há tarefas pendentes neste local. Pode seguir para a próxima etapa.", "casa", "arrumar", "Sala"),
+                         "Não há tarefas pendentes neste local.\n\n*Tem algo novo para arrumar?*")
+        self.assertNotIn("pode seguir", rondas.pedido("casa", "feita", "Sala", [], 1, 10))
         p = rondas.pedido("casa", "feita", "Sala", [], 1, 10)
         self.assertIn("NÃO faça pergunta nenhuma", p)
         self.assertIn("não repita o nome do cômodo", p)
@@ -300,6 +304,23 @@ class TestMaisRondas(Base):
         self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, 2), e, "com itens, tudo fica")
         self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, None), e, "sem saber, tudo fica")
         self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 0, 0), e, "o algo novo para arrumar vale sempre")
+
+    def test_rotinas_pelo_comodo(self):
+        """1.21.2 (o dono mandou o print do CronologIA com as rotinas por cômodo e a ronda dizia que não havia): o
+        CronologIA 1.108.0 diz os cômodos de cada rotina e filtra por cômodo; a ronda pede assim."""
+        self.casa()
+        cron = self.ligar("cronologia", "CronologIA", [ferr("cadastros", COM_COMODO)], {"cadastros": "1 rotina: Regar as plantas (toda semana)."})
+        self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+        self.j("/api/ronda", {"acao": "proxima"})
+        r = self.j("/api/ronda", {"acao": "proxima"})[1]
+        self.assertEqual(r["ronda"]["ativa"]["grupo"], "Rotinas")
+        self.assertEqual(cron.feitos[-1]["argumentos"], {"comodo": "Sala"}, "pede só as do cômodo")
+        self.assertIn("Regar as plantas", r["mensagens"][-1]["texto"])
+        p = rondas.pedido("casa", "rotina_nova", "Sala", S.FERR.todas(), 3, 13)
+        self.assertIn("o campo comodo", p)
+        self.assertIn("em comodos", p)
+        velho = rondas.pedido("casa", "rotina_nova", "Sala", [{"id": "cronologia_cadastros", "entrada": {"properties": {}}}], 3, 13)
+        self.assertIn("não filtra por cômodo", velho, "um CronologIA de antes: a IA procura nos comodos e no nome")
 
     def test_consumiveis_por_comodo(self):
         self.resolvia = self.ligar("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO)], {"tarefas": "nada"})

@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.21.2
+
+- **Ronda da casa**: as rotinas do cômodo agora aparecem. A ronda pede ao CronologIA (1.108.0 ou mais novo) só as rotinas e manutenções daquele cômodo. Atualize o CronologIA também.
+- A resposta não diz mais "pode seguir para a próxima etapa": a tela já tem o Próxima.
+
 ## 1.21.1
 
 - **Rondas sem repetição**: as perguntas não repetem mais o nome do cômodo (a faixa já mostra), e a linha de cada etapa ficou curta.

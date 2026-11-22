@@ -15,9 +15,6 @@ import re
 FIM = ("Não mude nada agora: só leia e conte. Responda assim: primeiro uma linha só com «TOTAL: N» (N é o número do que você achou "
        "para esta etapa; 0 se não há nada); depois uma frase curta com o total; depois, se houver itens, um por linha, "
        "cada linha começando com «- » (no máximo 6); nada mais (não diga para seguir nem para tocar em nada, e não repita o nome do cômodo: a tela já mostra). NÃO faça pergunta nenhuma: o app escreve a pergunta «{pergunta}» logo abaixo.")
-DEPOIS = ("Quando a pessoa responder, proponha as mudanças só no {app} (é o app desta etapa); se ela disser que não há nada, "
-          "diga só que pode seguir para a próxima etapa.")
-
 def _e(eid, grupo, titulo, app, nome_app, precisa, pergunta, pedido=None, **mais):
     return dict({"id": eid, "grupo": grupo, "titulo": titulo, "app": app, "nome_app": nome_app, "precisa": precisa, "pergunta": pergunta, "pedido": pedido}, **mais)
 
@@ -37,8 +34,10 @@ RONDAS = {
                pedido_sem_filtro=" (a ferramenta não filtra por cômodo: veja as pendentes e fique com as que falam de «{onde}» no nome ou nas notas)", se_tem=True),
             _e("arrumar", "Tarefas", "Nova", "resolvia", "ResolvIA", "resolvia_tarefas", "Tem algo novo para arrumar?"),
             _e("rotina_nova", "Rotinas", "Nova", "cronologia", "CronologIA", "cronologia_cadastros", "Falta alguma rotina?",
-               "Use cronologia_cadastros e conte as rotinas da casa e as manutenções que são de «{onde}» (pelo cômodo, pelo nome ou pelas notas), "
-               "com a repetição e a próxima vez de cada uma (se nenhuma for de lá, diga que não há)."),
+               # 1.21.2: o CronologIA 1.108.0 diz os cômodos de cada rotina (comodos) e filtra por cômodo
+               "Use cronologia_cadastros{do_comodo} e conte as rotinas da casa e as manutenções de «{onde}» (as que têm «{onde}» em comodos), "
+               "com a repetição e a próxima vez de cada uma (se nenhuma for de lá, diga que não há).",
+               pedido_sem_filtro=" (a ferramenta não filtra por cômodo: fique com as que têm «{onde}» em comodos ou no nome)"),
             _e("rotina_muda", "Rotinas", "Mudar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina precisa mudar?", se_tem=True),
             _e("rotina_sai", "Rotinas", "Tirar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina pode sair?", se_tem=True),
             _e("item_novo", "Itens", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Chegou algum item novo?",
@@ -180,8 +179,7 @@ def pedido(rid, eid, onde, todas, n, total, ligado=()):
         f"{r['nome'].upper()}{f', cômodo «{onde}»' if onde else ''}, etapa {n} de {total}: {e['titulo']} ({e['nome_app']}).",
         texto,
         FIM.format(pergunta=pergunta(rid, eid, onde)),
-        DEPOIS.format(app=e["nome_app"]) + (" " + e["depois"] if e.get("depois") else ""),
-    ])
+    ] + ([e["depois"]] if e.get("depois") else []))
 
 
 def rotulo(rid, eid, onde, n, total):
@@ -239,6 +237,7 @@ def arrumar(texto, rid, eid, onde, perguntar=True):
     p = pergunta(rid, eid, onde)
     t = str(texto or "").replace("\r\n", "\n")
     t = re.sub(r"\s*[«\"“*]*" + re.escape(p) + r"[»\"”*]*", "", t)
+    t = re.sub(r"\s*(Você )?[Pp]ode(mos)? (seguir|ir|passar|avançar) para a próxima( etapa| pergunta)?[.!]?", "", t)  # a tela já tem o Próxima
     t = re.sub(r"(?<=[:.;])[ \t]+[-•–][ \t]+(?=\S)", "\n- ", t)       # o primeiro item, depois de «:»
     linhas = []
     for l in t.split("\n"):
