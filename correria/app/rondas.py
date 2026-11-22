@@ -11,6 +11,7 @@ Para criar outra ronda: mais uma entrada em RONDAS, com as etapas (o app, a ferr
 """
 import json
 import re
+import urllib.parse
 
 FIM = ("Não mude nada agora: só leia e conte. Responda assim: primeiro uma linha só com «TOTAL: N» (N é o número do que você achou "
        "para esta etapa; 0 se não há nada); depois uma frase curta com o total; depois, se houver itens, um por linha, "
@@ -193,6 +194,36 @@ def contexto(rid, eid, onde):
     return (f"(Estou na {RONDAS[rid]['nome']}{f', cômodo «{onde}»' if onde else ''}, etapa {e['titulo']}: a minha próxima mensagem responde a «{e['pergunta'].format(onde=onde)}». "
             f"As mudanças desta etapa são no {e['nome_app']}; responda só a isso, sem fazer outra pergunta; se eu disser que não há nada, diga só para eu tocar em Próxima."
             + (" " + e["depois"] if e.get("depois") else "") + ")")
+
+
+def abrir(rid, eid, onde, paineis):
+    """1.22.0 (o dono: "tem como as ações da ronda terem link para os apps?"): o link da etapa, {texto, href}, que abre o app
+    dela no Home Assistant, já no lugar: o InventarIA no cômodo (ou nos consumíveis), o ResolvIA no Buscar com as tarefas do
+    cômodo, o CronologIA nas Rotinas (ou no Calendário). paineis: {app: /app/<slug>}; sem o endereço do app, None.
+    Um app de antes desses endereços só abre, na tela de sempre."""
+    e = etapa_de(rid, eid)
+    base = (paineis or {}).get(e["app"]) if e else None
+    if not base:
+        return None
+    q, cons = urllib.parse.quote(onde or "", safe=""), e["grupo"] == "Consumíveis" or "consum" in e["id"]
+    if e["app"] == "inventario":
+        base += "/consumiveis" if cons else f"/comodo/{q}" if onde else ""
+    elif e["app"] == "resolvia":
+        base += f"?aba=buscar&comodo={q}" if onde else "?aba=prazos"
+    elif e["app"] == "cronologia":
+        base += "?aba=calendario" if e["id"] == "agenda" else "?aba=rotinas"
+    return {"texto": f"Abrir no {e['nome_app']}", "href": base}
+
+
+def e_mais(texto, achou):
+    """1.22.0 (o dono: "ele vira 10 mas traz só alguns, deveria indicar e mais no final"): a lista mostra menos do que o
+    TOTAL: uma última linha «- e mais N»."""
+    linhas = str(texto or "").split("\n")
+    itens = [k for k, l in enumerate(linhas) if re.match(r"\s*[-•–]\s+\S", l)]
+    if not achou or not itens or achou <= len(itens) or re.search(r"\be mais \d+", linhas[itens[-1]], re.I):
+        return texto
+    linhas.insert(itens[-1] + 1, f"- e mais {achou - len(itens)}")
+    return "\n".join(linhas)
 
 
 TOTAL_RE = re.compile(r"^[ \t]*[«\"*]*TOTAL[ \t]*:[ \t]*(\d+)[»\"*.]*[ \t]*$\n?", re.M | re.I)

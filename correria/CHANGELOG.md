@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.22.0
+
+- **Rondas: abrir o app da etapa**. Embaixo de cada pergunta há o botão **Abrir no …**, que leva ao app já no lugar: o InventarIA no cômodo (ou nos consumíveis), o ResolvIA no Buscar com as tarefas do cômodo, o CronologIA nas Rotinas. O Voltar do celular volta para a ronda. Precisa do InventarIA 1.90.0, do ResolvIA 2.86.0 e do CronologIA 1.109.0; com um mais antigo, o app abre na tela de sempre.
+- **Rondas: "e mais N"**. Quando a lista mostra menos do que o total, a última linha diz quantos faltam.
+
 ## 1.21.2
 
 - **Ronda da casa**: as rotinas do cômodo agora aparecem. A ronda pede ao CronologIA (1.108.0 ou mais novo) só as rotinas e manutenções daquele cômodo. Atualize o CronologIA também.

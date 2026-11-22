@@ -83,6 +83,61 @@ class Base(unittest.TestCase):
         return st, json.loads(r)
 
 
+def com_painel(app, painel):
+    """Põe o endereço do app no Home Assistant (/app/<slug>) no correria.json dele, como faz o nome da máquina no url."""
+    arq = os.path.join(S.SHARE_DIR, app, "correria.json")
+    with open(arq, encoding="utf-8") as f:
+        d = json.load(f)
+    d["painel"] = painel
+    with open(arq, "w", encoding="utf-8") as f:
+        json.dump(d, f)
+
+
+class TestLinksEMais(Base):
+    """1.22.0: cada etapa leva o link do app dela, já no lugar; a lista menor que o total termina em «e mais N»."""
+
+    def test_o_endereco_do_app_pelo_nome_da_maquina(self):
+        self.assertEqual(apps.painel_de({"url": "http://a1b2c3d4-inventario:8099"}), "/app/a1b2c3d4_inventario")
+        self.assertEqual(apps.painel_de({"url": "http://a1b2c3d4-ofertas-do-bairro:8099/"}), "/app/a1b2c3d4_ofertas_do_bairro")
+        self.assertEqual(apps.painel_de({"url": "http://127.0.0.1:8191", "painel": "/app/x1_gerencia"}), "/app/x1_gerencia", "o que o app disser vale")
+        for fora in ({"url": "http://127.0.0.1:8191"}, {"url": "http://localhost:8099"}, {}):
+            self.assertIsNone(apps.painel_de(fora))
+        self.assertEqual(apps.painel_de({"url": "http://a-b:1", "painel": "https://outro.site/app/x"}), "/app/a_b", "um painel que não é /app/… não vale")
+
+    def test_o_link_de_cada_etapa(self):
+        P = {"inventario": "/app/x_inventario", "resolvia": "/app/x_resolvia", "cronologia": "/app/x_cronologia", "economia": "/app/x_economia"}
+        ab = lambda rid, eid, onde: rondas.abrir(rid, eid, onde, P)
+        self.assertEqual(ab("casa", "item_novo", "Sala de estar"), {"texto": "Abrir no InventarIA", "href": "/app/x_inventario/comodo/Sala%20de%20estar"})
+        self.assertEqual(ab("casa", "cons_novo", "Sala")["href"], "/app/x_inventario/consumiveis")
+        self.assertEqual(ab("casa", "feita", "Área de serviço"), {"texto": "Abrir no ResolvIA", "href": "/app/x_resolvia?aba=buscar&comodo=%C3%81rea%20de%20servi%C3%A7o"})
+        self.assertEqual(ab("casa", "rotina_nova", "Sala")["href"], "/app/x_cronologia?aba=rotinas")
+        self.assertEqual(ab("casa", "mercado", "Sala")["href"], "/app/x_economia")
+        self.assertEqual(ab("mes", "tarefas", "")["href"], "/app/x_resolvia?aba=prazos")
+        self.assertEqual(ab("mes", "agenda", "")["href"], "/app/x_cronologia?aba=calendario")
+        self.assertEqual(ab("mes", "itens", "")["href"], "/app/x_inventario")
+        self.assertIsNone(ab("mes", "gastos", ""), "sem o endereço do app, sem link")
+        self.assertIsNone(rondas.abrir("casa", "item_novo", "Sala", {}))
+
+    def test_e_mais_no_fim_da_lista(self):
+        t = "Você tem 10 itens.\n\n- Tapete\n- Quadro\n- Mesa\n\n*Chegou algum item novo?*"
+        self.assertEqual(rondas.e_mais(t, 10), "Você tem 10 itens.\n\n- Tapete\n- Quadro\n- Mesa\n- e mais 7\n\n*Chegou algum item novo?*")
+        for igual, n in ((t, 3), (t, 2), (t, None), (t, 0), ("Nada aqui.\n\n*Falta algo?*", 4), (t.replace("- Mesa", "- e mais 8"), 10)):
+            self.assertEqual(rondas.e_mais(igual, n), igual)
+
+    def test_a_etapa_leva_o_link_e_o_e_mais(self):
+        self.casa()
+        com_painel("resolvia", "/app/x_resolvia")
+        with mock.patch.object(S, "responder_ia", return_value=("TOTAL: 5\nVocê tem 5 tarefas.\n- Trocar a lâmpada\n- Regar a planta", ["ResolvIA"], False)):
+            st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+        self.assertEqual(st, 200)
+        m = r["mensagens"][-1]
+        self.assertEqual(m["abrir"], {"texto": "Abrir no ResolvIA", "href": "/app/x_resolvia?aba=buscar&comodo=Sala"})
+        self.assertIn("- Regar a planta\n- e mais 3", m["texto"])
+        for _ in range(2):  # Tarefas: Nova (ResolvIA, com link) e Itens (InventarIA, sem o endereço: sem link)
+            st, r = self.j("/api/ronda", {"acao": "proxima"})
+        self.assertNotIn("abrir", r["mensagens"][-1])
+
+
 class TestRondas(Base):
     def test_sem_apps_nenhuma_ronda(self):
         self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "rondas": [], "atrasados": [], "aviso": {"pessoas": []}}))

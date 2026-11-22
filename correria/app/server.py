@@ -1820,9 +1820,13 @@ def ronda_passo(corpo, pessoa, chave):
             eid = r["etapas"][r["i"]]
             etapa = rondas.etapa_de(r["id"], eid)
         texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=junta is not None or not (achou == 0 and etapa.get("se_tem")))
+        texto = rondas.e_mais(texto, achou)
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:
         ia_msg["confirmar"] = True
+    link = rondas.abrir(r["id"], eid, r["onde"], {a["app"]: a.get("painel") for a in APPS.lista()})
+    if link:  # 1.22.0: o botão embaixo da mensagem abre o app da etapa, já no lugar
+        ia_msg["abrir"] = link
     eu["texto"] = rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, len(r["etapas"]))
     lista += [eu, ia_msg]
     _gravar_tela(chave, lista)

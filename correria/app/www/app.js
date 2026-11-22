@@ -710,10 +710,13 @@
           ${blocoPerguntas(e)}</div>`;
       }
     } else {
+      // 1.22.0: uma etapa de ronda leva o link do app dela (m.abrir: {texto, href}, sempre /app/<slug>…)
+      const abrirApp = m => m.abrir && /^\/app\/[a-z0-9_]+([/?][^"<>\s]*)?$/.test(m.abrir.href || '')
+        ? `<a class="btn out ch-abrir" data-a="abrir-app" href="${esc(m.abrir.href)}" target="_top">${ic('link', 'ic-s')}${esc(m.abrir.texto || 'Abrir')}</a>` : '';
       // 1.10.0: a mudança que espera o sim (a última mensagem): o Sim e o Não para tocar, embaixo
       const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
         ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
-      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${abrirApp(m)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
@@ -1355,6 +1358,16 @@
       if (!(n >= 1 && n <= 365)) { toast('Escreva de 1 a 365 dias.'); return; }
       S.rondaOutro = false;
       await acao('config', { ronda_dias: n }, `Aviso depois de ${n} dias sem ronda`);
+    } else if (a === 'abrir-app') {  // 1.22.0: outro app, dentro do Home Assistant, sem recarregar (o Voltar volta para cá)
+      const href = el.getAttribute('href');
+      try {
+        const p = window.parent;
+        if (p !== window && p.document) {
+          ev.preventDefault();
+          p.history.pushState(null, '', href);
+          p.dispatchEvent(new p.CustomEvent('location-changed', { detail: { replace: false } }));
+        }
+      } catch (e) { /* outra origem em volta: o link abre sozinho */ }
     } else if (a === 'ronda-comecar') {  // da tela Rondas: vai para a Conversa e começa (ou abre a escolha do cômodo)
       const id = el.dataset.v, escolher = !!el.dataset.escolher, r = (S.rondas || []).find(x => x.id === id);
       abrirTela('');

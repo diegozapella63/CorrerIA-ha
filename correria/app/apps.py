@@ -56,6 +56,21 @@ def erro_cru(texto) -> bool:
     return bool(_ERRO_CRU.search(t)) and ("{" in t or len(t) < 400)
 
 
+PAINEL_APP_RE = re.compile(r"^/app/[a-z0-9_]{3,80}$")
+
+
+def painel_de(a):
+    """1.22.0: o endereço do app dentro do Home Assistant (/app/<slug>, desde o 2026.2), para os links das Rondas: o `painel`
+    do arquivo, se o app disser, ou o nome da máquina do `url` (http://a1b2c3d4-inventario:8099 → /app/a1b2c3d4_inventario).
+    Fora do Home Assistant (um IP, localhost), None: sem link."""
+    p = str(a.get("painel") or "")
+    if PAINEL_APP_RE.match(p):
+        return p
+    m = re.match(r"^https?://([a-z0-9]+-[a-z0-9-]+)(:\d+)?$", str(a.get("url") or "").rstrip("/"))
+    p = "/app/" + m.group(1).replace("-", "_") if m else ""
+    return p if PAINEL_APP_RE.match(p) else None
+
+
 class ErroApp(Exception):
     pass
 
@@ -94,6 +109,7 @@ class Apps:
                         "rota": rota if rota.startswith("/") else "", "url": str(a["url"]).rstrip("/"),
                         "ferramentas": str(a.get("ferramentas") or "") if str(a.get("ferramentas") or "").startswith("/") else "",
                         "ip_url": str(a.get("ip_url") or "").rstrip("/"), "chave": str(a["chave"]), "versao": str(a.get("versao") or ""),
+                        "painel": painel_de(a),
                         "anexos": [str(t).lower() for t in a.get("anexos") or [] if isinstance(t, str)] if rota else []})
         self._lista, self._quando = out, time.time()
         return out

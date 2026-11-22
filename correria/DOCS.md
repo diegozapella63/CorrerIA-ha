@@ -147,7 +147,7 @@ Para não guardar conversas para sempre, em **Configurações › Opções › C
 
 Uma ronda é um roteiro pronto que passa pelos apps, **uma pergunta de cada vez**, dentro da Conversa (só na tela do CorrerIA; não no WhatsApp). Comece pelo botão das Rondas no alto da Conversa ou em **Mais › Rondas**, onde ficam todas as rondas, o aviso e as últimas rondas.
 
-Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no app. Uma pergunta que só vale quando há alguma coisa (mudar ou tirar uma rotina, descartar um item) não aparece se o app não tem nada ali. Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai.
+Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no app. Uma pergunta que só vale quando há alguma coisa (mudar ou tirar uma rotina, descartar um item) não aparece se o app não tem nada ali. Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai. Embaixo de cada pergunta, **Abrir no …** leva ao app da etapa, já no lugar (o cômodo no InventarIA, as tarefas do cômodo no ResolvIA, as Rotinas no CronologIA); o Voltar do celular volta para a ronda. Uma lista maior do que cabe termina em **e mais N**.
 
 **Ronda da casa** (escolha o cômodo):
 
