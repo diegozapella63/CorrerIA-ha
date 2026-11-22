@@ -196,6 +196,20 @@ def contexto(rid, eid, onde):
             + (" " + e["depois"] if e.get("depois") else "") + ")")
 
 
+def contexto_anexo(e, tipo):
+    """1.23.0: a pessoa mandou um arquivo no meio da ronda: o que a IA precisa saber para não inventar (ela não vê o arquivo)."""
+    que = "um PDF" if tipo == "application/pdf" else "uma foto"
+    return (f"(A pessoa mandou {que} junto com esta mensagem, no meio da ronda. Você não vê o arquivo. Ele é desta etapa, do "
+            f"{e['nome_app']}: se ela pede para cadastrar, adicionar ou guardar, use a ferramenta do {e['nome_app']} que recebe "
+            "o arquivo, sem pedir o nome do que está nele (o app lê). Não use a ferramenta de outro app e não descreva o arquivo.)")
+
+
+def sem_anexo(e, tipo):
+    """A etapa é de um app que não recebe esse tipo de arquivo: diz isso, sem mandar o arquivo a outro app."""
+    que = "um PDF" if tipo == "application/pdf" else "uma foto" if str(tipo or "").startswith("image/") else "esse arquivo"
+    return f"Nesta etapa da ronda ({e['nome_app']}) não dá para usar {que}. Escreva o que você quer fazer aqui."
+
+
 def abrir(rid, eid, onde, paineis):
     """1.22.0 (o dono: "tem como as ações da ronda terem link para os apps?"): o link da etapa, {texto, href}, que abre o app
     dela no Home Assistant, já no lugar: o InventarIA no cômodo (ou nos consumíveis), o ResolvIA no Buscar com as tarefas do

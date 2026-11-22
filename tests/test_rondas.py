@@ -141,6 +141,91 @@ class TestLinksEMais(Base):
         self.assertNotIn("abrir", r["mensagens"][-1])
 
 
+class TestArquivoNaRonda(Base):
+    """1.23.0 (o dono: mandou a foto de um consumível no meio da ronda e respondeu o GerencIA, "zero sentido"): no meio de uma
+    ronda o arquivo é da etapa: a ferramenta do app da etapa que o recebe, ou a resposta de que ali não dá. Nunca outro app."""
+
+    FOTO = {"nome": "foto.jpg", "b64": "data:image/jpeg;base64,/9j/LWZvdG8="}
+
+    def leitor(self):
+        """Um app que lê fotos e PDFs com a IA dele (como o GerencIA), que não é o da etapa."""
+        g = AppFalso("GerencIA")
+        self.addCleanup(g.fechar)
+        g.rotas["/api/integracao/conversa"] = lambda h, c: (g.feitos.append(c), (200, {"resposta": "Não encontrei gastos nem recebimentos na foto."}))[1]
+        g.publicar(S.SHARE_DIR, "gerencia", rota="/api/integracao/conversa")
+        arq = os.path.join(S.SHARE_DIR, "gerencia", "correria.json")
+        with open(arq, encoding="utf-8") as f:
+            d = json.load(f)
+        d.update(anexos=["image/jpeg", "application/pdf"], assunto="finanças: contas, faturas e gastos")
+        with open(arq, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        return g
+
+    def comeca(self):
+        with mock.patch.object(S, "responder_ia", return_value=("TOTAL: 1\n- Trocar a lâmpada", ["ResolvIA"], False)):
+            st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+        self.assertEqual((st, r["ronda"]["ativa"]["app"]), (200, "ResolvIA"))
+
+    def test_a_etapa_nao_recebe_foto_diz_isso_e_nao_manda_a_outro_app(self):
+        self.casa()
+        g = self.leitor()
+        self.comeca()
+        with mock.patch.object(S, "responder_ia") as ia:
+            st, r = self.j("/api/conversa", {"texto": "Esse aqui tá cheio também, coloca 6 meses", "anexo": self.FOTO})
+        self.assertEqual(st, 200)
+        m = r["mensagens"][-1]
+        self.assertEqual((m["texto"], m["app"]), ("Nesta etapa da ronda (ResolvIA) não dá para usar uma foto. Escreva o que você quer fazer aqui.", "ResolvIA"))
+        self.assertEqual(g.feitos, [], "o app que lê fotos não é o da etapa: não recebe nada")
+        ia.assert_not_called()
+        with mock.patch.object(S, "responder_ia"):
+            st, r = self.j("/api/conversa", {"anexo": {"nome": "f.pdf", "b64": "data:application/pdf;base64,JVBERg=="}})
+        self.assertIn("não dá para usar um PDF", r["mensagens"][-1]["texto"])
+        self.assertEqual(g.feitos, [])
+
+    def test_a_ferramenta_do_app_da_etapa_recebe_a_foto(self):
+        self.casa()
+        self.resolvia.fechar()
+        self.resolvia = self.ligar("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO), dict(ferr("anexar_foto", grava=True), anexo=["image/jpeg"])], {"tarefas": "1 tarefa."})
+        g = self.leitor()
+        self.addCleanup(S.FOTOS.clear)
+        self.comeca()
+        with mock.patch.object(S, "responder_ia", return_value=("Vou guardar.", ["ResolvIA"], True)) as ia:
+            st, r = self.j("/api/conversa", {"texto": "conta de luz paga, guarda a fatura", "anexo": self.FOTO})
+        self.assertEqual((st, r["mensagens"][-1]["app"]), (200, "ResolvIA"))
+        hist = ia.call_args.args[2]
+        self.assertIn("A pessoa mandou uma foto junto com esta mensagem, no meio da ronda. Você não vê o arquivo. Ele é desta etapa, do ResolvIA", hist[-1]["texto"])
+        self.assertIn("Sala", hist[-2]["texto"], "antes, o contexto da etapa")
+        self.assertEqual(g.feitos, [], "mesmo com a legenda falando de fatura: na ronda, é da etapa")
+        self.assertTrue(S.foto_de("tela:" + next(iter(S.RONDAS_ATIVAS))), "a foto fica à mão para a ferramenta")
+
+    def test_o_leitor_que_e_o_app_da_etapa_le(self):
+        self.casa()
+        g = self.leitor()
+        self.comeca()
+        rd = next(iter(S.RONDAS_ATIVAS.values()))
+        de_verdade = S.rondas.etapa_de
+        with mock.patch.object(S.rondas, "etapa_de", side_effect=lambda rid, eid: dict(de_verdade(rid, eid), app="gerencia", nome_app="GerencIA")):
+            st, r = self.j("/api/conversa", {"texto": "", "anexo": self.FOTO})
+        self.assertEqual(r["mensagens"][-1]["texto"], "Não encontrei gastos nem recebimentos na foto.")
+        self.assertEqual(len(g.feitos), 1)
+        self.assertTrue(rd)
+
+    def test_fora_da_ronda_a_foto_segue_o_app_de_que_a_conversa_falava(self):
+        inv = self.ligar("inventario", "InventarIA", [ferr("resumo"), dict(ferr("cadastrar_por_foto", grava=True), anexo=["image/jpeg"])], {"resumo": {}})
+        g = self.leitor()
+        self.addCleanup(S.FOTOS.clear)
+        with mock.patch.object(S, "responder_ia", return_value=("Cadastrado o Sapólio.", ["InventarIA"], False)) as ia:
+            self.j("/api/conversa", {"texto": "cadastra sapólio nos consumíveis"})
+            st, r = self.j("/api/conversa", {"texto": "Esse aqui também, coloca 6 meses", "anexo": self.FOTO})
+        self.assertEqual(ia.call_count, 2, "a legenda não fala de nenhum app: vale o da última resposta, que recebe foto")
+        self.assertEqual(g.feitos, [])
+        with mock.patch.object(S, "responder_ia") as ia:
+            st, r = self.j("/api/conversa", {"texto": "olha a fatura do cartão", "anexo": self.FOTO})
+        ia.assert_not_called()
+        self.assertEqual(len(g.feitos), 1, "uma fatura continua indo para quem lê faturas")
+        self.assertTrue(inv)
+
+
 class TestRondas(Base):
     def test_sem_apps_nenhuma_ronda(self):
         self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "rondas": [], "atrasados": [], "aviso": {"pessoas": []}}))

@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.23.0
+
+- **Fotos e PDFs no meio de uma ronda**: o arquivo agora é da etapa em que você está. Uma foto na etapa dos itens ou dos consumíveis vai para o InventarIA, que lê a foto e cadastra (precisa do InventarIA 1.92.0). Se o app da etapa não recebe aquele arquivo, a resposta diz isso, em vez de mandar a foto para outro app.
+- **Fora da ronda**: uma foto com uma legenda que não diz de que app é ("esse aqui também") segue o app de que a conversa vinha falando. Uma fatura ou conta continua indo para o GerencIA.
+
 ## 1.22.3
 
 - **Rondas**: o **Abrir no ResolvIA** e o **Abrir no CronologIA** passam o lugar de dois jeitos, para abrir no cômodo mesmo com o app já aberto; o do CronologIA abre as Rotinas só com as do cômodo. Precisa do ResolvIA 2.86.1 e do CronologIA 1.109.1.

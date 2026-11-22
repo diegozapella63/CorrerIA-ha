@@ -106,6 +106,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.22.0: cada etapa de ronda leva `abrir: {texto, href}` na mensagem da IA (`rondas.abrir`: `/app/<slug>` do app, de `apps.painel_de`, o `painel` do correria.json ou o nome da máquina do `url`; o InventarIA em `/comodo/<nome>` ou `/consumiveis`, o ResolvIA em `?aba=buscar&comodo=`, o CronologIA em `?aba=rotinas` ou `calendario`); na tela, `a.ch-abrir` (`data-a="abrir-app"`: `pushState` e `location-changed` na página do Home Assistant, sem recarregar). `rondas.e_mais(texto, achou)`: a lista menor que o TOTAL termina em «- e mais N».
 
+1.23.0: um arquivo no meio de uma ronda é da etapa (`conversar`): o app da etapa com ferramenta que recebe o tipo (`FERR.recebem`) → a IA com as ferramentas, com o `rondas.contexto_anexo` no histórico; o app da etapa é quem lê o tipo (`anexos`) → a `rota` dele; senão `rondas.sem_anexo` (sem IA, sem outro app). Fora da ronda, `foto_para_ferramenta(..., recentes)`: com a legenda sem palavras de nenhum app, vale o app da última resposta (`apps_da_ultima`) se ele recebe a foto. O InventarIA 1.92.0 tem a `cadastrar_por_foto` (`anexo`).
+
 1.22.2: o `abrir` só vai na etapa que leu o app (`ped is not None`); numa pergunta só, não.
 
 1.22.1: o pedido do sim é só do app (`ia.py`): uma resposta só de texto com «Toque em Sim», «Vou fazer isto» ou «Pode confirmar?» (`FALSO_SIM_RE`) volta para a IA como erro (chamar a ferramenta de verdade) e, na última rodada, vira «Não consegui preparar essa mudança agora»; no histórico que vai para a IA, o bloco do app vira uma nota (`sem_o_pedido_do_sim`) e o «Pode confirmar?» dela sai da frase (`PERGUNTA_SIM_RE`).

@@ -129,7 +129,9 @@ class Agente:
                           "memória: o que você lembra pode estar velho.")
         if foto:  # 1.17.0: a foto que chegou há pouco, para a ferramenta que recebe foto (uma tarefa)
             partes.append(f"A pessoa mandou uma foto há pouco ({foto}). Você não vê a foto. Se ela pedir para guardar a foto em algo (numa "
-                          "tarefa), ache o id com uma ferramenta de leitura e chame a ferramenta que recebe a foto; se não disse onde, pergunte.")
+                          "tarefa), ache o id com uma ferramenta de leitura e chame a ferramenta que recebe a foto. Se ela pedir para "
+                          "cadastrar ou adicionar o que está na foto (um item, um consumível), chame a ferramenta de cadastrar que recebe a "
+                          "foto, sem pedir o nome: o app lê a foto. Se não disse o que fazer com ela, pergunte.")
         conversa = [("IA: " + sem_o_pedido_do_sim(m.get("texto")) if m.get("papel") == "ia" else "Pessoa: " + str(m.get("texto") or "").strip()[:2000])
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))

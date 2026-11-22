@@ -612,7 +612,7 @@ def foto_de(chave):
     return v["anexo"] if v and time.time() - v["em"] <= FOTO_SEG else None
 
 
-def foto_para_ferramenta(texto, tipo, ultimo=None):
+def foto_para_ferramenta(texto, tipo, ultimo=None, recentes=()):
     """Uma foto que chegou vai para a IA com as ferramentas (para guardar numa tarefa) quando algum app tem ferramenta
     que recebe esse tipo e: nenhum app lê esse tipo com a IA dele, ou a legenda fala mais do assunto do app da
     ferramenta (tarefa, lista) do que do app que leria a foto (fatura, conta)."""
@@ -623,7 +623,12 @@ def foto_para_ferramenta(texto, tipo, ultimo=None):
     if not leitor:
         return True
     melhor = max((APPS.pontos(a, texto) for a in APPS.lista() if a["app"] in donos), default=0)
-    return melhor > 0 and melhor > APPS.pontos(leitor, texto)
+    do_leitor = APPS.pontos(leitor, texto)
+    if melhor > 0 and melhor > do_leitor:
+        return True
+    # 1.23.0: a legenda não fala de nenhum dos dois ("esse aqui também, coloca 6 meses"): vale o app de que a conversa vinha
+    # falando (o da última resposta), se ele tem a ferramenta que recebe a foto e não é quem leria
+    return melhor == 0 and do_leitor == 0 and bool(set(recentes) & donos) and leitor["app"] not in set(recentes)
 
 
 def executar(acoes, pessoa, cliente, chave=None):
@@ -1535,6 +1540,13 @@ def apagar_conversa(chave, cid):
     return {"mensagens": conversa_tela(chave), "conversa": conversa_aberta(chave), "conversas": conversas_tela(chave)}
 
 
+def apps_da_ultima(lista):
+    """Os ids dos apps da última resposta da conversa (a da IA com as ferramentas leva os nomes: "InventarIA, ResolvIA")."""
+    m = next((m for m in reversed(lista) if m.get("papel") == "ia" and m.get("app")), None)
+    nomes = {n.strip() for n in str(m["app"]).split(",")} if m else set()
+    return {a["app"] for a in APPS.lista() if a["nome"] in nomes}
+
+
 def conversar(corpo, pessoa, chave):
     """Uma mensagem da conversa da tela: texto e/ou um anexo ({nome, b64} em data URL). Devolve a conversa toda."""
     texto = str(corpo.get("texto") or "").strip()[:2000]
@@ -1558,7 +1570,21 @@ def conversar(corpo, pessoa, chave):
     if rd:  # 1.18.0: no meio de uma ronda, a IA sabe de que etapa é a resposta (a pessoa só vê o rótulo)
         hist = hist + [{"papel": "eu", "texto": rondas.contexto(rd["id"], rd["etapas"][rd["i"]], rd["onde"])}]
     r = None
-    if anexo and foto_para_ferramenta(texto, tipo, ultimo):
+    so_app = None
+    # 1.23.0 (o dono, numa ronda: mandou a foto de um consumível e a resposta veio do GerencIA, "zero sentido"): no meio de uma
+    # ronda, um arquivo é da etapa: vai para a ferramenta do app da etapa que recebe esse tipo; se quem lê esse tipo é o próprio
+    # app da etapa, para ele; senão, a resposta diz que ali não dá. Nunca para outro app.
+    et = rondas.etapa_de(rd["id"], rd["etapas"][rd["i"]]) if rd and anexo else None
+    na_etapa = bool(et) and et["app"] in (FERR.recebem(tipo) if FERR.tem() else set())
+    if et and na_etapa:
+        hist = hist + [{"papel": "eu", "texto": rondas.contexto_anexo(et, tipo)}]
+    if et and not na_etapa:
+        so_app = next((a for a in APPS.lista() if a["app"] == et["app"] and tipo in (a.get("anexos") or [])), None)
+    if et and not na_etapa and not so_app:
+        guardar_pendente("tela:" + chave, None)
+        r = (rondas.sem_anexo(et, tipo), [et["nome_app"]], False)
+        anexo = None
+    elif anexo and (na_etapa or (not et and foto_para_ferramenta(texto, tipo, ultimo, apps_da_ultima(lista)))):
         # 1.17.0: uma foto para guardar (numa tarefa): fica à mão e a IA com as ferramentas decide onde
         guardar_foto("tela:" + chave, anexo)
         r = responder_ia("tela:" + chave, texto or "Mandei uma foto.", hist, pessoa, "correria", "CorrerIA")
@@ -1571,7 +1597,7 @@ def conversar(corpo, pessoa, chave):
     if r is not None:  # a IA com as ferramentas dos apps
         resposta, app, confirmar = r[0], ({"app": "_ia", "nome": ", ".join(r[1])} if r[1] else None), r[2]
     else:
-        app = APPS.escolher(texto, ultimo, tipo=tipo)
+        app = so_app or APPS.escolher(texto, ultimo, tipo=tipo)
         if not app:
             resposta = NAO_LE if (tipo and APPS.lista()) else SEM_APP
         else:
