@@ -626,9 +626,15 @@ def foto_para_ferramenta(texto, tipo, ultimo=None, recentes=()):
     do_leitor = APPS.pontos(leitor, texto)
     if melhor > 0 and melhor > do_leitor:
         return True
-    # 1.23.0: a legenda não fala de nenhum dos dois ("esse aqui também, coloca 6 meses"): vale o app de que a conversa vinha
-    # falando (o da última resposta), se ele tem a ferramenta que recebe a foto e não é quem leria
-    return melhor == 0 and do_leitor == 0 and bool(set(recentes) & donos) and leitor["app"] not in set(recentes)
+    if do_leitor > 0:
+        return False  # a legenda fala do assunto de quem lê (uma conta, uma fatura): vai para ele
+    # 1.24.1 (o dono: "Adiciona esse nos consumíveis da lavanderia, 30 dias" foi para o GerencIA): a legenda diz alguma coisa
+    # e nada do assunto de quem leria: não é para ele. Vai para a IA com as ferramentas, que escolhe o app pelo pedido (ou
+    # pergunta). Só a foto sem legenda nenhuma continua indo para quem lê, a não ser que a conversa viesse de outro app que
+    # recebe a foto (1.23.0: "o da última resposta").
+    if re.search(r"[a-zà-ú]{3,}", str(texto or "").lower()):
+        return True
+    return bool(set(recentes) & donos) and leitor["app"] not in set(recentes)
 
 
 def executar(acoes, pessoa, cliente, chave=None):

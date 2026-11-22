@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.24.1
+
+- **Foto com pedido indo para o app errado**: uma foto com um pedido como "adiciona esse nos consumíveis da lavanderia" ia para o GerencIA, que respondia que não achou gastos. Agora só vai para ele a foto cuja legenda fala de conta, fatura ou gasto, ou a foto sem legenda. Qualquer outro pedido vai para o app do assunto.
+
 ## 1.24.0
 
 - **Fotos e PDFs em todos os apps que leem**: mande uma foto ou um PDF na conversa (ou no meio de uma ronda) e peça o que quer. O app do assunto lê o arquivo com a IA dele e o CorrerIA mostra o que achou, para você escolher o que criar:

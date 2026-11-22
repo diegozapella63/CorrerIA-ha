@@ -217,8 +217,23 @@ class TestArquivoNaRonda(Base):
         with mock.patch.object(S, "responder_ia", return_value=("Cadastrado o Sapólio.", ["InventarIA"], False)) as ia:
             self.j("/api/conversa", {"texto": "cadastra sapólio nos consumíveis"})
             st, r = self.j("/api/conversa", {"texto": "Esse aqui também, coloca 6 meses", "anexo": self.FOTO})
-        self.assertEqual(ia.call_count, 2, "a legenda não fala de nenhum app: vale o da última resposta, que recebe foto")
+        self.assertEqual(ia.call_count, 2, "a legenda não fala de quem leria: vai para a IA com as ferramentas")
         self.assertEqual(g.feitos, [])
+        # 1.24.1: o caso do dono, numa conversa nova: a legenda fala dos consumíveis; nunca vai para quem lê contas
+        S._gravar_tela("_", [])
+        for legenda in ("Adiciona esse nós consumíveis da lavanderia, 30 dias", "guarda isso aí pra mim"):
+            with mock.patch.object(S, "responder_ia", return_value=("Vou cadastrar.", ["InventarIA"], True)) as ia:
+                st, r = self.j("/api/conversa/nova", {})
+                st, r = self.j("/api/conversa", {"texto": legenda, "anexo": self.FOTO})
+            self.assertEqual((ia.call_count, r["mensagens"][-1]["app"], g.feitos), (1, "InventarIA", []), legenda)
+        # a foto sem legenda nenhuma, numa conversa nova, continua indo para quem lê
+        self.j("/api/conversa/nova", {})
+        with mock.patch.object(S, "responder_ia") as ia:
+            st, r = self.j("/api/conversa", {"texto": "", "anexo": self.FOTO})
+        ia.assert_not_called()
+        self.assertEqual(len(g.feitos), 1)
+        g.feitos.clear()
+        self.j("/api/conversa/nova", {})
         with mock.patch.object(S, "responder_ia") as ia:
             st, r = self.j("/api/conversa", {"texto": "olha a fatura do cartão", "anexo": self.FOTO})
         ia.assert_not_called()

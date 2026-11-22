@@ -26,7 +26,9 @@ PALAVRAS = {
                 "rende rendimento patrimonio salario recebi recebimento mercado banco despesa despesas caixa compra compras boleto pix",
     "cronologia": "agenda compromisso evento remedio remedios rotina lembrete consulta aniversario calendario amanha semana horario",
     "resolvia": "tarefa tarefas lista listas fazer pendente pontos limpar",
-    "inventario": "item itens comodo comodos inventario seguro garantia equipamento",
+    "inventario": "item itens comodo comodos inventario seguro garantia equipamento consumivel consumiveis cadastra cadastrar cadastre "
+                  "estoque duracao dura inventariar",
+    "economia": "oferta ofertas preco precos cupom cupons encarte farmacia supermercado reposicao repor",
     "memoria": "anotacao anotacoes nota notas folha folhas bloco caderno",
 }
 
