@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.21.0
+
+- **Perguntas inteligentes**: a ronda não pergunta o que não faz sentido. Sem rotinas no cômodo, ela só pergunta se falta alguma (não se alguma precisa mudar ou sair); sem itens, não pergunta de descartar nem de transferir; sem nada na reposição ou nas ofertas, só diz que não há.
+- Nos itens, as perguntas agora são **Algum item foi descartado?** e **Algum item foi transferido de cômodo?**
+- **Aviso de cômodo sem ronda no celular**, como nos outros apps: em **Mais › Rondas › Aviso**, escolha o **Horário**, **Quem recebe** (as pessoas da casa) e use o **Testar no meu celular**. O aviso chega uma vez por dia, no horário, só se houver cômodo atrasado; o toque abre o CorrerIA.
+
 ## 1.20.0
 
 - **Mais › Rondas**: a tela nova das rondas, antes de Configurações e do Sobre: cada ronda com o **Começar**, o aviso e as **Últimas rondas**.

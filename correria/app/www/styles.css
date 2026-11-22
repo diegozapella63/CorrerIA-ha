@@ -613,3 +613,13 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 ul.ronda-hist { list-style: none; margin: 0; padding: 0; }
 ul.ronda-hist li { padding: 10px 0; border-bottom: 1px solid var(--line); }
 ul.ronda-hist li:last-child { border-bottom: 0; }
+/* 1.21.0: Quem recebe e Testar no meu celular (os mesmos dos outros apps) */
+.quem { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.quem-p { display: flex; justify-content: center; align-items: center; gap: 7px; min-width: 0; min-height: 50px; padding: 8px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+.quem-p b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quem-p { flex-wrap: wrap; row-gap: 0; }
+.quem-p span { flex-basis: 100%; text-align: center; color: var(--muted); font-size: 12px; white-space: nowrap; line-height: 1.1; }
+.quem-p.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.quem-p.on .ic-s { color: var(--accent); }
+.op-testar { width: 100%; margin-top: 14px; }
+#ronda-aviso .sub-box .campo + .campo { margin-top: 14px; }

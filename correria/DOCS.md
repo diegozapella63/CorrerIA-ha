@@ -147,13 +147,13 @@ Para não guardar conversas para sempre, em **Configurações › Opções › C
 
 Uma ronda é um roteiro pronto que passa pelos apps, **uma pergunta de cada vez**, dentro da Conversa (só na tela do CorrerIA; não no WhatsApp). Comece pelo botão das Rondas no alto da Conversa ou em **Mais › Rondas**, onde ficam todas as rondas, o aviso e as últimas rondas.
 
-Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no app. Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai.
+Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no app. Uma pergunta que só vale quando há alguma coisa (mudar ou tirar uma rotina, descartar um item) não aparece se o app não tem nada ali. Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai.
 
 **Ronda da casa** (escolha o cômodo):
 
 1. **Tarefas** (ResolvIA): *Tem algo para arrumar?* · *Alguma outra tarefa?*
-2. **Rotinas** (CronologIA): *Alguma rotina precisa mudar?* · *Falta alguma rotina?* · *Alguma rotina pode sair?*
-3. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item saiu?* · *Algum item mudou?*
+2. **Rotinas** (CronologIA): *Falta alguma rotina?* · *Alguma rotina precisa mudar?* · *Alguma rotina pode sair?*
+3. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item foi descartado?* · *Algum item foi transferido de cômodo?*
 4. **Consumíveis** (InventarIA): *Algum está acabando?* · *Algum consumível novo?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
 5. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
 
@@ -167,7 +167,7 @@ Depois da última pergunta, escolha o próximo cômodo: o feito hoje fica verde 
 
 Cada ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
 
-**Aviso de cômodo sem ronda** (Mais › Rondas › Aviso): uma chave, com o prazo embaixo: 15, 30 (de início) ou 45 dias, ou **Outro** (de 1 a 365). Um cômodo atrasado ganha um ponto no botão das Rondas, vem marcado na escolha e aparece no sino do Home Assistant (conferido de hora em hora). Um cômodo que nunca teve ronda só conta depois da primeira ronda da casa.
+**Aviso de cômodo sem ronda** (Mais › Rondas › Aviso): uma chave, com o prazo embaixo: 15, 30 (de início) ou 45 dias, ou **Outro** (de 1 a 365). Um cômodo atrasado ganha um ponto no botão das Rondas, vem marcado na escolha e aparece no sino do Home Assistant (conferido de hora em hora). No celular: escolha o **Horário** e **Quem recebe**; cada pessoa escolhida recebe um aviso por dia, nesse horário, nos celulares ligados a ela no Home Assistant (Configurações › Pessoas), só quando há cômodo atrasado. **Testar no meu celular** manda um aviso de exemplo para você. Um cômodo que nunca teve ronda só conta depois da primeira ronda da casa.
 
 ## Atalho no celular
 

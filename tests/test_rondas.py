@@ -85,7 +85,7 @@ class Base(unittest.TestCase):
 
 class TestRondas(Base):
     def test_sem_apps_nenhuma_ronda(self):
-        self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "rondas": [], "atrasados": []}))
+        self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "rondas": [], "atrasados": [], "aviso": {"pessoas": []}}))
         self.assertIn("não está disponível", self.j("/api/ronda", {"acao": "iniciar", "ronda": "nada", "onde": "Sala"})[1]["erro"])
         st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.assertEqual(st, 400)
@@ -170,20 +170,20 @@ class TestRondas(Base):
         self.assertEqual((visto[0][-1]["texto"], r["mensagens"][-2]["texto"]), ("nada", "nada"), "na conversa, só o que a pessoa escreveu")
         n = len(self.resolvia.feitos)
         r = self.j("/api/ronda", {"acao": "proxima"})[1]  # a segunda do grupo: só a pergunta, sem ler de novo
-        self.assertEqual((r["ronda"]["ativa"]["etapa"], r["mensagens"][-2]["texto"]), ("Outra tarefa", "Ronda da casa · Sala · Tarefas: Outra tarefa (2 de 10)"))
+        self.assertEqual((r["ronda"]["ativa"]["etapa"], r["mensagens"][-2]["texto"]), ("Outra", "Ronda da casa · Sala · Tarefas: Outra (2 de 10)"))
         self.assertEqual((r["mensagens"][-1]["texto"], r["mensagens"][-1]["app"]), ("*Alguma outra tarefa para Sala?*", "ResolvIA"))
         self.assertEqual(len(self.resolvia.feitos), n, "sem chamar o app")
         r = self.j("/api/ronda", {"acao": "voltar"})[1]
         self.assertEqual(r["ronda"]["ativa"]["n"], 1)
         self.assertEqual(self.j("/api/ronda", {"acao": "voltar"})[1]["ronda"]["ativa"]["n"], 1, "na primeira, fica")
-        fins = {"Outra tarefa": "Alguma outra tarefa para Sala?", "Item novo": "Chegou algum item novo em Sala?", "Item que saiu": "Algum item saiu de Sala?",
-                "Item que mudou": "Algum item de Sala mudou?", "Acabando": "Algum consumível de Sala está acabando?", "Consumível novo": "Algum consumível novo em Sala?",
+        fins = {"Outra": "Alguma outra tarefa para Sala?", "Novo": "Chegou algum item novo em Sala?", "Descartado": "Algum item de Sala foi descartado?",
+                "Transferido": "Algum item de Sala foi transferido de cômodo?", "Acabando": "Algum consumível de Sala está acabando?", "Consumível novo": "Algum consumível novo em Sala?",
                 "Mercado": "Precisa de algo do mercado para Sala?", "Farmácia": "Precisa de algo da farmácia para Sala?", "Pet shop": "Precisa de algo do pet shop para Sala?"}
         for etapa, fim in fins.items():
             r = self.j("/api/ronda", {"acao": "proxima"})[1]
-            self.assertEqual(r["ronda"]["ativa"]["etapa"], etapa)
+            self.assertEqual(r["ronda"]["ativa"]["etapa"], "Novo" if etapa == "Consumível novo" else etapa)
             self.assertTrue(r["mensagens"][-1]["texto"].endswith(f"*{fim}*"), r["mensagens"][-1]["texto"])
-            if etapa == "Item novo":
+            if etapa == "Novo":
                 self.assertEqual(self.inventario.feitos[-1]["argumentos"], {"comodo": "Sala"})
             if etapa == "Acabando":
                 self.assertEqual(self.inventario.feitos[-1]["argumentos"], {"comodo": "Consumíveis"}, "os consumíveis não têm cômodo: a área deles")
@@ -247,17 +247,50 @@ class TestMaisRondas(Base):
         self.casa()
         cron = self.ligar("cronologia", "CronologIA", [ferr("cadastros"), ferr("agenda")], {"cadastros": "Rotinas: Regar as plantas da sala (toda semana).", "agenda": "Dentista dia 3."})
         e = self.j("/api/rondas")[1]["rondas"][0]["etapas"]
-        self.assertEqual([(x["id"], x["grupo"]) for x in e][:6], [("arrumar", "Tarefas"), ("tarefa", "Tarefas"), ("rotina_muda", "Rotinas"), ("rotina_nova", "Rotinas"),
+        self.assertEqual([(x["id"], x["grupo"]) for x in e][:6], [("arrumar", "Tarefas"), ("tarefa", "Tarefas"), ("rotina_nova", "Rotinas"), ("rotina_muda", "Rotinas"),
                                                                   ("rotina_sai", "Rotinas"), ("item_novo", "Itens")])
         self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.j("/api/ronda", {"acao": "proxima"})
         r = self.j("/api/ronda", {"acao": "proxima"})[1]
         self.assertEqual(r["ronda"]["ativa"]["app"], "CronologIA")
         self.assertIn("Regar as plantas", r["mensagens"][-1]["texto"])
-        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Alguma rotina de Sala precisa mudar?*"))
+        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Falta alguma rotina para Sala?*"), "a primeira pergunta vale mesmo sem rotina nenhuma")
         self.assertEqual(cron.feitos[-1]["nome"], "cadastros")
         fins = [self.j("/api/ronda", {"acao": "proxima"})[1]["mensagens"][-1]["texto"] for _ in range(2)]
-        self.assertEqual(fins, ["*Falta alguma rotina para Sala?*", "*Alguma rotina de Sala pode sair?*"])
+        self.assertEqual(fins, ["*Alguma rotina de Sala precisa mudar?*", "*Alguma rotina de Sala pode sair?*"], "a IA não disse quantas achou: as perguntas ficam")
+
+    def test_perguntas_inteligentes(self):
+        """O dono: "se não tem rotina da casa, pq perguntar se alguma precisa sair? Não tem nenhuma". Sem nada no app, as
+        perguntas que só valem com alguma coisa saem da ronda; com alguma coisa, ficam."""
+        self.resolvia = self.ligar("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO)], {"tarefas": "Nenhuma tarefa."})
+        self.ligar("cronologia", "CronologIA", [ferr("cadastros")], {"cadastros": "Nenhuma rotina de lá."})
+        self.ligar("inventario", "InventarIA", [ferr("resumo"), ferr("buscar_itens", COM_COMODO)],
+                   {"resumo": {"comodos": [{"nome": "Sala"}], "opcoes": {"consumiveis": True}}, "buscar_itens": "0 itens."})
+        r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})[1]
+        self.assertEqual(r["ronda"]["ativa"]["total"], 10)
+        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Tem algo para arrumar em Sala?*"), "arrumar vale sempre")
+        self.assertNotIn("TOTAL", r["mensagens"][-1]["texto"])
+        vistos = []
+        while True:
+            r = self.j("/api/ronda", {"acao": "proxima"})[1]
+            if not r["ronda"]["ativa"]:
+                break
+            vistos.append((r["ronda"]["ativa"]["grupo"], r["ronda"]["ativa"]["etapa"], r["ronda"]["ativa"]["total"], r["mensagens"][-1]["texto"].split("\n")[-1]))
+        self.assertEqual(vistos, [("Tarefas", "Outra", 10, "*Alguma outra tarefa para Sala?*"),
+                                  ("Rotinas", "Nova", 8, "*Falta alguma rotina para Sala?*"),      # sem rotinas: sem o Mudar e o Tirar
+                                  ("Itens", "Novo", 6, "*Chegou algum item novo em Sala?*"),      # sem itens: sem o Descartado e o Transferido
+                                  ("Consumíveis", "Acabando", 6, "0 itens."),                    # nenhum acabando: só conta, sem perguntar
+                                  ("Consumíveis", "Novo", 6, "*Algum consumível novo em Sala?*")])
+        self.assertEqual(r["mensagens"][-4]["texto"], "Ronda da casa · Sala · Consumíveis: Novo (6 de 6)", "o rótulo com a conta do que ficou")
+        self.assertEqual(S.historico_rondas()[-1]["perguntas"], 6)
+        self.assertEqual(rondas.total("TOTAL: 3\nHá 3."), (3, "Há 3."))
+        self.assertEqual(rondas.total("Há 3.\n**TOTAL: 0**"), (0, "Há 3."))
+        self.assertEqual(rondas.total("Há 3."), (None, "Há 3."))
+        self.assertEqual(rondas.arrumar("", "casa", "cons_acabando", "Sala", perguntar=False), "Nada por aqui.")
+        e = ["arrumar", "tarefa", "item_novo", "item_saiu", "item_mudou", "mercado"]
+        self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, 2), e, "com itens, tudo fica")
+        self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, None), e, "sem saber, tudo fica")
+        self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 0, 0), e, "outra tarefa vale sempre")
 
     def test_consumiveis_por_comodo(self):
         self.resolvia = self.ligar("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO)], {"tarefas": "nada"})
@@ -391,6 +424,145 @@ class TestHistoricoEAviso(Base):
             S.salvar_config({"ronda_dias": 0})
             S.conferir_rondas()
             self.assertEqual(idos[-1], ("/services/persistent_notification/dismiss", {"notification_id": "correria_ronda"}))
+
+
+class TestAvisoNoCelular(Base):
+    """1.21.0: o aviso de cômodo sem ronda no celular, como nos outros apps: o horário, quem recebe e o Testar."""
+    ESTADOS = [{"entity_id": "person.ana", "attributes": {"friendly_name": "Ana", "user_id": "u-ana", "device_trackers": ["device_tracker.celular_da_ana", "device_tracker.roteador"]}},
+               {"entity_id": "person.beto", "attributes": {"friendly_name": "Beto", "user_id": "u-beto", "device_trackers": ["device_tracker.pixel_do_beto"]}},
+               {"entity_id": "person.caio", "attributes": {"friendly_name": "Caio", "user_id": "u-caio", "device_trackers": []}},
+               {"entity_id": "light.sala", "attributes": {}}]
+    SERVICOS = [{"domain": "light", "services": {"turn_on": {}}},
+                {"domain": "notify", "services": {"mobile_app_moto_g_exemplo": {}, "mobile_app_pixel_do_beto": {}, "mobile_app_roteador": {}, "notify": {}}}]
+    MODELO = [["device_tracker.celular_da_ana", "Moto G Exemplo", ["mobile_app"]], ["device_tracker.pixel_do_beto", "Pixel do Beto", ["mobile_app"]],
+              ["device_tracker.roteador", "Roteador", ["tplink"]]]
+
+    def ha(self, modelo=MODELO, recusa=()):
+        self.idos = []
+        S._celulares_cache.update(t=0, v=None)
+        self.addCleanup(S._celulares_cache.update, {"t": 0, "v": None})
+        S.ESTADO["ronda_avisado"] = None
+        S.salvar_config({"casa": False})
+
+        def texto(caminho, corpo):
+            self.modelo_pedido = corpo["template"]
+            if modelo is None:
+                raise OSError("sem modelo")
+            return json.dumps(modelo)
+
+        def post(caminho, corpo):
+            self.idos.append((caminho, corpo))
+            if any(r in caminho for r in recusa):
+                raise OSError("recusou")
+            return {}
+        for nome, v in (("TOKEN", "t"), ("ha_get", lambda c, timeout=10: self.ESTADOS if c == "/states" else self.SERVICOS), ("ha_texto", texto), ("ha_post", post),
+                        ("atalho", lambda host=None: "/app/abc_correria")):
+            p = mock.patch.object(S, nome, v)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def atrasar(self, onde="Sala", dias=40):
+        from datetime import datetime, timedelta
+        with mock.patch.object(S, "agora_iso", lambda: (datetime.now() - timedelta(days=dias)).isoformat(timespec="seconds")):
+            S.anotar_ronda("casa", onde, {"nome": "Ana"}, 10)
+
+    def avisos_idos(self):
+        return [(c, x) for c, x in self.idos if "/notify/" in c]
+
+    def test_os_celulares_de_cada_pessoa(self):
+        self.ha()
+        P = {p["nome"]: p["celulares"] for p in S.pessoas_com_celular()}
+        self.assertEqual(P, {"Ana": ["mobile_app_moto_g_exemplo"], "Beto": ["mobile_app_pixel_do_beto"], "Caio": []},
+                         "pelo nome do aparelho do app Home Assistant; o roteador não é celular")
+        self.assertIn('"device_tracker.celular_da_ana"', self.modelo_pedido)
+        self.assertEqual(self.j("/api/rondas")[1]["aviso"], {"pessoas": [{"id": "person.ana", "nome": "Ana", "celular": True, "eu": True},
+                                                                       {"id": "person.beto", "nome": "Beto", "celular": True, "eu": False},
+                                                                       {"id": "person.caio", "nome": "Caio", "celular": False, "eu": False}]})
+
+    def test_sem_o_modelo_vale_o_id_do_rastreador(self):
+        for modelo in (None, "não é lista"):
+            self.ha(modelo=modelo)
+            P = {p["nome"]: p["celulares"] for p in S.pessoas_com_celular(True)}
+            self.assertEqual(P, {"Ana": ["mobile_app_roteador"], "Beto": ["mobile_app_pixel_do_beto"], "Caio": []}, modelo)
+        import avisos
+        self.assertIsNone(avisos.aparelhos("{"))
+        self.assertEqual(avisos.aparelhos([["device_tracker.x", None, []], "lixo"]), {"device_tracker.x": None})
+        self.assertEqual(avisos.celulares(["device_tracker.x"], {"mobile_app_x"}, {"device_tracker.x": None}), [], "um rastreador sem aparelho não é celular")
+        self.assertEqual(avisos.slug("Relógio  do Davi"), "relogio_do_davi")
+        self.assertEqual((avisos.titulo_do_app("CorrerIA · Oi"), avisos.titulo_do_app("")), ("CorrerIA · Oi", "CorrerIA"))
+
+    def test_fora_do_home_assistant(self):
+        self.assertEqual(S.pessoas_com_celular(), [])
+        self.assertIsNone(S.avisar_rondas())
+        self.assertEqual(self.j("/api/ronda/testar", {}), (400, {"erro": "Você não é uma pessoa da casa no Home Assistant."}))
+
+    def test_o_horario_e_quem_recebe(self):
+        self.assertEqual((S.ler_config()["ronda_hora"], S.ler_config()["ronda_para"]), ("09:00", []))
+        self.assertEqual(self.j("/api/config", {"ronda_hora": "07:30", "ronda_para": ["person.ana", "person.ana", "person.beto"]})[0], 200)
+        e = self.j("/api/estado")[1]["rondas"]
+        self.assertEqual((e["hora"], e["para"]), ("07:30", ["person.ana", "person.beto"]))
+        for ruim in ("7:30", "07:15", "24:00", "", None):
+            self.assertEqual(self.j("/api/config", {"ronda_hora": ruim}), (400, {"erro": "O horário vale de meia em meia hora (09:00, 09:30…)."}), ruim)
+        for ruim in ("person.ana", ["ana"], [1], ["person.x"] * 31):
+            self.assertEqual(self.j("/api/config", {"ronda_para": ruim})[1]["erro"], "Quem recebe: as pessoas da casa (person.*).")
+        self.assertEqual(S.ler_config()["ronda_hora"], "07:30")
+
+    def test_avisa_uma_vez_por_dia_no_horario(self):
+        from datetime import datetime
+        self.casa()
+        self.ha()
+        self.atrasar("Sala", 40)
+        self.atrasar("Cozinha", 2)
+        S.salvar_config({"ronda_hora": "09:30", "ronda_para": ["person.ana", "person.caio"]})
+        self.idos.clear()
+        hoje = datetime.now().replace(hour=9, minute=0)
+        self.assertIsNone(S.avisar_rondas(hoje), "antes do horário, nada")
+        self.assertEqual(self.avisos_idos(), [])
+        self.assertEqual(S.avisar_rondas(hoje.replace(minute=30)), 1)
+        self.assertEqual(self.avisos_idos(), [("/services/notify/mobile_app_moto_g_exemplo", {
+            "title": "CorrerIA · 🧭 Ronda da casa", "message": "Sala está sem ronda há mais de 30 dias.",
+            "data": {"tag": "correria-ronda", "group": "correria-rondas", "channel": "Rondas", "notification_icon": "mdi:lightning-bolt",
+                     "url": "/app/abc_correria", "clickAction": "/app/abc_correria"}})], "só para os celulares de quem recebe")
+        self.assertIsNone(S.avisar_rondas(hoje.replace(hour=15)), "uma vez por dia")
+        S.ESTADO["ronda_avisado"] = None  # o app reiniciou: o arquivo lembra
+        self.assertIsNone(S.avisar_rondas(hoje.replace(hour=16)))
+        self.assertEqual(len(self.avisos_idos()), 1)
+        self.assertEqual([x["onde"] for x in S.historico_rondas()], ["Sala", "Cozinha"], "o histórico continua no arquivo")
+        S.anotar_ronda("casa", "Sala", {"nome": "Ana"}, 10)
+        self.assertEqual(S.ler_json(S.RONDAS_ARQ)["avisado"], hoje.strftime("%Y-%m-%d"), "e anotar uma ronda não esquece o aviso do dia")
+
+    def test_sem_atrasado_sem_quem_recebe_ou_desligado_nao_avisa(self):
+        from datetime import datetime
+        self.casa()
+        self.ha()
+        meio_dia = datetime.now().replace(hour=12, minute=0)
+        S.salvar_config({"ronda_para": ["person.ana"]})
+        self.assertEqual(S.avisar_rondas(meio_dia), 0, "nenhum cômodo atrasado")
+        S.ESTADO["ronda_avisado"] = None
+        os.remove(S.RONDAS_ARQ)
+        self.atrasar()
+        S.salvar_config({"ronda_para": []})
+        self.assertIsNone(S.avisar_rondas(meio_dia), "ninguém recebe")
+        S.salvar_config({"ronda_para": ["person.ana"], "ronda_dias": 0})
+        self.assertIsNone(S.avisar_rondas(meio_dia), "aviso desligado")
+        self.assertEqual(self.avisos_idos(), [])
+
+    def test_testar_no_meu_celular(self):
+        self.ha()
+        self.assertEqual(self.j("/api/ronda/testar", {}), (200, {"ok": True, "celulares": 1}))
+        c, x = self.avisos_idos()[-1]
+        self.assertEqual((c, x["title"], x["data"]["tag"]), ("/services/notify/mobile_app_moto_g_exemplo", "CorrerIA · 🧭 Ronda da casa", "correria-ronda-teste"))
+        self.CAB = dict(self.CAB, **{"X-Remote-User-Id": "u-caio"})
+        self.assertEqual(self.j("/api/ronda/testar", {}), (400, {"erro": "Sem celular ligado a você no Home Assistant."}))
+        self.CAB = dict(self.CAB, **{"X-Remote-User-Id": "u-ninguem"})
+        self.assertEqual(self.j("/api/ronda/testar", {}), (400, {"erro": "Você não é uma pessoa da casa no Home Assistant."}))
+
+    def test_o_home_assistant_recusa(self):
+        self.ha(recusa=("/notify/",))
+        self.assertEqual(self.j("/api/ronda/testar", {}), (400, {"erro": "O Home Assistant não aceitou o aviso."}))
+        with mock.patch.object(S, "ha_get", mock.Mock(side_effect=OSError("fora"))):
+            S._celulares_cache.update(t=0, v=None)
+            self.assertEqual(S.pessoas_do_aviso("u-ana"), {"erro": "Não consegui ver as pessoas da casa."})
 
 
 if __name__ == "__main__":

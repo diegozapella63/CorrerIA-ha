@@ -205,6 +205,10 @@ def simulado(texto, lista, resultados):
     ronda = re.search(r"etapa \d+ de \d+", t) and re.search(r"\bUse (\w+)", texto or "")  # 1.18.0: uma etapa de uma ronda
     if resultados:
         primeiras = "\n".join(resultados[-1].split("→", 1)[-1].strip().splitlines()[:6])
+        if ronda:  # 1.21.0: a etapa que lê diz quantos achou: o número do começo do que o app respondeu; "Nada…"/"Nenhum…" é 0
+            m = re.match(r"\s*(\d+)\b", primeiras)
+            n = m.group(1) if m else "0" if re.match(r"\s*(nada|nenhum)", primeiras, re.I) else None
+            return {"resposta": (f"TOTAL: {n}\n" if n is not None else "") + f"Pelo que vi:\n{primeiras}"}
         return {"resposta": f"Pelo que vi:\n{primeiras}"}
     if ronda and ronda.group(1) in ids:
         f = next(x for x in lista if x["id"] == ronda.group(1))

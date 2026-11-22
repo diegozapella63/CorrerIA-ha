@@ -821,10 +821,10 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(caixas[0], caixas[1], "do mesmo tamanho, lado a lado")
         self.assertEqual(self.pg.locator(".ch-ronda-bts .btn svg").count(), 2, "todo botão com texto tem ícone")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
-        for fim in ("Alguma outra tarefa para Sala de jantar?", "Chegou algum item novo em Sala de jantar?", "Algum item saiu de Sala de jantar?", "Algum item de Sala de jantar mudou?"):
+        for fim in ("Alguma outra tarefa para Sala de jantar?", "Chegou algum item novo em Sala de jantar?", "Algum item de Sala de jantar foi descartado?", "Algum item de Sala de jantar foi transferido de cômodo?"):
             self.pg.click('[data-a="ronda-proxima"]:not([disabled])')
             self.pg.wait_for_selector(f".ch-msg.ia >> text={fim}")
-        self.assertEqual(self.pg.locator(".ch-msg.ia .ch-bolha b").last.inner_text(), "Algum item de Sala de jantar mudou?", "a pergunta à parte, em negrito")
+        self.assertEqual(self.pg.locator(".ch-msg.ia .ch-bolha b").last.inner_text(), "Algum item de Sala de jantar foi transferido de cômodo?", "a pergunta à parte, em negrito")
         # a última mensagem fica toda à vista, acima do pé (a faixa da ronda aumenta o pé)
         fim, pe = self.pg.evaluate("[[...document.querySelectorAll('.ch-msg')].pop().getBoundingClientRect().bottom, document.querySelector('.ch-pe').getBoundingClientRect().top]")
         self.assertLessEqual(fim, pe, "nada atrás da faixa da ronda")
@@ -860,6 +860,13 @@ parent.postMessage({painel: 'pronto'}, location.origin);
             with mock.patch.object(S, "agora_iso", lambda d=d: (datetime.now() - timedelta(days=d)).isoformat(timespec="seconds")):
                 S.anotar_ronda("casa", onde, {"nome": "Ana"}, 3)
         S.conferir_rondas()
+        # 1.21.0: as pessoas da casa (a Ana é quem está na tela; o Beto sem celular) e o Testar no meu celular
+        gente = {"pessoas": [{"id": "person.ana", "nome": "Ana", "celular": True, "eu": True}, {"id": "person.beto", "nome": "Beto", "celular": False, "eu": False}]}
+        testes = []
+        for nome, v in (("pessoas_do_aviso", lambda u: gente), ("testar_aviso_ronda", lambda u: testes.append(u) or {"ok": True, "celulares": 1})):
+            p = mock.patch.object(S, nome, v)
+            p.start()
+            self.addCleanup(p.stop)
         self.abrir()
         self.assertEqual(self.pg.get_attribute('[data-a="rondas"]', "aria-label"), "Rondas: 1 cômodo atrasado")
         self.pg.click('[data-a="rondas"]')
@@ -884,6 +891,30 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.texto("#ronda-hist h2"), "Últimas rondas (2)")
         self.assertEqual(self.pg.locator("#ronda-hist li b").all_inner_texts(), ["Cozinha", "Sala"], "a mais nova primeiro")
         self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('#app section.card')].every(c => c.firstElementChild.querySelector('svg') && c.firstElementChild.querySelector('h2'))"), "todo cartão com o ícone no título")
+        # o Horário (de meia em meia hora), o Quem recebe e o Testar, no quadro embaixo da chave, como nos outros apps
+        self.assertEqual(self.pg.locator("#ronda-aviso .sub-box .campo > b, #ronda-aviso .sub-box .campo > label").all_inner_texts(), ["Há mais de", "Horário", "Quem recebe"])
+        self.assertEqual(self.pg.evaluate("[document.querySelector('#ronda-hora').value, document.querySelector('#ronda-hora').options.length, document.querySelector('#ronda-hora').options[19].value]"), ["09:00", 48, "09:30"])
+        self.assertEqual([t.replace("\n", " ") for t in self.pg.locator("#ronda-aviso .quem-p").all_inner_texts()], ["Ana", "Beto sem celular"])
+        self.assertEqual(self.texto("#ronda-aviso .quem + .dica"), "Escolha quem recebe.")
+        self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('#ronda-aviso .quem-p b')].every(b => b.scrollWidth <= b.clientWidth + 1 && b.clientWidth > 20)"), "o nome inteiro, com o sem celular embaixo")
+        self.pg.select_option("#ronda-hora", "07:30")
+        self.aviso("Aviso às 07:30")
+        self.assertEqual(S.ler_config()["ronda_hora"], "07:30")
+        self.pg.click('#ronda-aviso .quem-p >> text=Ana')
+        self.pg.wait_for_selector('#ronda-aviso .quem-p.on[aria-pressed="true"]')
+        self.assertEqual(S.ler_config()["ronda_para"], ["person.ana"])
+        self.assertEqual(self.pg.locator("#ronda-aviso .quem + .dica").count(), 0)
+        self.pg.click('#ronda-aviso .quem-p >> text=Beto')
+        self.pg.wait_for_function("document.querySelectorAll('#ronda-aviso .quem-p.on').length === 2")
+        self.assertEqual(self.texto("#ronda-aviso .quem + .dica"), "Sem celular para Beto: ligue o celular à pessoa no Home Assistant.")
+        self.assertEqual(self.texto('[data-a="ronda-testar"]'), "Testar no meu celular")
+        self.assertEqual(self.pg.locator('[data-a="ronda-testar"] svg').count(), 1)
+        self.pg.click('[data-a="ronda-testar"]')
+        self.aviso("Aviso enviado para o seu celular")
+        self.assertEqual(testes, ["_"] if not testes or testes[0] == "_" else testes)
+        larg = self.pg.evaluate("[document.querySelector('[data-a=\"ronda-testar\"]').getBoundingClientRect().width, document.querySelector('#ronda-aviso .quem').getBoundingClientRect().width]")
+        self.assertAlmostEqual(larg[0], larg[1], delta=1, msg="o Testar na largura do quadro")
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.pg.screenshot(path="/tmp/tela-rondas.png", full_page=True)
         self.pg.click('[data-a="ronda-dias"][data-v="45"]')
         self.pg.wait_for_selector('#ronda-aviso .chip.on >> text=45 dias')

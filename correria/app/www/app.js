@@ -17,6 +17,7 @@
     ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
     alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     send: '<path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/>',
     clip: '<path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 1 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8-8"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
@@ -527,7 +528,26 @@
      nos outros apps, com o prazo num quadro embaixo: 15, 30, 45 ou Outro) e as últimas rondas */
   const RONDA_DIAS = [15, 30, 45];
   function carregarRondas() {
-    return api.rondas().then(r => { S.rondas = r.rondas || []; guardarRondas(r); render(); }).catch(err => { S.rondas = []; toast(err.message); render(); });
+    return api.rondas().then(r => { S.rondas = r.rondas || []; S.avisoPessoas = r.aviso || null; guardarRondas(r); render(); }).catch(err => { S.rondas = []; toast(err.message); render(); });
+  }
+  // 1.21.0: o aviso no celular, como nos outros apps: o Horário (de meia em meia hora, sem AM/PM), o Quem recebe (um
+  // botão por pessoa da casa; o app olha para a pessoa, nunca para um aparelho) e o Testar no meu celular
+  const HORAS = Array.from({ length: 48 }, (_, i) => `${String(i >> 1).padStart(2, '0')}:${i % 2 ? '30' : '00'}`);
+  function quemRecebe(R) {
+    const P = S.avisoPessoas, para = new Set(R.para || []);
+    const eu = P && P.pessoas ? P.pessoas.find(p => p.eu) : null;
+    const porque = !P || !P.pessoas ? (P && P.erro) || '' : !eu ? 'Você não é uma pessoa da casa no Home Assistant.' : !eu.celular ? 'Sem celular ligado a você no Home Assistant.' : '';
+    let h = `<div class="campo">${tituloLinha('users', 'Quem recebe')}`;
+    if (P === undefined) h += '<span class="dica">Procurando as pessoas da casa…</span>';
+    else if (!P || !P.pessoas) h += `<span class="dica">${esc((P && P.erro) || 'Não consegui ver as pessoas da casa.')}</span>`;
+    else if (!P.pessoas.length) h += '<span class="dica">Nenhuma pessoa da casa no Home Assistant.</span>';
+    else {
+      h += `<div class="quem">${P.pessoas.map(p => `<button class="quem-p${para.has(p.id) ? ' on' : ''}" data-a="ronda-pessoa" data-v="${esc(p.id)}" aria-pressed="${para.has(p.id)}">${ic('user', 'ic-s')}<b>${esc(p.nome)}</b>${p.celular ? '' : '<span>sem celular</span>'}</button>`).join('')}</div>`;
+      const sem = P.pessoas.filter(p => para.has(p.id) && !p.celular).map(p => p.nome);
+      if (sem.length) h += `<span class="dica">Sem celular para ${esc(sem.join(', '))}: ligue o celular à pessoa no Home Assistant.</span>`;
+      else if (!para.size) h += '<span class="dica">Escolha quem recebe.</span>';
+    }
+    return h + `</div><button class="btn out op-testar" data-a="ronda-testar"${eu && eu.celular ? '' : ' disabled'}${porque ? ` title="${esc(porque)}"` : ''}>${ic('send', 'ic-s')}Testar no meu celular</button>`;
   }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;
@@ -548,7 +568,9 @@
         ${on ? `<div class="sub-op"><div class="sub-box"><div class="campo">${tituloLinha('calendar', 'Há mais de')}
           <div class="chips-tempo" role="radiogroup" aria-label="Há mais de">${RONDA_DIAS.map(n => chip(n, n + ' dias', !outro && d === n, 'calendar')).join('')}${chip('outro', 'Outro', !!outro, 'nova')}</div>
           ${outro ? `<div class="ch-ed-nova ronda-outro"><input id="ronda-outro" class="inp" type="number" inputmode="numeric" min="1" max="365" aria-label="Dias" placeholder="Dias" value="${RONDA_DIAS.includes(d) ? '' : d}">
-            <button class="btn pri" data-a="ronda-outro">${ic('check', 'ic-s')}Salvar</button></div>` : ''}</div></div></div>` : ''}</section>
+            <button class="btn pri" data-a="ronda-outro">${ic('check', 'ic-s')}Salvar</button></div>` : ''}</div>
+          <div class="campo">${rotulo('ronda-hora', 'clock', 'Horário')}<select id="ronda-hora" class="inp" data-ronda-hora aria-label="Horário do aviso">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
+          ${quemRecebe(R)}</div></div>` : ''}</section>
       <section class="card" id="ronda-hist">${cab('clock', `Últimas rondas${H.length ? ` (${H.length})` : ''}`)}
         <ul class="ronda-hist">${H.map(x => `<li><b>${esc(x.onde || x.ronda)}</b><span>${esc(dataCurta(x.em))}${x.pessoa ? ' · ' + esc(x.pessoa) : ''}</span></li>`).join('') || '<li>Nenhuma ronda ainda.</li>'}</ul></section>`;
   }
@@ -1317,6 +1339,12 @@
       const n = on ? 0 : (Number(guardada('correria-ronda-dias')) || 30);
       S.rondaOutro = false;
       await acao('config', { ronda_dias: n }, on ? 'Aviso de ronda desligado' : 'Aviso de ronda ligado');
+    } else if (a === 'ronda-pessoa') {  // 1.21.0: quem recebe o aviso no celular
+      const para = new Set(S.e.rondas.para || []);
+      if (para.has(el.dataset.v)) para.delete(el.dataset.v); else para.add(el.dataset.v);
+      await acao('config', { ronda_para: [...para] });
+    } else if (a === 'ronda-testar') {
+      try { await api.post('ronda/testar', {}); toast('Aviso enviado para o seu celular'); } catch (err) { toast(err.message); }
     } else if (a === 'ronda-dias') {  // 1.19.0
       if (el.dataset.v === 'outro') { S.rondaOutro = true; render(); const i = $('#ronda-outro'); if (i) i.focus({ preventScroll: true }); return; }
       S.rondaOutro = false;
@@ -1527,6 +1555,10 @@
       const b64 = await new Promise((ok2, erro) => { const r = new FileReader(); r.onload = () => ok2(r.result); r.onerror = erro; r.readAsDataURL(f); });
       S.ch.anexo = { nome: f.name || 'Foto', b64 };
       render();
+      return;
+    }
+    if (el.matches('[data-ronda-hora]')) {  // 1.21.0: o horário do aviso das rondas
+      acao('config', { ronda_hora: el.value }, `Aviso às ${el.value}`);
       return;
     }
     if (el.matches('[data-ia-ent]')) {  // 0.16.0: a IA para conversar

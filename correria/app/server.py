@@ -35,6 +35,7 @@ import ferramentas
 import ia
 import mcp
 import oauth
+import avisos
 import rondas
 import uso
 import whatsapp
@@ -133,6 +134,9 @@ def ler_config():
            # 1.7.0: as conversas paradas há mais de tantos dias saem sozinhas (0: nunca; 30 de início)
            "apagar_dias": c.get("apagar_dias") if c.get("apagar_dias") in APAGAR_DIAS else 30,
            # 1.19.0: avisar quando um cômodo fica sem ronda há mais de tantos dias (0: nunca; 30 de início; até 365)
+           # 1.21.0: o aviso no celular: a que horas (de meia em meia hora; 09:00 de início) e quem recebe (person.*)
+           "ronda_hora": c["ronda_hora"] if HORA_RE.match(str(c.get("ronda_hora") or "")) else "09:00",
+           "ronda_para": [p for p in c.get("ronda_para") or [] if isinstance(p, str) and PESSOA_RE.match(p)][:30] if isinstance(c.get("ronda_para"), list) else [],
            "ronda_dias": c["ronda_dias"] if isinstance(c.get("ronda_dias"), int) and not isinstance(c.get("ronda_dias"), bool) and 0 <= c["ronda_dias"] <= 365 else 30,
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
@@ -220,6 +224,15 @@ def salvar_config(corpo):
             if corpo.get("apagar_dias") not in APAGAR_DIAS or isinstance(corpo.get("apagar_dias"), bool):
                 raise ValueError("Escolha 7, 30 ou 90 dias, ou nunca.")
             c["apagar_dias"] = corpo.get("apagar_dias")
+        if "ronda_hora" in corpo:  # 1.21.0
+            if not HORA_RE.match(str(corpo.get("ronda_hora") or "")):
+                raise ValueError("O horário vale de meia em meia hora (09:00, 09:30…).")
+            c["ronda_hora"] = corpo["ronda_hora"]
+        if "ronda_para" in corpo:
+            para = corpo.get("ronda_para")
+            if not isinstance(para, list) or not all(isinstance(p, str) and PESSOA_RE.match(p) for p in para) or len(para) > 30:
+                raise ValueError("Quem recebe: as pessoas da casa (person.*).")
+            c["ronda_para"] = list(dict.fromkeys(para))
         if "ronda_dias" in corpo:  # 1.19.0
             n = corpo.get("ronda_dias")
             if not isinstance(n, int) or isinstance(n, bool) or not 0 <= n <= 365:
@@ -1001,6 +1014,10 @@ def laco_sensores():
             rodada_sensores()
         except Exception as e:  # noqa: BLE001
             log("Sensores:", e)
+        try:  # 1.21.0: uma vez por dia, no horário escolhido, o aviso no celular de quem recebe
+            avisar_rondas()
+        except Exception as e:  # noqa: BLE001
+            log("Aviso das rondas:", e)
         if volta % 60 == 0:  # 1.19.0: de hora em hora, os cômodos sem ronda há tempo demais
             try:
                 conferir_rondas()
@@ -1308,7 +1325,7 @@ def estado():
         "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},
         "recolher": c["recolher"], "apagar_dias": c["apagar_dias"],
         # 1.19.0: as rondas: o prazo do aviso, os cômodos atrasados (conferidos de hora em hora) e as últimas 30 do histórico
-        "rondas": {"avisar_dias": c["ronda_dias"], "atrasados": [a["onde"] for a in ESTADO.get("rondas_atrasadas") or []],
+        "rondas": {"avisar_dias": c["ronda_dias"], "hora": c["ronda_hora"], "para": c["ronda_para"], "atrasados": [a["onde"] for a in ESTADO.get("rondas_atrasadas") or []],
                    "historico": [{"ronda": rondas.RONDAS[x["ronda"]]["nome"], "onde": x.get("onde") or "", "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
@@ -1578,6 +1595,8 @@ def conversar(corpo, pessoa, chave):
 # como uma mensagem da pessoa (só o rótulo: "Ronda da casa · Sala · Tarefas (1 de 4)") e a resposta da IA, que leu o app da
 # etapa e faz a pergunta; o que a pessoa responder segue pela Conversa de sempre, com o sim antes de qualquer mudança.
 RONDAS_ATIVAS = {}
+HORA_RE = re.compile(r"^([01]\d|2[0-3]):(00|30)$")
+PESSOA_RE = re.compile(r"^person\.[a-z0-9_]+$")
 MAX_RONDAS = 500
 TRAVA_RONDAS = threading.Lock()
 
@@ -1591,7 +1610,8 @@ def anotar_ronda(rid, onde, pessoa, perguntas):
     """Uma ronda concluída vai para o histórico (/data/rondas.json, as últimas 500)."""
     with TRAVA_RONDAS:
         h = historico_rondas() + [{"ronda": rid, "onde": onde, "em": agora_iso(), "pessoa": str((pessoa or {}).get("nome") or ""), "perguntas": perguntas}]
-        gravar_arquivo(RONDAS_ARQ, json.dumps({"historico": h[-MAX_RONDAS:]}, ensure_ascii=False))
+        avisado = ler_json(RONDAS_ARQ).get("avisado")
+        gravar_arquivo(RONDAS_ARQ, json.dumps({"historico": h[-MAX_RONDAS:], **({"avisado": avisado} if avisado else {})}, ensure_ascii=False))
 
 
 def _dias_desde(iso, agora=None):
@@ -1633,11 +1653,94 @@ def conferir_rondas():
         return atras
     if nomes:
         n = ler_config()["ronda_dias"]
-        texto = (f"{nomes[0]} está" if len(nomes) == 1 else f"{len(nomes)} cômodos estão") + f" sem ronda há mais de {n} dias" + ("." if len(nomes) == 1 else ": " + ", ".join(nomes[:8]) + ("…" if len(nomes) > 8 else "."))
+        texto = texto_atrasados(nomes, n)
         _tentar(ha_post, "/services/persistent_notification/create", {"notification_id": "correria_ronda", "title": "CorrerIA · Ronda da casa", "message": texto})
     elif antes:
         _tentar(ha_post, "/services/persistent_notification/dismiss", {"notification_id": "correria_ronda"})
     return atras
+
+
+_celulares_cache = {"t": 0, "v": None}
+
+
+def pessoas_com_celular(forcar=False):
+    """As pessoas da casa com os celulares de cada uma (notify.mobile_app_*), guardadas por 60 s. Fora do Home Assistant, []."""
+    if not TOKEN:
+        return []
+    if not forcar and _celulares_cache["v"] is not None and time.time() - _celulares_cache["t"] < 60:
+        return _celulares_cache["v"]
+    v = avisos.pessoas(ha_get("/states"), ha_get("/services"), lambda m: ha_texto("/template", {"template": m}))
+    _celulares_cache.update(t=time.time(), v=v)
+    return v
+
+
+def ha_texto(caminho, corpo, timeout=15):
+    """Um POST ao Home Assistant que responde texto (o /api/template)."""
+    req = urllib.request.Request(HA_API + caminho, data=json.dumps(corpo).encode(), method="POST",
+                                 headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def mandar_aviso(alvos, titulo, mensagem, tag):
+    """Manda para estes celulares; devolve quantos o Home Assistant aceitou. O toque abre o app (/app/<slug>)."""
+    n = 0
+    for alvo in alvos:
+        try:
+            ha_post(f"/services/notify/{alvo}", avisos.corpo(titulo, mensagem, tag, atalho()))
+            n += 1
+            log(f"Aviso (Rondas) para {alvo}")
+        except Exception as e:  # noqa: BLE001
+            log(f"Aviso (Rondas) para {alvo}:", e)
+    return n
+
+
+def texto_atrasados(nomes, dias):
+    return ((f"{nomes[0]} está" if len(nomes) == 1 else f"{len(nomes)} cômodos estão") + f" sem ronda há mais de {dias} dias"
+            + ("." if len(nomes) == 1 else ": " + ", ".join(nomes[:8]) + ("…" if len(nomes) > 8 else ".")))
+
+
+def avisar_rondas(agora=None):
+    """Uma vez por dia, a partir do horário escolhido: se há cômodo atrasado, avisa os celulares de quem recebe. Devolve
+    quantos avisos saíram (None: não era a hora, ou já foi hoje)."""
+    c = ler_config()
+    agora = agora or datetime.now()
+    hoje = agora.strftime("%Y-%m-%d")
+    if not TOKEN or not c["ronda_dias"] or not c["ronda_para"] or agora.strftime("%H:%M") < c["ronda_hora"] or ESTADO.get("ronda_avisado") == hoje:
+        return None
+    if ler_json(RONDAS_ARQ).get("avisado") == hoje:  # o app reiniciou depois de avisar
+        ESTADO["ronda_avisado"] = hoje
+        return None
+    atras = [a["onde"] for a in conferir_rondas()]
+    ESTADO["ronda_avisado"] = hoje
+    with TRAVA_RONDAS:
+        d = ler_json(RONDAS_ARQ)
+        gravar_arquivo(RONDAS_ARQ, json.dumps({"historico": d.get("historico") if isinstance(d.get("historico"), list) else [], "avisado": hoje}, ensure_ascii=False))
+    if not atras:
+        return 0
+    alvos = [cel for p in pessoas_com_celular(True) if p["id"] in c["ronda_para"] for cel in p["celulares"]]
+    return mandar_aviso(list(dict.fromkeys(alvos)), "🧭 Ronda da casa", texto_atrasados(atras, c["ronda_dias"]), "correria-ronda")
+
+
+def testar_aviso_ronda(usuario):
+    """O Testar no meu celular: um aviso de exemplo para os celulares de quem está na tela."""
+    eu = next((p for p in pessoas_com_celular(True) if usuario and p["usuario"] == usuario), None)
+    if not eu:
+        raise ValueError("Você não é uma pessoa da casa no Home Assistant.")
+    if not eu["celulares"]:
+        raise ValueError("Sem celular ligado a você no Home Assistant.")
+    if not mandar_aviso(eu["celulares"], "🧭 Ronda da casa", "Teste: é assim que chega o aviso de cômodo sem ronda.", "correria-ronda-teste"):
+        raise ValueError("O Home Assistant não aceitou o aviso.")
+    return {"ok": True, "celulares": len(eu["celulares"])}
+
+
+def pessoas_do_aviso(usuario):
+    """Para a tela: {pessoas: [{id, nome, celular, eu}]} ou {erro}."""
+    try:
+        return {"pessoas": [{"id": p["id"], "nome": p["nome"], "celular": bool(p["celulares"]), "eu": bool(usuario) and p["usuario"] == usuario} for p in pessoas_com_celular()]}
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log("Não consegui ver os celulares das pessoas:", e)
+        return {"erro": "Não consegui ver as pessoas da casa."}
 
 
 def rondas_estado(chave, pessoa=None, listar=False):
@@ -1701,7 +1804,7 @@ def ronda_passo(corpo, pessoa, chave):
     guardar_pendente("tela:" + chave, None)  # mudou de etapa: o que esperava o sim da anterior não vale mais
     lista = conversa_tela(chave)
     hist = [{"papel": m.get("papel"), "texto": m.get("texto") or ""} for m in lista][-MAX_HISTORICO:]
-    eu = {"papel": "eu", "texto": rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, total), "em": agora_iso(), "ronda": True}
+    eu = {"papel": "eu", "em": agora_iso(), "ronda": True}
     ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total, r.get("opcoes") or ())
     etapa = rondas.etapa_de(r["id"], eid)
     if ped is None:  # a etapa só pergunta: sem a IA, na hora
@@ -1709,10 +1812,13 @@ def ronda_passo(corpo, pessoa, chave):
     else:
         resp = responder_ia("tela:" + chave, ped, hist, pessoa, "correria", "CorrerIA")
         texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
-        texto = rondas.arrumar(texto, r["id"], eid, r["onde"])
+        achou, texto = rondas.total(texto)  # 1.21.0: sem nada ali, as perguntas que não fazem sentido saem
+        r["etapas"] = rondas.sem_o_que_perguntar(r["id"], r["etapas"], r["i"], achou)
+        texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=not (achou == 0 and etapa.get("se_tem")))
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:
         ia_msg["confirmar"] = True
+    eu["texto"] = rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, len(r["etapas"]))
     lista += [eu, ia_msg]
     _gravar_tela(chave, lista)
     return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
@@ -1772,7 +1878,7 @@ class Tela(BaseHTTPRequestHandler):
                                      "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)})
         if p == "/api/rondas":  # 1.18.0: as rondas que dá para fazer agora (os cômodos vêm do InventarIA)
             pessoa, chave = pessoa_da_tela(self.headers)
-            return self.enviar(200, rondas_estado(chave, pessoa, listar=True))
+            return self.enviar(200, dict(rondas_estado(chave, pessoa, listar=True), aviso=pessoas_do_aviso(self.headers.get("X-Remote-User-Id") or "")))
         if p == "/api/conversas":
             return self.enviar(200, {"conversas": conversas_tela(pessoa_da_tela(self.headers)[1])})
         nome = "index.html" if p in ("/", "") else p.lstrip("/")
@@ -1823,6 +1929,8 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/conversa":
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, dict(conversar(c, pessoa, chave), ronda=rondas_estado(chave)))
+            if p == "/api/ronda/testar":  # 1.21.0: o Testar no meu celular
+                return self.enviar(200, testar_aviso_ronda(self.headers.get("X-Remote-User-Id") or ""))
             if p == "/api/ronda":  # 1.18.0: começar, próxima etapa, voltar ou sair
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, ronda_passo(c, pessoa, chave))
