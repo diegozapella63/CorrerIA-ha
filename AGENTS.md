@@ -106,6 +106,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.22.0: cada etapa de ronda leva `abrir: {texto, href}` na mensagem da IA (`rondas.abrir`: `/app/<slug>` do app, de `apps.painel_de`, o `painel` do correria.json ou o nome da máquina do `url`; o InventarIA em `/comodo/<nome>` ou `/consumiveis`, o ResolvIA em `?aba=buscar&comodo=`, o CronologIA em `?aba=rotinas` ou `calendario`); na tela, `a.ch-abrir` (`data-a="abrir-app"`: `pushState` e `location-changed` na página do Home Assistant, sem recarregar). `rondas.e_mais(texto, achou)`: a lista menor que o TOTAL termina em «- e mais N».
 
+1.22.1: o pedido do sim é só do app (`ia.py`): uma resposta só de texto com «Toque em Sim», «Vou fazer isto» ou «Pode confirmar?» (`FALSO_SIM_RE`) volta para a IA como erro (chamar a ferramenta de verdade) e, na última rodada, vira «Não consegui preparar essa mudança agora»; no histórico que vai para a IA, o bloco do app vira uma nota (`sem_o_pedido_do_sim`) e o «Pode confirmar?» dela sai da frase (`PERGUNTA_SIM_RE`).
+
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.

@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.22.1
+
+- **O Sim que não aparecia**: às vezes a IA escrevia "Toque em Sim para confirmar" sem ter preparado a mudança, e os botões não vinham. Agora ela é obrigada a preparar a mudança de verdade; se não conseguir, a resposta diz para pedir de novo.
+- O "Pode confirmar?" repetido antes do "Vou fazer isto" saiu.
+
 ## 1.22.0
 
 - **Rondas: abrir o app da etapa**. Embaixo de cada pergunta há o botão **Abrir no …**, que leva ao app já no lugar: o InventarIA no cômodo (ou nos consumíveis), o ResolvIA no Buscar com as tarefas do cômodo, o CronologIA nas Rotinas. O Voltar do celular volta para a ronda. Precisa do InventarIA 1.90.0, do ResolvIA 2.86.0 e do CronologIA 1.109.0; com um mais antigo, o app abre na tela de sempre.

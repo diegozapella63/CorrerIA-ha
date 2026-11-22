@@ -719,7 +719,7 @@ class TestComFerramentas(Base):
         self.mandar("lança 32,50 de feira")
         self.assertEqual(self.mandar("quanto tenho?")[0][1], "Hoje: 3 contas.", "outra pergunta desfaz o que esperava")
         self.assertEqual([f["nome"] for f in self.app.feitos], ["resumo"])
-        self.assertIn("IA: Vou fazer isto:", self.falsa.pedidos[-1], "a IA vê o que foi proposto")
+        self.assertIn("IA: (O app mostrou esta mudança, com os botões Sim e Não:\n- ", self.falsa.pedidos[-1], "a IA vê o que foi proposto (1.22.1: sem o texto do app para imitar)")
 
     def test_o_sim_vence_em_30_minutos(self):
         self.ia(LANCAR, {"resposta": "Sim o quê?"})

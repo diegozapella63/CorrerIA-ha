@@ -63,6 +63,26 @@ class TestAgente(unittest.TestCase):
         self.assertIn("na tela do app CorrerIA", self.ia.pedidos[0])
         self.assertIn("também pode conversar sobre outros assuntos", self.ia.pedidos[0])
 
+    def test_o_sim_escrito_pela_ia_sem_ferramenta_nao_vale(self):
+        """1.22.1 (o dono: "Cadê o sim?"): a IA imita o pedido do sim das mensagens de antes sem chamar a ferramenta: nada
+        ficaria esperando. Ela é avisada e chama de verdade; se insistir até a última rodada, a resposta diz que não deu."""
+        falso = {"resposta": "Vou cadastrar o Desinfetante (duração: 15 dias). Pode confirmar?\n\nVou fazer isto:\n- Cadastrar Desinfetante.\n\nToque em **Sim** para confirmar."}
+        ag = self.agente(falso, {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 3}, "resumo": "Lançar R$ 3,00 de Feira"}],
+                                 "resposta": "Vou lançar a feira. Pode confirmar?"})
+        hist = [{"papel": "eu", "texto": "lança 5 de pão"},
+                {"papel": "ia", "texto": "Vou lançar o pão. Pode confirmar?\n\nVou fazer isto:\n- Lançar R$ 5,00 de Pão\n\nToque em **Sim** para confirmar."},
+                {"papel": "eu", "texto": "Sim"}, {"papel": "ia", "texto": "Feito!"}, {"papel": "eu", "texto": "lança 3 de feira"}]
+        r = ag.responder(hist, ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(r["resposta"], "Vou lançar a feira.\n\nVou fazer isto:\n- Lançar R$ 3,00 de Feira\n\nToque em *Sim* para confirmar.", "sem o «Pode confirmar?» da IA")
+        self.assertEqual(len(r["pendente"]), 1, "agora a mudança espera o sim de verdade")
+        p1, p2 = self.ia.pedidos
+        self.assertIn("IA: Vou lançar o pão.\n\n(O app mostrou esta mudança, com os botões Sim e Não:\n- Lançar R$ 5,00 de Pão)\nPessoa: Sim", p1, "o histórico sem o bloco para imitar")
+        self.assertNotIn("Toque em **Sim**", p1.split("A conversa (")[1].split("Responda")[0])
+        self.assertIn("não chamou nenhuma ferramenta", p2)
+        ag = self.agente(*([falso] * I.RODADAS))
+        r = ag.responder(self.hist("cadastra"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(r, {"resposta": "Não consegui preparar essa mudança agora. Pode pedir de novo?", "pendente": [], "apps": []})
+
     def test_sem_resumo_monta_um(self):
         ag = self.agente({"chamar": [{"ferramenta": "gerencia_apagar", "argumentos": {"id": "l1"}}, {"ferramenta": "gerencia_lancar", "argumentos": {"valor": 1}}]})
         r = ag.responder(self.hist("apaga e lança"), ANA, "whatsapp", "WhatsApp", AGORA)

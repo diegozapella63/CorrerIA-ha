@@ -786,6 +786,35 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.locator(".ch-sim").count(), 0, "respondido: sem os botões")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
 
+    def test_o_sim_fica_a_vista_no_meio_de_uma_ronda(self):
+        """1.22.1 (o dono, numa ronda: "Cadê o sim?"): a mudança que espera o sim, com a faixa da ronda em cima da caixa:
+        os botões Sim e Não ficam à vista, acima do pé."""
+        import json as _json
+        longa = [{"papel": "eu" if k % 2 == 0 else "ia", "texto": f"Mensagem {k} " + "bla " * 30, "em": "2026-11-18T10:00:00", **({"app": "InventarIA", "app_id": "_ia"} if k % 2 else {})} for k in range(8)]
+        espera = longa + [{"papel": "eu", "texto": "adiciona desinfetante duração 15 dias", "em": "2026-11-18T10:00:00"},
+                          {"papel": "ia", "texto": "Vou cadastrar o Desinfetante nos consumíveis (duração: 15 dias, categoria Limpeza, usado no Banheiro). Pode confirmar?\n\nVou fazer isto:\n- Cadastrar consumível Desinfetante no InventarIA.\n\nToque em *Sim* para confirmar.",
+                           "em": "2026-11-18T10:00:01", "confirmar": True, "app": "InventarIA", "app_id": "_ia"}]
+        ronda = {"ativa": {"id": "casa", "nome": "Ronda da casa", "onde": "Banheiro de visitas", "n": 9, "total": 12, "etapa": "Novo", "grupo": "Consumíveis", "app": "InventarIA"}, "feitos": []}
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+
+        def conversa(route):
+            if route.request.method == "POST":
+                return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": espera, "conversa": "c1"}))
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": espera[:-2], "pessoa": "Ana", "ola": "", "conversa": "c1", "ronda": ronda}))
+        self.pg.route("**/api/conversa", conversa)
+        self.pg.goto(self.url)
+        self.pg.wait_for_selector(".ch-ronda")
+        self.pg.fill("#ch-txt", "adiciona desinfetante duração 15 dias")
+        self.pg.click('[data-a="ch-enviar"]')
+        self.pg.wait_for_selector(".ch-sim .btn")
+        self.pg.wait_for_timeout(300)
+        sim, pe, alto = self.pg.evaluate("[document.querySelector('.ch-sim').getBoundingClientRect().bottom, document.querySelector('.ch-pe').getBoundingClientRect().top, document.querySelector('.ch-sim').getBoundingClientRect().top]")
+        self.pg.screenshot(path="/tmp/sim.png")
+        self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
+        self.assertGreaterEqual(alto, 0)
+
     def test_ronda_da_casa(self):
         """1.18.0: o botão Rondas no alto da Conversa abre a escolha (a ronda e os cômodos do InventarIA); o cômodo começa a
         ronda: a etapa entra na conversa e a faixa em cima da caixa tem Voltar e Próxima, do mesmo tamanho; na última,

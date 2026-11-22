@@ -130,7 +130,7 @@ class Agente:
         if foto:  # 1.17.0: a foto que chegou há pouco, para a ferramenta que recebe foto (uma tarefa)
             partes.append(f"A pessoa mandou uma foto há pouco ({foto}). Você não vê a foto. Se ela pedir para guardar a foto em algo (numa "
                           "tarefa), ache o id com uma ferramenta de leitura e chame a ferramenta que recebe a foto; se não disse onde, pergunte.")
-        conversa = [("IA: " if m.get("papel") == "ia" else "Pessoa: ") + str(m.get("texto") or "").strip()[:2000]
+        conversa = [("IA: " + sem_o_pedido_do_sim(m.get("texto")) if m.get("papel") == "ia" else "Pessoa: " + str(m.get("texto") or "").strip()[:2000])
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))
         if resultados:
@@ -169,6 +169,7 @@ class Agente:
                 linhas = "\n".join(f"- {p['resumo']}" for p in pend)
                 if len(gravar) > MAX_ACOES:  # 1.9.0: as que não couberam não somem caladas
                     linhas += f"\n(Mais {len(gravar) - MAX_ACOES} ficam para depois: peça de novo depois do sim.)"
+                texto = PERGUNTA_SIM_RE.sub("", texto).strip()  # o "Pode confirmar?" da IA: os botões já perguntam
                 frase = (texto + "\n\n") if texto else ""
                 # 1.10.0: o Sim e o Não vêm em botões, na tela e no WhatsApp (escrever sim também vale)
                 return {"resposta": f"{frase}Vou fazer {'isto' if len(pend) == 1 else 'isto tudo'}:\n{linhas}\n\nToque em *Sim* para confirmar.",
@@ -189,11 +190,32 @@ class Agente:
                 for _, c in desconhecidas:
                     resultados.append(f"{c.get('ferramenta') or c.get('nome')} → ERRO: essa ferramenta não existe. Use só as da lista.")
                 continue
+            if texto and FALSO_SIM_RE.search(texto):
+                # 1.22.1 (o dono: "Cadê o sim?"): a IA escreveu que ia mudar e pediu o sim, imitando as mensagens de antes, sem
+                # chamar a ferramenta: nada ficou esperando. Volta para ela chamar de verdade; na última rodada, diz que não deu.
+                if not ultima:
+                    resultados.append("ERRO: você escreveu que vai fazer uma mudança e pediu o sim, mas não chamou nenhuma ferramenta, então nada foi "
+                                      "preparado. Para mudar algo, devolva a ferramenta que grava em «chamar», com os argumentos e o resumo: o app "
+                                      "mostra a mudança e os botões Sim e Não. Nunca escreva «Vou fazer isto», «Toque em Sim» nem «Pode confirmar?».")
+                    continue
+                return {"resposta": "Não consegui preparar essa mudança agora. Pode pedir de novo?", "pendente": [], "apps": usados}
             if texto:
                 return {"resposta": texto, "pendente": [], "apps": usados}
             if ultima:
                 break
         return {"resposta": "Não consegui responder agora. Pode perguntar de outro jeito?", "pendente": [], "apps": usados}
+
+
+# 1.22.1: o pedido do sim é do app, nunca da IA. No histórico que vai para a IA, o bloco que o app escreveu vira uma nota
+# (para ela não imitar); uma resposta só de texto que pede o sim é um engano dela (FALSO_SIM_RE).
+BLOCO_SIM_RE = re.compile(r"Vou fazer isto(?: tudo)?:\n(.*?)\n*Toque em \*{1,2}Sim\*{1,2} para confirmar\.", re.S)
+PERGUNTA_SIM_RE = re.compile(r"\s*(?:Pode(?:mos)? confirmar|Posso confirmar|Confirma|Posso (?:fazer|seguir|prosseguir|cadastrar|criar|lançar|apagar))[^.?!\n]*\?", re.I)
+FALSO_SIM_RE = re.compile(r"Toque em \*{0,2}Sim\b|Vou fazer isto|\b(?:pode|posso) confirmar\s*\?|responda \*{0,2}sim\b", re.I)
+
+
+def sem_o_pedido_do_sim(texto):
+    t = BLOCO_SIM_RE.sub(lambda m: "(O app mostrou esta mudança, com os botões Sim e Não:\n" + m.group(1).strip() + ")", str(texto or "").strip())
+    return PERGUNTA_SIM_RE.sub("", t).strip()[:2000]
 
 
 # ---------------------------------------------------------------- a IA simulada (no computador, sem o Home Assistant)
