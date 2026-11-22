@@ -199,8 +199,7 @@ def simulado(texto, lista, resultados):
     ronda = re.search(r"etapa \d+ de \d+", t) and re.search(r"\bUse (\w+)", texto or "")  # 1.18.0: uma etapa de uma ronda
     if resultados:
         primeiras = "\n".join(resultados[-1].split("→", 1)[-1].strip().splitlines()[:6])
-        pergunta = re.search(r"exatamente assim: «(.+?)»", texto or "") if ronda else None
-        return {"resposta": f"Pelo que vi:\n{primeiras}" + (f"\n{pergunta.group(1)}" if pergunta else "")}
+        return {"resposta": f"Pelo que vi:\n{primeiras}"}
     if ronda and ronda.group(1) in ids:
         f = next(x for x in lista if x["id"] == ronda.group(1))
         onde = re.search(r"cômodo «(.+?)»", (texto or "")[ronda.start():])

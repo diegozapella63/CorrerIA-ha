@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.19.0
+
+- **Histórico das rondas**: cada ronda concluída fica guardada. Ao escolher o cômodo, cada um mostra há quantos dias foi a última ronda; em **Configurações › Opções › Rondas**, as **Últimas rondas**.
+- **Rondas mais fáceis de ler**: o que o app achou vem em lista, uma linha por item, e a pergunta fica à parte, em negrito. A última mensagem não fica mais atrás da faixa da ronda.
+- **Aviso de cômodo sem ronda**: escolha 15, 30 ou 45 dias, **Outro** (de 1 a 365) ou **Nunca**. O cômodo atrasado ganha um ponto no botão das Rondas, vem marcado na escolha e aparece no sino do Home Assistant.
+
 ## 1.18.0
 
 - **Rondas**: o botão novo no alto da Conversa abre a **Ronda da casa**. Escolha um cômodo e o CorrerIA passa pelos apps, **uma pergunta de cada vez**: as tarefas (ResolvIA), os itens e os consumíveis (InventarIA) e as compras (EconomIA: mercado, farmácia e pet shop, cada um na sua vez). Na primeira pergunta de cada app ele mostra o que há; você responde na conversa (as mudanças continuam esperando o seu **Sim**) ou toca em **Próxima**. No fim, escolha o próximo cômodo; os já feitos ficam marcados.

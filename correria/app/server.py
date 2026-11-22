@@ -75,6 +75,7 @@ USO = uso.Uso(os.path.join(DATA_DIR, "uso_ia.json"))  # Uso da IA: as chamadas d
 CANAL = threading.local()  # o canal da pergunta que está na IA agora (whatsapp ou conversa), para o Uso da IA
 CONVERSAS_ARQ = os.path.join(DATA_DIR, "conversas.json")
 MCP_ARQ = os.path.join(DATA_DIR, "mcp.json")
+RONDAS_ARQ = os.path.join(DATA_DIR, "rondas.json")  # 1.19.0: o histórico das rondas (as últimas 500)
 PENDENTE_VALE = 30 * 60       # uma mudança proposta espera o "sim" por até 30 minutos
 MAX_MCP = 1024 * 1024
 MAX_CORPO = 3 * 1024 * 1024   # a Meta manda até 3 MB
@@ -131,6 +132,8 @@ def ler_config():
            "casa": c.get("casa") is not False, "recolher": c.get("recolher") if c.get("recolher") in RECOLHER else 3,
            # 1.7.0: as conversas paradas há mais de tantos dias saem sozinhas (0: nunca; 30 de início)
            "apagar_dias": c.get("apagar_dias") if c.get("apagar_dias") in APAGAR_DIAS else 30,
+           # 1.19.0: avisar quando um cômodo fica sem ronda há mais de tantos dias (0: nunca; 30 de início; até 365)
+           "ronda_dias": c["ronda_dias"] if isinstance(c.get("ronda_dias"), int) and not isinstance(c.get("ronda_dias"), bool) and 0 <= c["ronda_dias"] <= 365 else 30,
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
@@ -217,6 +220,11 @@ def salvar_config(corpo):
             if corpo.get("apagar_dias") not in APAGAR_DIAS or isinstance(corpo.get("apagar_dias"), bool):
                 raise ValueError("Escolha 7, 30 ou 90 dias, ou nunca.")
             c["apagar_dias"] = corpo.get("apagar_dias")
+        if "ronda_dias" in corpo:  # 1.19.0
+            n = corpo.get("ronda_dias")
+            if not isinstance(n, int) or isinstance(n, bool) or not 0 <= n <= 365:
+                raise ValueError("Escolha de 1 a 365 dias, ou nunca.")
+            c["ronda_dias"] = n
         if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
             e = str(corpo.get("ia_entidade") or "")
             if not IA_RE.match(e):
@@ -241,6 +249,8 @@ def salvar_config(corpo):
         threading.Thread(target=publicar_sensores if c["sensores"] else remover_sensores, daemon=True).start()
     if "apagar_dias" in corpo:  # 1.7.0: as velhas saem na hora
         limpar_conversas_velhas()
+    if "ronda_dias" in corpo:  # 1.19.0: confere na hora (a tela já recebe os atrasados do prazo novo)
+        _tentar(conferir_rondas)
     if "tunel" in corpo:  # 1.13.0: abre ou fecha a porta do túnel na hora
         ligar_tunel(c["tunel"])
     return c
@@ -991,6 +1001,11 @@ def laco_sensores():
             rodada_sensores()
         except Exception as e:  # noqa: BLE001
             log("Sensores:", e)
+        if volta % 60 == 0:  # 1.19.0: de hora em hora, os cômodos sem ronda há tempo demais
+            try:
+                conferir_rondas()
+            except Exception as e:  # noqa: BLE001
+                log("Rondas:", e)
         if volta % 60 == 0:  # 1.7.0: de hora em hora (e ao começar), as conversas velhas saem
             try:
                 limpar_conversas_velhas()
@@ -1292,6 +1307,9 @@ def estado():
         # 1.5.0: a casa do Home Assistant (o Assist); disponivel: só dentro do Home Assistant
         "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},
         "recolher": c["recolher"], "apagar_dias": c["apagar_dias"],
+        # 1.19.0: as rondas: o prazo do aviso, os cômodos atrasados (conferidos de hora em hora) e as últimas 30 do histórico
+        "rondas": {"avisar_dias": c["ronda_dias"], "atrasados": [a["onde"] for a in ESTADO.get("rondas_atrasadas") or []],
+                   "historico": [{"onde": x["onde"], "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
@@ -1560,6 +1578,66 @@ def conversar(corpo, pessoa, chave):
 # como uma mensagem da pessoa (só o rótulo: "Ronda da casa · Sala · Tarefas (1 de 4)") e a resposta da IA, que leu o app da
 # etapa e faz a pergunta; o que a pessoa responder segue pela Conversa de sempre, com o sim antes de qualquer mudança.
 RONDAS_ATIVAS = {}
+MAX_RONDAS = 500
+TRAVA_RONDAS = threading.Lock()
+
+
+def historico_rondas():
+    h = ler_json(RONDAS_ARQ).get("historico")
+    return [x for x in h if isinstance(x, dict) and x.get("onde") and x.get("em")] if isinstance(h, list) else []
+
+
+def anotar_ronda(rid, onde, pessoa, perguntas):
+    """Uma ronda concluída vai para o histórico (/data/rondas.json, as últimas 500)."""
+    with TRAVA_RONDAS:
+        h = historico_rondas() + [{"ronda": rid, "onde": onde, "em": agora_iso(), "pessoa": str((pessoa or {}).get("nome") or ""), "perguntas": perguntas}]
+        gravar_arquivo(RONDAS_ARQ, json.dumps({"historico": h[-MAX_RONDAS:]}, ensure_ascii=False))
+
+
+def _dias_desde(iso, agora=None):
+    try:
+        return max(0, ((agora or datetime.now()).date() - datetime.fromisoformat(str(iso)).date()).days)
+    except ValueError:
+        return None
+
+
+def ultimas_rondas(rid="casa", agora=None):
+    """{cômodo: há quantos dias foi a última ronda concluída ali}."""
+    out = {}
+    for x in historico_rondas():
+        d = _dias_desde(x["em"], agora) if x.get("ronda") == rid else None
+        if d is not None:
+            out[x["onde"]] = d if x["onde"] not in out else min(out[x["onde"]], d)
+    return out
+
+
+def rondas_atrasadas(comodos, agora=None):
+    """Os cômodos sem ronda há mais de ronda_dias (com o aviso ligado). Um cômodo que nunca teve ronda só conta depois da
+    primeira ronda da casa: numa instalação nova não há do que avisar."""
+    limite = ler_config()["ronda_dias"]
+    ult = ultimas_rondas("casa", agora)
+    if not limite or not ult:
+        return []
+    return [{"onde": c, "dias": ult.get(c)} for c in comodos if ult.get(c) is None or ult[c] > limite]
+
+
+def conferir_rondas():
+    """De hora em hora (e quando uma ronda acaba ou o prazo muda): guarda os atrasados para a tela e avisa no sino do Home
+    Assistant (um aviso só, que muda com a lista e some quando não há mais nenhum)."""
+    disp = next((x for x in (rondas.disponiveis(FERR) if FERR.tem() else []) if x["id"] == "casa"), None)
+    atras = rondas_atrasadas(disp["onde"]) if disp else []
+    antes = ESTADO.get("rondas_atrasadas")
+    ESTADO["rondas_atrasadas"] = atras
+    nomes = [a["onde"] for a in atras]
+    if not TOKEN or nomes == [a["onde"] for a in antes or []]:
+        return atras
+    if nomes:
+        n = ler_config()["ronda_dias"]
+        texto = (f"{nomes[0]} está" if len(nomes) == 1 else f"{len(nomes)} cômodos estão") + f" sem ronda há mais de {n} dias" + ("." if len(nomes) == 1 else ": " + ", ".join(nomes[:8]) + ("…" if len(nomes) > 8 else "."))
+        _tentar(ha_post, "/services/persistent_notification/create", {"notification_id": "correria_ronda", "title": "CorrerIA · Ronda da casa", "message": texto})
+    elif antes:
+        _tentar(ha_post, "/services/persistent_notification/dismiss", {"notification_id": "correria_ronda"})
+    return atras
 
 
 def rondas_estado(chave, pessoa=None, listar=False):
@@ -1570,9 +1648,12 @@ def rondas_estado(chave, pessoa=None, listar=False):
         e = rondas.etapa_de(r["id"], r["etapas"][r["i"]])
         ativa = {"id": r["id"], "nome": rondas.RONDAS[r["id"]]["nome"], "onde": r["onde"], "n": r["i"] + 1, "total": len(r["etapas"]),
                  "etapa": e["titulo"], "grupo": e["grupo"], "app": e["nome_app"]}
-    out = {"ativa": ativa, "feitos": list(RONDAS_FEITOS.get(chave, {}).get("feitos") or [])}
+    ult = ultimas_rondas()
+    out = {"ativa": ativa, "feitos": [c for c, d in ult.items() if d == 0], "ultimas": ult, "avisar_dias": ler_config()["ronda_dias"]}
     if listar:
         out["rondas"] = rondas.disponiveis(FERR, pessoa) if FERR.tem() else []
+        casa_ = next((x for x in out["rondas"] if x["id"] == "casa"), None)
+        out["atrasados"] = [a["onde"] for a in rondas_atrasadas(casa_["onde"])] if casa_ else []
     return out
 
 
@@ -1591,20 +1672,18 @@ def ronda_passo(corpo, pessoa, chave):
             raise ValueError("Esta ronda não está disponível: ligue o CorrerIA nos apps (Mais › Configurações › Integrações).")
         if not onde or (disp["onde"] and onde not in disp["onde"]):
             raise ValueError("Escolha o cômodo.")
-        if RONDAS_FEITOS.get(chave, {}).get("id") != rid:
-            RONDAS_FEITOS.pop(chave, None)
         r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": [e["id"] for e in disp["etapas"]]}
     elif not r:
         raise ValueError("Nenhuma ronda em andamento.")
     elif acao == "proxima":
         if r["i"] + 1 >= len(r["etapas"]):  # a última etapa: o cômodo fica feito e a ronda espera o próximo
-            feitos = [x for x in (RONDAS_FEITOS.get(chave, {}).get("feitos") or []) if x != r["onde"]] + [r["onde"]]
             RONDAS_ATIVAS.pop(chave, None)
             lista = conversa_tela(chave)
             lista += [{"papel": "eu", "texto": f"{rondas.RONDAS[r['id']]['nome']} · {r['onde']} · concluída", "em": agora_iso(), "ronda": True},
                       {"papel": "ia", "texto": f"Ronda de {r['onde']} concluída. Quando quiser, escolha o próximo cômodo.", "em": agora_iso(), "app": "CorrerIA", "app_id": "_ia"}]
             _gravar_tela(chave, lista)
-            RONDAS_FEITOS[chave] = {"id": r["id"], "feitos": feitos}
+            anotar_ronda(r["id"], r["onde"], pessoa, len(r["etapas"]))
+            threading.Thread(target=lambda: _tentar(conferir_rondas), daemon=True).start()
             return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave, pessoa, listar=True)}
         r["i"] += 1
     elif acao == "voltar":
@@ -1619,21 +1698,17 @@ def ronda_passo(corpo, pessoa, chave):
     ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total)
     etapa = rondas.etapa_de(r["id"], eid)
     if ped is None:  # a etapa só pergunta: sem a IA, na hora
-        texto, nomes, confirmar = rondas.pergunta(r["id"], eid, r["onde"]), [etapa["nome_app"]], False
+        texto, nomes, confirmar = rondas.arrumar("", r["id"], eid, r["onde"]), [etapa["nome_app"]], False
     else:
         resp = responder_ia("tela:" + chave, ped, hist, pessoa, "correria", "CorrerIA")
-        if resp is None:
-            resp = (rondas.pergunta(r["id"], eid, r["onde"]), [etapa["nome_app"]], False)
-        texto, nomes, confirmar = resp
+        texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
+        texto = rondas.arrumar(texto, r["id"], eid, r["onde"])
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:
         ia_msg["confirmar"] = True
     lista += [eu, ia_msg]
     _gravar_tela(chave, lista)
     return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
-
-
-RONDAS_FEITOS = {}  # os cômodos já feitos na ronda de cada login (para a tela marcar), enquanto o app está no ar
 
 
 class Tela(BaseHTTPRequestHandler):

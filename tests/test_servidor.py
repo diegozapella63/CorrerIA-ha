@@ -1219,7 +1219,7 @@ class TestTela(Base):
         cab = {"X-Remote-User-Id": "u-beto", "X-Remote-User-Display-Name": "Beto"}
         self.addCleanup(S._gravar_tela, "u-beto", [])
         st, r = pedir(self.url + "/api/conversa", cab=cab)
-        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto", "ola": "Beto", "conversa": None, "ronda": {"ativa": None, "feitos": []}})
+        self.assertEqual(json.loads(r), {"mensagens": [], "pessoa": "Beto", "ola": "Beto", "conversa": None, "ronda": {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30}})
         st, r = pedir(self.url + "/api/conversa", "POST", {"texto": "Quanto gastei?"}, cab)
         self.assertEqual((st, json.loads(r)["mensagens"][-1]["app"]), (200, "GerencIA"))
         st, r = pedir(self.url + "/api/conversa/limpar", "POST", {}, cab)

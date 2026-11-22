@@ -10,8 +10,10 @@ cômodo; o InventarIA sem os consumíveis não tem a etapa deles).
 Para criar outra ronda: mais uma entrada em RONDAS, com as etapas (o app, a ferramenta que precisa existir e o pedido).
 """
 import json
+import re
 
-FIM = "Não mude nada agora: só leia e conte. Responda em até 5 linhas curtas, sem título, e termine com UMA pergunta só, exatamente assim: «{pergunta}»"
+FIM = ("Não mude nada agora: só leia e conte. Responda assim: uma frase curta com o total; depois, se houver itens, um por linha, "
+       "cada linha começando com «- » (no máximo 6); nada mais. NÃO faça pergunta nenhuma: o app escreve a pergunta «{pergunta}» logo abaixo.")
 DEPOIS = ("Quando a pessoa responder, proponha as mudanças só no {app} (é o app desta etapa); se ela disser que não há nada, "
           "diga só que pode seguir para a próxima etapa.")
 
@@ -119,3 +121,31 @@ def contexto(rid, eid, onde):
     e = etapa_de(rid, eid)
     return (f"(Estou na {RONDAS[rid]['nome']}, cômodo «{onde}», etapa {e['titulo']}: a minha próxima mensagem responde a «{e['pergunta'].format(onde=onde)}». "
             f"As mudanças desta etapa são no {e['nome_app']}; responda só a isso, sem fazer outra pergunta; se eu disser que não há nada, diga só para eu tocar em Próxima.)")
+
+
+def arrumar(texto, rid, eid, onde):
+    """A resposta da IA numa etapa, arrumada para ler: a pergunta sai de dentro do texto (a IA às vezes repete, entre «»),
+    uma lista escrita numa linha só («: - a - b») vira uma linha por item, e a pergunta da etapa vem no fim, à parte, em negrito."""
+    p = pergunta(rid, eid, onde)
+    t = str(texto or "").replace("\r\n", "\n")
+    t = re.sub(r"\s*[«\"“*]*" + re.escape(p) + r"[»\"”*]*", "", t)
+    t = re.sub(r"(?<=[:.;])[ \t]+[-•–][ \t]+(?=\S)", "\n- ", t)       # o primeiro item, depois de «:»
+    linhas = []
+    for l in t.split("\n"):
+        if re.match(r"\s*[-•–]\s+", l):  # os outros itens da mesma linha
+            l = re.sub(r"[ \t]+[-•–][ \t]+(?=[A-ZÀ-Ú0-9])", "\n- ", re.sub(r"^\s*[-•–]\s+", "- ", l))
+            ult = l.split("\n")
+            m = re.match(r"(- .+?[.!?])\s+([A-ZÀ-Ú].+)$", ult[-1])  # a frase que vem depois do último item
+            if m and len(ult) > 1:
+                ult[-1:] = [m.group(1).rstrip("."), "", m.group(2)]
+            linhas += ult
+        else:
+            linhas.append(l.strip())
+    out = []
+    for l in linhas:  # a lista num parágrafo só dela (a tela desenha como lista)
+        item = l.startswith("- ")
+        if out and out[-1] and l and item != out[-1].startswith("- "):
+            out.append("")
+        out.append(l)
+    corpo = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    return (corpo + "\n\n" if corpo else "") + f"*{p}*"

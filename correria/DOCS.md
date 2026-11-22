@@ -156,9 +156,11 @@ Uma ronda é um roteiro pronto que passa pelos apps, uma etapa de cada vez, dent
 
 Na primeira pergunta de cada app, o CorrerIA mostra antes o que já há ali (as tarefas pendentes, os últimos itens, os consumíveis acabando, a lista de compras).
 
-Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai. Depois da última etapa, escolha o próximo cômodo (os feitos ficam marcados até o app reiniciar).
+Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai. Depois da última etapa, escolha o próximo cômodo (os feitos no dia ficam marcados).
 
 A ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
+
+**Histórico e aviso**: cada ronda concluída fica guardada, e na escolha do cômodo aparece há quantos dias foi a última. Em **Configurações › Opções › Rondas** ficam as **Últimas rondas** e o **Avisar cômodo sem ronda há mais de**: 15, 30 (de início) ou 45 dias, **Outro** (de 1 a 365) ou **Nunca**. Um cômodo atrasado ganha um ponto no botão das Rondas, vem marcado na escolha e aparece no sino do Home Assistant (conferido de hora em hora). Um cômodo que nunca teve ronda só conta depois da primeira ronda da casa.
 
 ## Atalho no celular
 

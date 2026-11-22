@@ -395,7 +395,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardRondas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -522,6 +522,25 @@
         <div class="chips-tempo" role="radiogroup" aria-label="Guardar as conversas por">${APAGAR_DIAS.map(n => `<button role="radio" aria-checked="${d === n}" class="chip${d === n ? ' on' : ''}" data-a="apagar-dias" data-v="${n}">${ic(n ? 'calendar' : 'check', 'ic-s')}${n ? n + ' dias' : 'Sempre'}</button>`).join('')}</div>
         <span class="dica">Sem uso por esse tempo, saem sozinhas: as da tela e as mensagens do WhatsApp.</span></div></section>`;
   }
+  /* ---------- Configurações › Opções › Rondas (1.19.0): avisar quando um cômodo fica sem ronda há mais de tantos dias
+     (15, 30, 45 ou Outro, até 365; Nunca desliga) e as últimas rondas feitas */
+  const RONDA_DIAS = [15, 30, 45];
+  function cardRondas(e) {
+    const R = e.rondas;
+    if (!R || !e.apps.length) return '';
+    const d = R.avisar_dias, outro = S.rondaOutro || (d && !RONDA_DIAS.includes(d));
+    const chip = (v, txt, on, icone) => `<button role="radio" aria-checked="${on}" class="chip${on ? ' on' : ''}" data-a="ronda-dias" data-v="${v}">${ic(icone, 'ic-s')}${txt}</button>`;
+    const H = R.historico || [];
+    return `<section class="card" id="rondas">${cab('ronda', 'Rondas')}
+      <div class="campo">${tituloLinha('alert', 'Avisar cômodo sem ronda há mais de')}
+        <div class="chips-tempo" role="radiogroup" aria-label="Avisar cômodo sem ronda há mais de">${RONDA_DIAS.map(n => chip(n, n + ' dias', !outro && d === n, 'calendar')).join('')}${chip('outro', 'Outro', !!outro, 'nova')}${chip(0, 'Nunca', !outro && d === 0, 'x')}</div>
+        ${outro ? `<div class="sub-op"><div class="sub-box ch-ed-nova"><input id="ronda-outro" class="inp" type="number" inputmode="numeric" min="1" max="365" aria-label="Dias" placeholder="Dias" value="${RONDA_DIAS.includes(d) || !d ? '' : d}">
+            <button class="btn pri" data-a="ronda-outro">${ic('check', 'ic-s')}Salvar</button></div></div>` : ''}
+        <span class="dica">${(R.atrasados || []).length ? `Atrasados: ${esc(R.atrasados.join(', '))}.` : 'O aviso aparece no botão das Rondas e no sino do Home Assistant.'}</span></div>
+      <details class="uso-ult ronda-hist"${S.rondaHist ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas rondas${H.length ? ` (${H.length})` : ''}</summary>
+        <ul>${H.map(x => `<li><b>${esc(x.onde)}</b><span>${esc(dataCurta(x.em))}${x.pessoa ? ' · ' + esc(x.pessoa) : ''}</span></li>`).join('') || '<li>Nenhuma ronda ainda.</li>'}</ul></details></section>`;
+  }
+  const dataCurta = iso => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(String(iso || '')); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : ''; };
   function cardTelaCheia(e) {
     if (!e.painel) return '';
     const m = RECOLHER.includes(e.recolher) ? e.recolher : 3;
@@ -677,7 +696,7 @@
     return `<header class="cab"><div class="cab-l"><p class="eyebrow"><span class="brand">Correr<span>IA</span></span>${c.ola ? `<span class="ola-sep"> · </span>Olá, ${esc(c.ola)}` : ''}</p><h1>${tituloTela('Conversa')}</h1></div>
         <div class="cab-bts">${lateral() ? '' : `<button class="bt-icone" data-a="conversas" aria-label="Conversas" title="Conversas">${ic('conversas')}</button>
           ${M && M.length ? `<button class="bt-icone" data-a="ch-nova" aria-label="Nova conversa" title="Nova conversa">${ic('nova')}</button>` : ''}`}
-          ${e.apps.length ? `<button class="bt-icone${c.rondas || c.ronda ? ' on' : ''}" data-a="rondas" aria-label="Rondas" title="Rondas" aria-expanded="${c.rondas ? 'true' : 'false'}">${ic('ronda')}</button>` : ''}
+          ${e.apps.length ? `<button class="bt-icone${c.rondas || c.ronda ? ' on' : ''}${nAtras(e) ? ' aviso' : ''}" data-a="rondas" aria-label="${nAtras(e) ? `Rondas: ${nAtras(e)} ${nAtras(e) === 1 ? 'cômodo atrasado' : 'cômodos atrasados'}` : 'Rondas'}" title="Rondas" aria-expanded="${c.rondas ? 'true' : 'false'}">${ic('ronda')}</button>` : ''}
           ${botaoCheia(e)}${lateral() ? '' : `<button class="bt-icone" data-a="mais" aria-label="Mais" title="Mais">${ic('mais')}</button>`}</div></header>
       ${pendentes(e)}
       <div class="ch-lista" id="ch-lista">${corpo}</div>
@@ -1065,6 +1084,7 @@
     document.body.classList.toggle('lado', lateral());
     pintarLado();
     aplicarCor();
+    if (S.tela) $('#app').style.paddingBottom = '';
     $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) {
       const el = document.getElementById(ativo);
@@ -1072,6 +1092,10 @@
       try { if (el && sel && sel[0] != null) el.setSelectionRange(sel[0], sel[1]); } catch (_) { /* um campo sem cursor */ }
     }
     if (!S.tela) {
+      // 1.19.0: o pé da Conversa cresce (a faixa da ronda, a escolha do cômodo, as perguntas prontas): a lista ganha o
+      // espaço dele, para a última mensagem não ficar atrás
+      const pe = document.querySelector('.ch-pe'), app = $('#app');
+      app.style.paddingBottom = pe && getComputedStyle(pe).position === 'fixed' && pe.offsetHeight > 130 ? (pe.offsetHeight + 20) + 'px' : '';
       window.scrollTo(0, document.body.scrollHeight);
       const l = cabPainel() && $('#ch-lista');  // 1.4.0: no lugar da folha, a lista rola dentro do quadro
       if (l) l.scrollTop = l.scrollHeight;
@@ -1135,12 +1159,13 @@
   /* ---------- Rondas (1.18.0): um roteiro fixo pelos apps, uma etapa de cada vez, dentro da Conversa. O botão no alto
      abre a escolha (a ronda e o cômodo); em andamento, a faixa em cima da caixa diz a etapa e tem Voltar, Próxima e Sair.
      Cada etapa chega como uma mensagem da IA, que leu o app e faz a pergunta; a resposta segue pela Conversa de sempre. */
+  const nAtras = e => ((e.rondas || {}).atrasados || []).length;
   async function abrirRondas() {
     const c = S.ch;
     if (c.rondas && c.rondas.aberto) { c.rondas = null; render(); return; }
     Object.assign(c, { rondas: { aberto: true, lista: null, livre: '' }, rapidas: false, editando: null, menu: false });
     render();
-    try { const r = await api.rondas(); if (c.rondas) { c.rondas.lista = r.rondas || []; c.rondaFeitos = r.feitos || []; } }
+    try { const r = await api.rondas(); if (c.rondas) { c.rondas.lista = r.rondas || []; guardarRondas(r); } }
     catch (err) { c.rondas = null; toast(err.message); }
     render();
   }
@@ -1155,7 +1180,7 @@
       c.msgs = r.mensagens || [];
       c.conversa = r.conversa || null;
       c.ronda = (r.ronda && r.ronda.ativa) || null;
-      c.rondaFeitos = (r.ronda && r.ronda.feitos) || c.rondaFeitos || [];
+      guardarRondas(r.ronda);
       c.lista = undefined;
       if (r.ronda && r.ronda.rondas && !c.ronda && corpo.acao === 'proxima') c.rondas = { aberto: true, lista: r.ronda.rondas, livre: '' };  // concluída: o próximo cômodo
     } catch (err) {
@@ -1166,15 +1191,24 @@
     render();
     armarRecolher();
   }
+  function guardarRondas(r) {
+    if (!r) return;
+    const c = S.ch;
+    c.rondaFeitos = r.feitos || c.rondaFeitos || [];
+    if (r.ultimas) c.rondaUltimas = r.ultimas;
+    if (r.atrasados) { c.rondaAtrasados = r.atrasados; if (S.e && S.e.rondas) S.e.rondas.atrasados = r.atrasados; }
+  }
+  const haDias = d => d == null ? 'nunca' : d === 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
   function blocoRondas() {
-    const R = S.ch.rondas, feitos = S.ch.rondaFeitos || [];
+    const R = S.ch.rondas, feitos = S.ch.rondaFeitos || [], ult = S.ch.rondaUltimas || {}, atras = S.ch.rondaAtrasados || [];
+    const temHist = Object.keys(ult).length > 0;
     if (!R.lista) return `<div class="ch-ronda-esc"><p class="vazio">Carregando…</p></div>`;
     if (!R.lista.length) return `<div class="ch-ronda-esc"><p class="vazio">Nenhuma ronda disponível: ligue o CorrerIA no ResolvIA, no InventarIA ou no EconomIA.</p></div>`;
     return `<div class="ch-ronda-esc">${R.lista.map(r => `<div class="ch-ronda-op">
         ${tituloLinha('ronda', esc(r.nome))}<p class="ch-ronda-res">${esc([...new Set(r.etapas.map(x => x.grupo))].join(' › '))} · ${r.etapas.length} perguntas</p>
         ${r.livre ? `<div class="ch-ed-nova"><input id="ch-ronda-onde" class="inp" maxlength="60" placeholder="Qual cômodo?" aria-label="Cômodo" enterkeyhint="done" value="${esc(R.livre || '')}">
             <button class="btn pri" data-a="ronda-ir" data-v="${esc(r.id)}">${ic('check', 'ic-s')}Começar</button></div>`
-          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${feitos.includes(n) ? ' feito' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${feitos.includes(n) ? ic('check', 'ic-s') : ''}${esc(n)}</button>`).join('')}</div>`}
+          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${feitos.includes(n) ? ' feito' : ''}${atras.includes(n) ? ' atrasado' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${feitos.includes(n) ? ic('check', 'ic-s') : atras.includes(n) ? ic('alert', 'ic-s') : ''}<span>${esc(n)}${temHist ? `<small>${haDias(ult[n])}</small>` : ''}</span></button>`).join('')}</div>`}
       </div>`).join('')}</div>`;
   }
   function faixaRonda() {
@@ -1263,6 +1297,16 @@
       await acao('config', { casa: !on }, on ? 'Casa desligada' : 'Casa ligada');
     } else if (a === 'recolher') {
       await acao('config', { recolher: Number(el.dataset.v) }, 'Salvo');
+    } else if (a === 'ronda-dias') {  // 1.19.0
+      if (el.dataset.v === 'outro') { S.rondaOutro = true; render(); const i = $('#ronda-outro'); if (i) i.focus({ preventScroll: true }); return; }
+      S.rondaOutro = false;
+      const n = Number(el.dataset.v);
+      await acao('config', { ronda_dias: n }, n ? `Aviso depois de ${n} dias sem ronda` : 'Sem aviso de ronda');
+    } else if (a === 'ronda-outro') {
+      const n = Math.round(Number(($('#ronda-outro') || {}).value));
+      if (!(n >= 1 && n <= 365)) { toast('Escreva de 1 a 365 dias.'); return; }
+      S.rondaOutro = false;
+      await acao('config', { ronda_dias: n }, `Aviso depois de ${n} dias sem ronda`);
     } else if (a === 'apagar-dias') {  // 1.7.0
       const n = Number(el.dataset.v);
       await acao('config', { apagar_dias: n }, n ? `As conversas sem uso por ${n} dias saem sozinhas` : 'As conversas ficam guardadas');
@@ -1408,6 +1452,7 @@
   document.addEventListener('toggle', ev => {
     if (!ev.target.classList) return;
     if (ev.target.classList.contains('mudancas')) S.mudAberto = ev.target.open;
+    else if (ev.target.classList.contains('ronda-hist')) S.rondaHist = ev.target.open;
     else if (ev.target.classList.contains('uso-ult')) S.usoAberto = ev.target.open;
   }, true);
   document.addEventListener('input', ev => {
