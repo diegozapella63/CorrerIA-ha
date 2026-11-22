@@ -93,6 +93,118 @@ def com_painel(app, painel):
         json.dump(d, f)
 
 
+class TestEditor(Base):
+    """1.30.0 (o dono: "a possibilidade de criar novas rondas e de alterar rondas existentes"; "no modo simples por padrão e com
+    uma opção para ativar o modo avançado"): as rondas da pessoa ficam por cima das daqui."""
+
+    def setUp(self):
+        super().setUp()
+        if os.path.exists(S.MINHAS_ARQ):
+            os.remove(S.MINHAS_ARQ)
+        S.montar_rondas()
+        self.addCleanup(lambda: (os.path.exists(S.MINHAS_ARQ) and os.remove(S.MINHAS_ARQ), S.montar_rondas()))
+
+    def test_modo_simples_mudar_criar_voltar_e_apagar(self):
+        self.casa()
+        st, ed = self.j("/api/rondas/editor")
+        self.assertEqual((st, ed["avancado"], ed["leituras"]), (200, False, []))
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes"])
+        casa = ed["rondas"][0]
+        self.assertEqual((casa["minha"], casa["mudada"], casa["onde"], casa["etapas"][0]["de"], casa["etapas"][0]["ligada"]), (False, False, True, "casa.feita", True))
+        cat = {c["de"]: c for c in ed["catalogo"]}
+        self.assertEqual((cat["casa.item_novo"]["nome_app"], cat["casa.item_novo"]["ligada"], cat["mes"+".contas"]["ligada"]), ("InventarIA", True, False))
+        # mudar a Ronda da casa: duas etapas, outra ordem, a pergunta de uma com as palavras da pessoa
+        nova = {"id": "casa", "nome": "Ronda da minha casa", "onde": True,
+                "etapas": [{"de": "casa.item_novo", "pergunta": "Tem coisa nova aqui em {onde}?"}, {"de": "casa.feita"}]}
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": nova})
+        casa = ed["rondas"][0]
+        self.assertEqual((st, casa["nome"], casa["mudada"], [e["id"] for e in casa["etapas"]]), (200, "Ronda da minha casa", True, ["item_novo", "feita"]))
+        self.assertEqual(rondas.pergunta("casa", "item_novo", "Sala"), "Tem coisa nova aqui em Sala?")
+        self.assertEqual(rondas.pergunta("casa", "feita", "Sala"), "Alguma dessas tarefas já foi feita?", "sem pergunta nova, a da etapa pronta")
+        self.assertIn("tudo é item da casa do cômodo «Sala»", rondas.contexto("casa", "item_novo", "Sala"), "as regras da etapa pronta continuam")
+        st, r = self.j("/api/rondas")
+        self.assertEqual([(x["nome"], len(x["etapas"])) for x in r["rondas"] if x["id"] == "casa"], [("Ronda da minha casa", 2)])
+        st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+        self.assertEqual((st, r["ronda"]["ativa"]["total"]), (200, 2))
+        self.assertIn("Tem coisa nova aqui em Sala?", r["mensagens"][-1]["texto"])
+        # uma ronda nova, sem cômodo; a mesma etapa duas vezes ganha outro id; salvar acaba a ronda em andamento
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "  Garagem  ", "etapas": [{"de": "casa.item_novo"}, {"de": "casa.item_novo", "pergunta": "E na prateleira de {cima}?"}]}})
+        minha = ed["rondas"][-1]
+        self.assertEqual((st, minha["nome"], minha["minha"], minha["onde"], [e["id"] for e in minha["etapas"]]), (200, "Garagem", True, False, ["item_novo", "item_novo_2"]))
+        self.assertRegex(minha["id"], r"^m[0-9a-f]{6}$")
+        self.assertEqual(minha["etapas"][1]["pergunta"], "E na prateleira de {cima}?", "as chaves da pessoa não são campos")
+        self.assertEqual(rondas.pergunta(minha["id"], "item_novo_2", ""), "E na prateleira de {cima}?")
+        self.assertEqual(S.RONDAS_ATIVAS, {})
+        self.assertEqual(oct(os.stat(S.MINHAS_ARQ).st_mode & 0o777), "0o600")
+        # o que não vale
+        for ronda, erro in (({"nome": "A", "etapas": [{"de": "casa.feita"}]}, "Dê um nome à ronda."),
+                            ({"nome": "Vazia", "etapas": []}, "A ronda precisa de pelo menos uma etapa."),
+                            ({"nome": "Muitas", "etapas": [{"de": "casa.feita"}] * 31}, "Uma ronda tem até 30 etapas."),
+                            ({"nome": "Duas", "etapas": [{"de": "casa.feita", "pergunta": "Fez? E guardou?"}]}, "Cada etapa é uma pergunta só, terminando com «?»."),
+                            ({"nome": "Sem", "etapas": [{"de": "casa.feita", "pergunta": "Conte as tarefas."}]}, "Cada etapa é uma pergunta só, terminando com «?»."),
+                            ({"nome": "Curta", "etapas": [{"de": "casa.feita", "pergunta": "Ok?"}]}, "Escreva a pergunta de cada etapa."),
+                            ({"nome": "Longa", "etapas": [{"de": "casa.feita", "pergunta": "a" * 160 + "?"}]}, "A pergunta fica com até 160 letras."),
+                            ({"nome": "Some", "etapas": [{"de": "casa.nao_existe"}]}, "Essa etapa não existe mais. Tire-a da ronda."),
+                            ({"nome": "Torta", "etapas": ["x"]}, "Etapa inválida."),
+                            ({"nome": "Livre", "etapas": [{"ferramenta": "inventario_resumo", "titulo": "Resumo", "pergunta": "Tudo certo?"}]}, "Uma etapa livre só no modo avançado."),
+                            ({"id": "sumiu", "nome": "Outra", "etapas": [{"de": "casa.feita"}]}, "Essa ronda não existe mais.")):
+            self.assertEqual(self.j("/api/rondas/editor", {"acao": "salvar", "ronda": ronda}), (400, {"erro": erro}), ronda["nome"])
+        # voltar ao original e apagar: cada um só na sua
+        self.assertEqual(self.j("/api/rondas/editor", {"acao": "apagar", "id": "casa"})[0], 400)
+        self.assertEqual(self.j("/api/rondas/editor", {"acao": "restaurar", "id": minha["id"]})[0], 400)
+        self.assertEqual(self.j("/api/rondas/editor", {"acao": "outra"}), (400, {"erro": "Pedido inválido."}))
+        st, ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "casa"})
+        self.assertEqual((ed["rondas"][0]["nome"], ed["rondas"][0]["mudada"], len(ed["rondas"][0]["etapas"]) > 5), ("Ronda da casa", False, True))
+        st, ed = self.j("/api/rondas/editor", {"acao": "apagar", "id": minha["id"]})
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes"])
+        with mock.patch.object(rondas, "MAX_RONDAS", 0):
+            self.assertEqual(self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Mais uma", "etapas": [{"de": "casa.feita"}]}})[1]["erro"], "Já são 0 rondas suas. Apague alguma.")
+
+    def test_modo_avancado_o_que_a_ia_le_e_a_etapa_livre(self):
+        self.casa()
+        st, ed = self.j("/api/rondas/editor", {"acao": "avancado", "liga": True})
+        self.assertEqual((st, ed["avancado"]), (200, True))
+        lidas = {f["id"]: f for f in ed["leituras"]}
+        self.assertEqual((lidas["inventario_resumo"]["nome_app"], "resolvia_criar_tarefa" in lidas), ("InventarIA", False), "só as leituras")
+        ronda = {"nome": "Oficina", "onde": True, "etapas": [
+            {"de": "casa.item_novo", "pedido": "Conte só as ferramentas {elétricas}."},
+            {"ferramenta": "economia_lista", "titulo": "A lista", "pergunta": "Falta comprar alguma coisa para {onde}?", "pedido": "Diga só os 3 primeiros."}]}
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": ronda})
+        minha = ed["rondas"][-1]
+        rid = minha["id"]
+        self.assertEqual([(e["id"], e.get("de"), e.get("ferramenta"), e["pedido"], e["app"]) for e in minha["etapas"]],
+                         [("item_novo", "casa.item_novo", None, "Conte só as ferramentas {elétricas}.", "InventarIA"), ("livre", None, "economia_lista", "Diga só os 3 primeiros.", "EconomIA")])
+        todas = S.FERR.todas()
+        p = rondas.pedido(rid, "item_novo", "Sala", todas, 1, 2)
+        self.assertIn("Use inventario_buscar_itens do cômodo «Sala» (o campo comodo). Conte só as ferramentas {elétricas}.", p)
+        p = rondas.pedido(rid, "livre", "Sala", todas, 2, 2)
+        self.assertIn("Use economia_lista e conte o que há. Diga só os 3 primeiros.", p)
+        self.assertIn("o app escreve a pergunta «Falta comprar alguma coisa para Sala?»", p)
+        self.assertNotIn("nunca peça valor", rondas.contexto(rid, "livre", "Sala"), "uma etapa livre não tem as regras de uma pronta")
+        # erros do modo avançado
+        for etapa, erro in (({"ferramenta": "nao_existe", "titulo": "X", "pergunta": "Tudo certo?"}, "Escolha o que a IA lê na etapa livre (o app precisa estar ligado)."),
+                            ({"ferramenta": "economia_lista", "titulo": " ", "pergunta": "Tudo certo?"}, None),
+                            ({"de": "casa.feita", "pedido": "a" * 601}, "O que a IA lê fica com até 600 letras.")):
+            st, r = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Erro", "etapas": [etapa]}})
+            self.assertEqual((st, r.get("erro")) if erro else (st, None), (400, erro) if erro else (200, None), etapa)
+        # desligado o modo avançado: o que foi escrito continua valendo, e salvar no modo simples não apaga
+        st, ed = self.j("/api/rondas/editor", {"acao": "avancado", "liga": False})
+        self.assertEqual(ed["leituras"], [])
+        etapas = [dict(e, pergunta="Chegou coisa nova?", pedido="") if e["id"] == "item_novo" else e for e in minha["etapas"]]
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"id": rid, "nome": "Oficina", "onde": True, "etapas": etapas}})
+        de_novo = next(r for r in ed["rondas"] if r["id"] == rid)
+        self.assertEqual([(e["pergunta"], e["pedido"]) for e in de_novo["etapas"]],
+                         [("Chegou coisa nova?", "Conte só as ferramentas {elétricas}."), ("Falta comprar alguma coisa para {onde}?", "Diga só os 3 primeiros.")])
+        # um app desligado: a etapa fica marcada e fora da ronda de agora
+        shutil.rmtree(os.path.join(S.SHARE_DIR, "economia"))
+        st, ed = self.j("/api/rondas/editor")
+        self.assertEqual([e["ligada"] for e in next(r for r in ed["rondas"] if r["id"] == rid)["etapas"]], [True, False])
+        self.assertEqual([len(x["etapas"]) for x in self.j("/api/rondas")[1]["rondas"] if x["id"] == rid], [1])
+        # o arquivo estragado ou com uma etapa que sumiu não derruba nada
+        rondas.montar({"rondas": {"casa": "x", "Ruim!": {}, "mzz": {"nome": "Sumiu", "etapas": [{"de": "casa.nao_existe"}, "x"]}}})
+        self.assertEqual(list(rondas.RONDAS), ["casa", "compras", "chegada", "mes"])
+
+
 class TestLinksEMais(Base):
     """1.22.0: cada etapa leva o link do app dela, já no lugar; a lista menor que o total termina em «e mais N»."""
 

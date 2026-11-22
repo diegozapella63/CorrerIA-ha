@@ -7,10 +7,13 @@ continuam esperando o "sim", como em toda a Conversa. Cada etapa só existe se o
 ferramenta de que ela precisa: assim a ronda respeita o que está ligado em cada app (um app sem os cômodos não filtra por
 cômodo; o InventarIA sem os consumíveis não tem a etapa deles).
 
-Para criar outra ronda: mais uma entrada em RONDAS, com as etapas (o app, a ferramenta que precisa existir e o pedido).
+Para criar outra ronda daqui: mais uma entrada em RONDAS, com as etapas (o app, a ferramenta que precisa existir e o pedido).
+1.30.0: a pessoa cria e muda rondas pela tela (Mais › Rondas): PADRAO são as daqui e RONDAS, o que vale agora (montar).
 """
+import copy
 import json
 import re
+import secrets
 import urllib.parse
 
 FIM = ("Não mude nada agora: só leia e conte. Responda assim: primeiro uma linha só com «TOTAL: N» (N é o número do que você achou "
@@ -110,6 +113,151 @@ RONDAS = {
         ],
     },
 }
+for _rid, _r in RONDAS.items():
+    for _x in _r["etapas"]:
+        _x["orig"], _x["da"] = _x["id"], _rid   # de que etapa pronta é: vale também numa ronda criada ou mudada pela pessoa
+
+# ---------- 1.30.0 (o dono: "a possibilidade de criar novas rondas e de alterar rondas existentes"; "no modo simples por padrão
+# e com uma opção para ativar o modo avançado"). PADRAO são as rondas daqui; RONDAS é o que vale agora: as daqui com as
+# mudanças e as rondas da pessoa por cima (montar). O que a pessoa guarda, em /data/rondas_minhas.json:
+#   {avancado: bool, rondas: {<id>: {nome, onde: bool, etapas: [{id, de: "<ronda>.<etapa>", pergunta, pedido?} ou, no modo
+#   avançado, uma etapa livre {id, ferramenta, app, nome_app, titulo, pergunta, pedido?}]}}}
+# Uma ronda com o id de uma daqui é a daqui mudada (Voltar ao original apaga a mudança); as novas têm o id "m" + 6 letras.
+PADRAO = copy.deepcopy(RONDAS)
+MAX_RONDAS, MAX_ETAPAS, MAX_PERGUNTA, MAX_PEDIDO, MAX_NOME = 20, 30, 160, 600, 40
+
+
+def catalogo():
+    """As etapas prontas, para escolher numa ronda: [{de, app, nome_app, grupo, titulo, pergunta, le, precisa, ronda}]."""
+    return [{"de": f"{rid}.{e['id']}", "app": e["app"], "nome_app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"],
+             "pergunta": _mostrar(e["pergunta"]), "le": bool(e.get("pedido")), "precisa": e["precisa"], "ronda": r["nome"]}
+            for rid, r in PADRAO.items() for e in r["etapas"]]
+
+
+def _pronta(de):
+    rid, _, eid = str(de or "").partition(".")
+    return next((e for e in PADRAO.get(rid, {}).get("etapas", []) if e["id"] == eid), None)
+
+
+def _guardar_texto(t, maximo):
+    """O texto da pessoa vai para um .format: as chaves dela não são campos (só {onde} é)."""
+    t = " ".join(str(t or "").split())[:maximo]
+    return t.replace("{", "{{").replace("}", "}}").replace("{{onde}}", "{onde}")
+
+
+def _mostrar(t):
+    return str(t or "").replace("{{", "{").replace("}}", "}")
+
+
+def _pergunta_ok(t):
+    """Cada etapa é uma pergunta só: uma frase que termina com um ponto de interrogação."""
+    t = " ".join(str(t or "").split())
+    if len(t) < 5:
+        raise ValueError("Escreva a pergunta de cada etapa.")
+    if len(t) > MAX_PERGUNTA:
+        raise ValueError(f"A pergunta fica com até {MAX_PERGUNTA} letras.")
+    if t.count("?") != 1 or not t.endswith("?"):
+        raise ValueError("Cada etapa é uma pergunta só, terminando com «?».")
+    return t
+
+
+def conferir_ronda(dados, antes=None, avancado=False, leituras=None):
+    """Confere o que veio da tela e devolve a ronda como fica guardada. antes: a ronda guardada hoje (o que é do modo
+    avançado continua nela quando o modo está desligado). leituras: {id da ferramenta: {app, nome_app, titulo}}, as
+    ferramentas de leitura ligadas agora (para as etapas livres do modo avançado). ValueError diz o que vale."""
+    nome = " ".join(str(dados.get("nome") or "").split())[:MAX_NOME]
+    if len(nome) < 2:
+        raise ValueError("Dê um nome à ronda.")
+    lista = dados.get("etapas")
+    if not isinstance(lista, list) or not lista:
+        raise ValueError("A ronda precisa de pelo menos uma etapa.")
+    if len(lista) > MAX_ETAPAS:
+        raise ValueError(f"Uma ronda tem até {MAX_ETAPAS} etapas.")
+    velhas = {x["id"]: x for x in (antes or {}).get("etapas", [])}
+    etapas, ids = [], set()
+    for x in lista:
+        if not isinstance(x, dict):
+            raise ValueError("Etapa inválida.")
+        velha = velhas.get(str(x.get("id") or ""))
+        pronta = _pronta(x.get("de"))
+        livre = not pronta and (velha if velha and velha.get("ferramenta") and not avancado else x)
+        if pronta:
+            e = {"de": str(x["de"]), "pergunta": _guardar_texto(_pergunta_ok(x.get("pergunta") or _mostrar(pronta["pergunta"])), MAX_PERGUNTA)}
+            base = pronta["id"]
+        elif livre and livre.get("ferramenta"):
+            if not avancado and not velha:
+                raise ValueError("Uma etapa livre só no modo avançado.")
+            f = (leituras or {}).get(str(livre["ferramenta"])) or (velha if velha and velha.get("ferramenta") == livre["ferramenta"] else None)
+            if not f:
+                raise ValueError("Escolha o que a IA lê na etapa livre (o app precisa estar ligado).")
+            titulo = (" ".join(str(livre.get("titulo") or "").split()) or str(f.get("titulo") or "Etapa livre"))[:MAX_NOME]
+            e = {"ferramenta": str(livre["ferramenta"]), "app": f["app"], "nome_app": f["nome_app"], "titulo": titulo,
+                 "pergunta": _guardar_texto(_pergunta_ok(x.get("pergunta")), MAX_PERGUNTA)}
+            base = "livre"
+        else:
+            raise ValueError("Essa etapa não existe mais. Tire-a da ronda.")
+        # o que a IA lê: só o modo avançado muda; desligado, fica o que já estava guardado
+        pedido = " ".join(str(x.get("pedido") or "").split()) if avancado else _mostrar((velha or {}).get("pedido"))
+        if len(pedido) > MAX_PEDIDO:
+            raise ValueError(f"O que a IA lê fica com até {MAX_PEDIDO} letras.")
+        if pedido:
+            e["pedido"] = _guardar_texto(pedido, MAX_PEDIDO)
+        eid, n = (velha or {}).get("id") or base, 2
+        while eid in ids:
+            eid, n = f"{base}_{n}", n + 1
+        ids.add(eid)
+        etapas.append(dict(e, id=eid))
+    return {"nome": nome, "onde": dados.get("onde") is True, "etapas": etapas}
+
+
+def nova_id(existentes):
+    while True:
+        rid = "m" + secrets.token_hex(3)
+        if rid not in existentes:
+            return rid
+
+
+def montar(minhas):
+    """Refaz RONDAS: as daqui (PADRAO) com as rondas da pessoa por cima. Uma etapa cuja etapa pronta não existe mais sai."""
+    novas = copy.deepcopy(PADRAO)
+    for rid, m in ((minhas or {}).get("rondas") or {}).items():
+        if not isinstance(m, dict) or not re.fullmatch(r"[a-z0-9_]{1,20}", str(rid)):
+            continue
+        etapas = []
+        for x in m.get("etapas") or []:
+            pronta = _pronta(x.get("de")) if isinstance(x, dict) else None
+            if pronta:
+                e = copy.deepcopy(pronta)
+                e.update(id=str(x.get("id") or pronta["id"]), pergunta=x.get("pergunta") or pronta["pergunta"], de=x["de"])
+                if x.get("pedido"):  # o modo avançado: a pessoa escreveu o que a IA lê
+                    e["pedido"] = f"Use {e['precisa']}{{do_comodo}}. {x['pedido']}"
+                    e.pop("pedido_com", None)
+                    e["pedido_meu"] = x["pedido"]
+            elif isinstance(x, dict) and x.get("ferramenta"):
+                e = _e(str(x.get("id") or "livre"), x.get("nome_app") or "", x.get("titulo") or "", x.get("app") or "", x.get("nome_app") or "",
+                       x["ferramenta"], x.get("pergunta") or "", f"Use {x['ferramenta']}{{do_comodo}} e conte o que há. {x.get('pedido') or ''}".strip(),
+                       livre=True, pedido_meu=x.get("pedido") or "")
+                e["orig"], e["da"] = e["id"], rid
+            else:
+                continue
+            etapas.append(e)
+        if etapas:
+            daqui = PADRAO.get(rid)
+            novas[rid] = {"nome": str(m.get("nome") or (daqui or {}).get("nome") or "Ronda"), "onde": "comodo" if m.get("onde") else "",
+                          "resumo": (daqui or {}).get("resumo") or "Criada por você.", "etapas": etapas, "minha": not daqui, "mudada": bool(daqui)}
+    RONDAS.clear()
+    RONDAS.update(novas)
+
+
+def para_editor(ids_ligados=None):
+    """As rondas para a tela de editar: [{id, nome, onde, minha, mudada, etapas: [{id, de?, ferramenta?, app, grupo, titulo,
+    pergunta, pedido (o que a pessoa escreveu), le, ligada}]}]. ligada: o app da etapa está ligado agora."""
+    ok = (lambda f: True) if ids_ligados is None else (lambda f: f in ids_ligados)
+    return [{"id": rid, "nome": r["nome"], "onde": bool(r["onde"]), "minha": bool(r.get("minha")), "mudada": bool(r.get("mudada")),
+             "etapas": [{"id": e["id"], **({"de": e["de"]} if e.get("de") else {"de": f"{rid}.{e['id']}"} if not e.get("livre") else {"ferramenta": e["precisa"]}),
+                         "app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"], "pergunta": _mostrar(e["pergunta"]),
+                         "pedido": _mostrar(e.get("pedido_meu") or ""), "le": bool(e.get("pedido")), "ligada": ok(e["precisa"])} for e in r["etapas"]]}
+            for rid, r in RONDAS.items()]
 
 
 def _resumo_inventario(ferr, todas, pessoa):
@@ -212,14 +360,14 @@ REGRAS = {
 
 def de_consumiveis(e):
     """Uma etapa em que se cadastram ou conferem consumíveis no InventarIA (a de pôr na lista de compras, não)."""
-    return bool(e) and e.get("app") == "inventario" and e.get("id") in ("cons_acabando", "cons_novo", "consumivel")
+    return bool(e) and e.get("app") == "inventario" and e.get("orig", e.get("id")) in ("cons_acabando", "cons_novo", "consumivel")
 
 
 def regras(rid, e, onde):
     """O contexto fixo da etapa, para a IA não perguntar o que a etapa já responde."""
     if de_consumiveis(e):
         return " " + CONSUMIVEIS.format(usado=f", com usado_em «{onde}»" if onde else "")
-    r = REGRAS.get(e.get("grupo")) if rid == "casa" else None
+    r = REGRAS.get(e.get("grupo")) if e.get("da", rid) == "casa" and not e.get("livre") else None
     return " " + r.format(do_onde=f" do cômodo «{onde}»" if onde else "", onde_q=f" «{onde}»" if onde else "") if r else ""
 
 
@@ -258,7 +406,7 @@ def abrir(rid, eid, onde, paineis):
     base = (paineis or {}).get(e["app"]) if e else None
     if not base:
         return None
-    q, cons = urllib.parse.quote(onde or "", safe=""), e["grupo"] == "Consumíveis" or "consum" in e["id"]
+    q, cons = urllib.parse.quote(onde or "", safe=""), e["grupo"] == "Consumíveis" or "consum" in e.get("orig", e["id"])
     if e["app"] == "inventario":
         base += "/consumiveis" if cons else f"/comodo/{q}" if onde else ""
     elif e["app"] == "resolvia":
@@ -266,7 +414,7 @@ def abrir(rid, eid, onde, paineis):
         # a uma tela que já estava aberta) e o ?aba= (lido quando a tela carrega)
         base += f"/buscar/comodo/{q}?aba=buscar&comodo={q}" if onde else "?aba=prazos"
     elif e["app"] == "cronologia":
-        base += "/calendario?aba=calendario" if e["id"] == "agenda" else (f"/mais/rotinas/comodo/{q}?aba=rotinas&comodo={q}" if onde else "/mais/rotinas?aba=rotinas")
+        base += "/calendario?aba=calendario" if e.get("orig", e["id"]) == "agenda" else (f"/mais/rotinas/comodo/{q}?aba=rotinas&comodo={q}" if onde else "/mais/rotinas?aba=rotinas")
     return {"texto": f"Abrir no {e['nome_app']}", "href": base}
 
 

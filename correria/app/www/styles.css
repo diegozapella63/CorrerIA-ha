@@ -237,6 +237,25 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-bolha ul { margin: 4px 0 0; padding-left: 20px; }
 .ch-anexo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
 .ch-anexo + p { margin-top: 6px; }
+/* 1.30.0: o editor das rondas */
+ul.rd-etapas { list-style: none; margin: 0 0 14px; padding: 0; }
+ul.rd-etapas > li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+ul.rd-etapas > li:first-child { padding-top: 0; }
+ul.rd-etapas > li:last-child { border-bottom: 0; }
+.rd-etapa.off { opacity: .6; }
+.rd-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.rd-cab b { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.rd-cab .bt-icone { flex: none; width: 40px; height: 40px; }
+.rd-cab .bt-icone:disabled { opacity: .35; }
+.rd-etapa .campo:last-child { margin-bottom: 0; }
+.rd-app { margin-bottom: 18px; }
+.rd-app:last-child { margin-bottom: 0; }
+.btn.rd-pronta { width: 100%; justify-content: flex-start; text-align: left; height: auto; min-height: 50px; padding: 8px 14px; margin-top: 8px; }
+.btn.rd-pronta span { min-width: 0; overflow-wrap: anywhere; }
+.btn.rd-pronta small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
+.btn.rd-pronta:disabled { opacity: .5; }
+.rd-fim { margin-top: 10px; }
+.rd-av { margin: 16px 0 0; }
 /* 1.29.0: Configurações › Dados: os botões na largura do cartão (dois lado a lado dividem a linha; no computador, 280 px),
    a lista dos backups e das versões e a confirmação no lugar do botão */
 .dados-acoes { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -257,7 +276,7 @@ ul.zips .dados-conf { flex-basis: 100%; }
 .ch-desfazer { margin: 8px 0 2px; max-width: 420px; }
 .ch-desfazer .btn { width: 100%; }
 @media (min-width: 1000px) { .ch-desfazer .btn { width: 250px; } }
-#lembrar-texto { min-height: 50px; height: 50px; }  /* uma linha, da altura da família; aumenta puxando o canto */
+#lembrar-texto, textarea.inp.umalinha { min-height: 50px; height: 50px; }  /* uma linha, da altura da família; aumenta puxando o canto */
 .lembrancas { list-style: none; margin: 12px 0 0; padding: 0; }
 .lembrancas li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--linha, color-mix(in srgb, currentColor 14%, transparent)); }
 .lembrancas li:last-child { border-bottom: 0; }

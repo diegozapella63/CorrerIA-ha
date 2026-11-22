@@ -815,6 +815,100 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
         self.assertGreaterEqual(alto, 0)
 
+    def test_editor_das_rondas(self):
+        """1.30.0: Mais › Rondas: Editar em cada ronda, Nova ronda e o Modo avançado (com o que ele muda dito na tela); no editor,
+        o nome, por cômodo, as etapas (subir, descer, tirar, a pergunta) e as etapas prontas para adicionar."""
+        import json as _json
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        etapa = lambda de, app, grupo, titulo, pergunta, le=True: {"id": de.split(".")[1], "de": de, "app": app, "grupo": grupo, "titulo": titulo, "pergunta": pergunta, "pedido": "", "le": le, "ligada": True}
+        ed = {"avancado": False, "leituras": [], "max": {"etapas": 30, "pergunta": 160, "pedido": 600},
+              "rondas": [{"id": "casa", "nome": "Ronda da casa", "onde": True, "minha": False, "mudada": False,
+                          "etapas": [etapa("casa.feita", "ResolvIA", "Tarefas", "Concluir", "Alguma dessas tarefas já foi feita?"), etapa("casa.item_novo", "InventarIA", "Itens", "Novo", "Chegou algum item novo?")]}],
+              "catalogo": [{"de": "casa.feita", "app": "resolvia", "nome_app": "ResolvIA", "grupo": "Tarefas", "titulo": "Concluir", "pergunta": "Alguma dessas tarefas já foi feita?", "le": True, "precisa": "resolvia_tarefas", "ronda": "Ronda da casa", "ligada": True},
+                           {"de": "casa.item_novo", "app": "inventario", "nome_app": "InventarIA", "grupo": "Itens", "titulo": "Novo", "pergunta": "Chegou algum item novo?", "le": True, "precisa": "inventario_buscar_itens", "ronda": "Ronda da casa", "ligada": True},
+                           {"de": "mes.contas", "app": "gerencia", "nome_app": "GerencIA", "grupo": "Finanças", "titulo": "Contas a pagar", "pergunta": "Alguma dessas contas já foi paga?", "le": True, "precisa": "gerencia_contas_a_pagar", "ronda": "Ronda do mês", "ligada": False}]}
+        posts = []
+
+        def editor(route):
+            if route.request.method == "POST":
+                c = route.request.post_data_json
+                posts.append(c)
+                if c["acao"] == "avancado":
+                    ed["avancado"] = c["liga"]
+                    ed["leituras"] = [{"id": "economia_lista", "app": "economia", "nome_app": "EconomIA", "titulo": "Lista de compras"}] if c["liga"] else []
+            route.fulfill(status=200, content_type="application/json", body=_json.dumps(ed))
+        self.pg.route("**/api/rondas/editor", editor)
+        self.pg.route("**/api/rondas", lambda r: r.fulfill(status=200, content_type="application/json", body=_json.dumps(
+            {"ativa": None, "feitos": [], "aviso": {"pessoas": []}, "rondas": [{"id": "casa", "nome": "Ronda da casa", "resumo": "Um cômodo de cada vez.", "onde": ["Sala"], "livre": False, "sem_onde": False, "opcoes": [],
+                                                                              "etapas": [{"id": "feita", "titulo": "Concluir", "grupo": "Tarefas", "app": "ResolvIA"}]}]})))
+        self.pg.goto(self.url)
+        self.pg.locator("[data-a='mais']").first.click()
+        self.pg.locator("[data-a='tela-rondas']").click()
+        self.pg.wait_for_selector("#ronda-casa [data-a='rd-editar']")
+        caixas = self.pg.evaluate("[...document.querySelectorAll('#ronda-casa .dados-acoes .btn')].map(b => { const r = b.getBoundingClientRect(); return [b.textContent.trim(), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+        self.assertEqual(([c[0] for c in caixas], caixas[0][1:]), (["Editar", "Escolher o cômodo"], caixas[1][1:]), "lado a lado, do mesmo tamanho")
+        self.assertEqual(self.pg.locator("#ronda-suas h2").inner_text().strip(), "Suas rondas")
+        self.assertIn("Uma instrução mal escrita faz a IA ler a coisa errada ou inventar.", self.pg.locator("#ronda-suas .rd-av").inner_text())
+        self.assertEqual(self.pg.locator("[data-a='rd-avancado']").get_attribute("aria-checked"), "false", "o modo simples é o de início")
+        # editar a Ronda da casa
+        self.pg.locator("#ronda-casa [data-a='rd-editar']").click()
+        self.pg.wait_for_selector("#rd-etapas .rd-etapa")
+        self.assertEqual(self.pg.locator("h1").inner_text().strip(), "Editar ronda")
+        self.assertEqual([t.strip() for t in self.pg.locator("#app section.card h2").all_inner_texts()], ["Ronda", "Etapas (2)", "Salvar"])
+        self.assertEqual([t.strip() for t in self.pg.locator(".rd-cab b").all_inner_texts()], ["ResolvIA · Tarefas: Concluir", "InventarIA · Itens: Novo"])
+        self.assertEqual(self.pg.locator("[data-rd-l]").count(), 0, "no modo simples não se escreve o que a IA lê")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app .btn')].filter(b => !b.querySelector('svg')).length"), 0, "todo botão com ícone")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app .campo label')].filter(l => !l.querySelector('svg')).length"), 0, "todo campo com ícone")
+        self.pg.fill("#rd-nome", "Ronda da minha casa")
+        self.pg.locator("[data-a='rd-desce'][data-i='0']").click()
+        self.assertEqual([t.strip() for t in self.pg.locator(".rd-cab b").all_inner_texts()], ["InventarIA · Itens: Novo", "ResolvIA · Tarefas: Concluir"])
+        self.assertEqual(self.pg.input_value("#rd-nome"), "Ronda da minha casa", "o que se escreveu fica")
+        self.pg.fill("[data-rd-p='0']", "Tem coisa nova aqui?")
+        self.pg.locator("[data-a='rd-tira'][data-i='1']").click()
+        self.pg.locator("[data-a='rd-abrir-add']").click()
+        self.assertEqual([(b.inner_text().split("\n")[0].strip(), b.is_disabled()) for b in self.pg.locator(".rd-pronta").all()],
+                         [("Tarefas: Concluir", False), ("Itens: Novo", False), ("Finanças: Contas a pagar", True)], "a de um app desligado fica inativa")
+        self.assertEqual(self.pg.locator("#rd-livre").count(), 0)
+        self.pg.locator(".rd-pronta").first.click()
+        self.assertEqual(self.pg.locator(".rd-etapa").count(), 2)
+        self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
+        self.pg.locator("[data-a='rd-salvar']").click()
+        self.pg.wait_for_selector("#ronda-suas")
+        self.assertEqual(posts[-1], {"acao": "salvar", "ronda": {"id": "casa", "nome": "Ronda da minha casa", "onde": True, "etapas": [
+            {"id": "item_novo", "de": "casa.item_novo", "titulo": "Novo", "pergunta": "Tem coisa nova aqui?", "pedido": ""},
+            {"de": "casa.feita", "titulo": "Concluir", "pergunta": "Alguma dessas tarefas já foi feita?", "pedido": ""}]}})
+        # o modo avançado: o que a IA lê e a etapa livre; uma ronda nova
+        self.pg.locator("[data-a='rd-avancado']").click()
+        self.pg.wait_for_function("document.querySelector(\"[data-a='rd-avancado']\").getAttribute('aria-checked') === 'true'")
+        self.pg.locator("#ronda-suas [data-a='rd-editar']").click()
+        self.pg.wait_for_selector("#rd-catalogo")
+        self.assertEqual(self.pg.locator("h1").inner_text().strip(), "Nova ronda")
+        self.pg.locator("[data-a='rd-add-livre']").click()
+        self.pg.wait_for_selector("[data-rd-l='0']")
+        self.assertEqual(self.pg.locator(".rd-cab b").inner_text().strip(), "EconomIA · Lista de compras")
+        self.pg.fill("#rd-nome", "Garagem")
+        self.pg.fill("[data-rd-p='0']", "Falta alguma coisa?")
+        self.pg.fill("[data-rd-l='0']", "Diga só os 3 primeiros.")
+        self.pg.locator("[data-a='rd-onde']").click()
+        self.pg.locator("[data-a='rd-salvar']").click()
+        self.pg.wait_for_selector("#ronda-suas")
+        self.assertEqual(posts[-1], {"acao": "salvar", "ronda": {"id": "", "nome": "Garagem", "onde": True, "etapas": [
+            {"ferramenta": "economia_lista", "titulo": "Lista de compras", "pergunta": "Falta alguma coisa?", "pedido": "Diga só os 3 primeiros."}]}})
+        # uma ronda mudada tem o Voltar ao original, com a confirmação no lugar
+        ed["rondas"][0]["mudada"] = True
+        self.pg.locator("[data-a='rd-avancado']").click()
+        self.pg.wait_for_function("document.querySelector(\"[data-a='rd-avancado']\").getAttribute('aria-checked') === 'false'")
+        self.pg.locator("#ronda-casa [data-a='rd-editar']").click()
+        self.pg.wait_for_selector(".rd-fim .btn")
+        self.assertEqual(self.pg.locator(".rd-fim .btn").inner_text().strip(), "Voltar ao original")
+        self.pg.locator(".rd-fim .btn").click()
+        self.assertEqual(self.pg.locator("#rd-acoes .dados-conf p").inner_text().strip(), "Voltar esta ronda ao que era?")
+        self.pg.locator("[data-a='rd-apagar']").click()
+        self.pg.wait_for_selector("#ronda-suas")
+        self.assertEqual(posts[-1], {"acao": "restaurar", "id": "casa"})
+
     def test_dados_exportar_backup_importar_e_zerar(self):
         """1.29.0: Configurações › Dados na ordem da família; restaurar, importar e começar do zero pedem a confirmação no lugar."""
         import json as _json
@@ -1112,7 +1206,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.texto("h1"), "Rondas")
         self.assertEqual(self.texto("#ronda-casa h2"), "Ronda da casa")
         self.assertEqual(self.texto("#ronda-casa .ronda-grupos"), "Itens · 3 perguntas")
-        self.assertEqual(self.texto("#ronda-casa .btn"), "Escolher o cômodo")
+        self.assertEqual(self.texto("#ronda-casa .btn.pri"), "Escolher o cômodo")
         sw = '#ronda-aviso [data-a="ronda-aviso"]'
         self.assertEqual(self.pg.get_attribute(sw, "aria-checked"), "true")
         self.assertEqual(self.pg.locator("#ronda-aviso .sub-box .chip").all_inner_texts(), ["15 dias", "30 dias", "45 dias", "Outro"], "sem o Nunca: quem desliga é a chave")
@@ -1194,7 +1288,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.click('[data-a="mais"]')
         self.pg.click('[data-a="tela-rondas"]')
         self.pg.wait_for_selector("#ronda-compras")
-        self.assertEqual(self.texto("#ronda-compras .btn"), "Começar")
+        self.assertEqual(self.texto("#ronda-compras .btn.pri"), "Começar")
         self.pg.click('#ronda-compras [data-a="ronda-comecar"]')
         self.pg.wait_for_selector(".ch-msg.ia >> text=Falta algo na lista de compras?")
         self.assertEqual(self.texto(".ch-ronda-t b"), "compras", "sem cômodo, a faixa diz a ronda")

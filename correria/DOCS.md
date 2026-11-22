@@ -163,6 +163,18 @@ Enquanto a IA trabalha, ao lado dos pontinhos aparece o que ela está fazendo. A
 
 ## Rondas
 
+### Criar e mudar rondas
+
+Em **Mais › Rondas**, cada ronda tem o **Editar** e, embaixo, há a **Nova ronda**. No editor:
+
+- **Nome** e **Por cômodo** (a ronda pergunta o cômodo ao começar).
+- **Etapas**: as que entram, na ordem. Cada uma tem a sua **Pergunta**, que você pode reescrever (uma pergunta só, terminando com «?»; `{onde}` vira o cômodo). As setas mudam a ordem e a lixeira tira a etapa.
+- **Adicionar etapa** mostra as etapas prontas, por app. A de um app desligado fica inativa.
+
+Uma ronda do app que você mudou tem o **Voltar ao original**; uma criada por você, o **Apagar ronda**.
+
+O **Modo avançado** (a chave em Suas rondas, desligada de início) deixa escrever **O que a IA lê** em cada etapa e criar **etapas livres**, com qualquer leitura dos apps ligados. É mais poderoso e é onde a IA mais pode errar: uma instrução mal escrita faz ela ler a coisa errada ou inventar. Desligar o modo não apaga o que foi escrito.
+
 Uma ronda é um roteiro pronto que passa pelos apps, **uma pergunta de cada vez**, dentro da Conversa (só na tela do CorrerIA; não no WhatsApp). Comece pelo botão das Rondas no alto da Conversa ou em **Mais › Rondas**, onde ficam todas as rondas, o aviso e as últimas rondas.
 
 Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no app. Uma pergunta que só vale quando há alguma coisa (mudar ou tirar uma rotina, descartar um item) não aparece se o app não tem nada ali. Responda escrevendo ou falando; cada mudança espera o seu **Sim**. **Próxima** segue, **Voltar** repete a pergunta anterior e o **X** sai. **Fotos e PDFs**: mande pelo clipe e diga o que quer. O app do assunto lê o arquivo com a IA dele (tarefas no ResolvIA, compromissos no CronologIA, texto no MemorIA, lista de compras no EconomIA, itens no InventarIA, contas no GerencIA) e o CorrerIA mostra o que achou antes de criar qualquer coisa; cada app precisa do Usar IA dele ligado. A foto que você manda aparece em miniatura na conversa, e a resposta que veio da leitura dela mostra qual foi. A foto é lida uma vez: para outra leitura, mande a foto de novo. Se o app que respondeu não era o do assunto, toque no app certo em **Era para outro app?**, embaixo da resposta: o mesmo arquivo vai para ele. No meio de uma ronda, uma foto ou um PDF que você manda é da etapa: na dos itens e dos consumíveis, o InventarIA lê a foto e cadastra; numa etapa cujo app não recebe o arquivo, a resposta diz isso. Quando a etapa mostra o que há no app, **Abrir no …** leva a ele, já no lugar (o cômodo no InventarIA, as tarefas do cômodo no ResolvIA, as Rotinas no CronologIA); o Voltar do celular volta para a ronda. Uma lista maior do que cabe termina em **e mais N**.

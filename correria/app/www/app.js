@@ -606,6 +606,55 @@
         <ul class="lembrancas">${!L ? '<li>Carregando…</li>' : L.map(x => `<li><span>${esc(x.texto)}<small>${esc(dataCurta(x.em))}${x.quem ? ' · ' + esc(x.quem) : ''}</small></span>
           <button class="bt-icone" data-a="lembrar-apagar" data-v="${esc(x.id)}" aria-label="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('') || '<li>Nada ainda.</li>'}</ul></section>`;
   }
+  /* ---------- 1.30.0: criar e mudar rondas (Mais › Rondas › Editar ou Nova ronda). No modo simples: o nome, se é por cômodo,
+     quais etapas prontas entram, a ordem e a pergunta de cada uma. O modo avançado (uma chave na tela Rondas) deixa escrever o
+     que a IA lê em cada etapa e criar etapas livres, com qualquer leitura dos apps ligados. */
+  function carregarEditor() {
+    return fetch('api/rondas/editor', { cache: 'no-store' }).then(ok).then(r => { S.editor = r; render(); }).catch(err => { toast(err.message); render(); });
+  }
+  function abrirEditor(id) {
+    const r = id && S.editor ? S.editor.rondas.find(x => x.id === id) : null;
+    S.ed = r ? { id: r.id, nome: r.nome, onde: r.onde, minha: r.minha, mudada: r.mudada, etapas: r.etapas.map(e => ({ ...e })), add: false }
+      : { id: '', nome: '', onde: false, minha: true, mudada: false, etapas: [], add: true };
+    S.confirma = '';
+    abrirTela('ronda-editor');
+  }
+  const nomeEtapa = e => `${e.app} · ${e.grupo && e.grupo !== e.app ? e.grupo + ': ' : ''}${e.titulo}`;
+  function telaEditor() {
+    const ed = S.ed, E = S.editor;
+    if (!ed || !E) return `${topoTela('Editar ronda', 'Rondas')}<section class="card"><p class="vazio">Carregando…</p></section>`;
+    const av = E.avancado, n = ed.etapas.length;
+    const etapas = ed.etapas.map((e, i) => `<li class="rd-etapa${e.ligada === false ? ' off' : ''}">
+        <div class="rd-cab"><b>${ic(e.le ? 'book' : 'chat', 'ic-s')}${esc(nomeEtapa(e))}</b>
+          <button class="bt-icone" data-a="rd-sobe" data-i="${i}" aria-label="Subir"${i ? '' : ' disabled'}>${ic('subir', 'ic-s')}</button>
+          <button class="bt-icone" data-a="rd-desce" data-i="${i}" aria-label="Descer"${i < n - 1 ? '' : ' disabled'}>${ic('baixar', 'ic-s')}</button>
+          <button class="bt-icone" data-a="rd-tira" data-i="${i}" aria-label="Tirar da ronda">${ic('trash', 'ic-s')}</button></div>
+        ${e.ligada === false ? '<small class="dica">O app desta etapa está desligado: ela fica de fora.</small>' : ''}
+        <div class="campo">${rotulo('rd-p-' + i, 'chat', 'Pergunta')}<textarea id="rd-p-${i}" class="inp umalinha" rows="1" maxlength="${E.max.pergunta}" data-rd-p="${i}">${esc(e.pergunta)}</textarea></div>
+        ${av ? `<div class="campo">${rotulo('rd-l-' + i, 'book', 'O que a IA lê')}<textarea id="rd-l-${i}" class="inp" rows="2" maxlength="${E.max.pedido}" data-rd-l="${i}" placeholder="${e.ferramenta ? 'O que contar do que ler' : 'Vazio: como na etapa pronta'}">${esc(e.pedido || '')}</textarea></div>` : ''}</li>`).join('');
+    const porApp = {};
+    E.catalogo.forEach(c => { (porApp[c.nome_app] = porApp[c.nome_app] || []).push(c); });
+    const catalogo = Object.keys(porApp).map(app => `<div class="rd-app">${tituloLinha('plug', esc(app))}
+        ${porApp[app].map(c => `<button class="btn out rd-pronta" data-a="rd-add" data-v="${esc(c.de)}"${c.ligada ? '' : ' disabled'}>${ic('plus', 'ic-s')}<span>${esc(c.grupo)}: ${esc(c.titulo)}<small>${esc(c.pergunta)}</small></span></button>`).join('')}</div>`).join('');
+    const livre = av ? `<div class="rd-app">${tituloLinha('sparkles', 'Etapa livre')}
+        ${E.leituras.length ? `<div class="campo">${rotulo('rd-livre', 'book', 'O que a IA lê')}<select id="rd-livre" class="inp" aria-label="O que a IA lê">${E.leituras.map(f => `<option value="${esc(f.id)}">${esc(f.nome_app)} · ${esc(f.titulo)}</option>`).join('')}</select></div>
+          <div class="dados-acoes"><button class="btn out" data-a="rd-add-livre">${ic('plus', 'ic-s')}Adicionar etapa livre</button></div>` : '<p class="vazio">Nenhum app ligado.</p>'}</div>` : '';
+    const fim = S.confirma === 'rd-fim'
+      ? confirma('rd-apagar', ed.mudada ? 'Voltar esta ronda ao que era?' : 'Apagar esta ronda?', ed.mudada ? 'refresh' : 'trash', ed.mudada ? 'Voltar ao original' : 'Apagar')
+      : `<div class="dados-acoes dois"><button class="btn out" data-a="voltar">${ic('x', 'ic-s')}Cancelar</button>
+          <button class="btn pri" data-a="rd-salvar">${ic('check', 'ic-s')}Salvar</button></div>
+        ${ed.id && (ed.mudada || ed.minha) ? `<div class="dados-acoes rd-fim"><button class="btn out" data-a="dados-pedir" data-v="rd-fim">${ic(ed.mudada ? 'refresh' : 'trash', 'ic-s')}${ed.mudada ? 'Voltar ao original' : 'Apagar ronda'}</button></div>` : ''}`;
+    return `${topoTela(ed.id ? 'Editar ronda' : 'Nova ronda', 'Rondas')}
+      <section class="card" id="rd-ronda">${cab('ronda', 'Ronda')}
+        <div class="campo">${rotulo('rd-nome', 'nova', 'Nome')}<textarea id="rd-nome" class="inp umalinha" rows="1" maxlength="40" placeholder="Ronda da garagem">${esc(ed.nome)}</textarea></div>
+        <div class="linha-sw"><div>${tituloLinha('casa', 'Por cômodo')}<span>Escolhe o cômodo ao começar.</span></div>
+          <button class="sw${ed.onde ? ' on' : ''}" data-a="rd-onde" role="switch" aria-checked="${!!ed.onde}" aria-label="Por cômodo"></button></div></section>
+      <section class="card" id="rd-etapas">${cab('layers', `Etapas${n ? ` (${n})` : ''}`)}
+        <ul class="rd-etapas">${etapas || '<li class="vazio">Nenhuma etapa ainda.</li>'}</ul>
+        ${ed.add ? '' : `<div class="dados-acoes"><button class="btn out" data-a="rd-abrir-add">${ic('plus', 'ic-s')}Adicionar etapa</button></div>`}</section>
+      ${ed.add ? `<section class="card" id="rd-catalogo">${cab('plus', 'Adicionar etapa')}${catalogo}${livre}</section>` : ''}
+      <section class="card" id="rd-acoes">${cab('check', 'Salvar')}${fim}</section>`;
+  }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;
     const d = R.avisar_dias, on = d > 0, outro = on && (S.rondaOutro || !RONDA_DIAS.includes(d));
@@ -616,9 +665,17 @@
       : L.map(r => `<section class="card ronda-card" id="ronda-${esc(r.id)}">${cab('ronda', esc(r.nome))}
           <p class="lead">${esc(r.resumo)}</p>
           <p class="ronda-grupos">${esc([...new Set(r.etapas.map(x => x.grupo))].join(' › '))} · ${r.etapas.length} ${r.etapas.length === 1 ? 'pergunta' : 'perguntas'}</p>
-          <div class="acoes"><button class="btn pri" data-a="ronda-comecar" data-v="${esc(r.id)}"${r.sem_onde ? '' : ' data-escolher="1"'}>${ic('chev', 'ic-s')}${r.sem_onde ? 'Começar' : 'Escolher o cômodo'}</button></div></section>`).join('');
+          <div class="dados-acoes dois"><button class="btn out" data-a="rd-editar" data-v="${esc(r.id)}">${ic('nova', 'ic-s')}Editar</button>
+            <button class="btn pri" data-a="ronda-comecar" data-v="${esc(r.id)}"${r.sem_onde ? '' : ' data-escolher="1"'}>${ic('chev', 'ic-s')}${r.sem_onde ? 'Começar' : 'Escolher o cômodo'}</button></div></section>`).join('');
+    // 1.30.0: criar uma ronda e o modo avançado (desligado de início), com o que ele muda dito ali
+    const av = !!(S.editor && S.editor.avancado);
+    const suas = `<section class="card" id="ronda-suas">${cab('plus', 'Suas rondas')}
+        <div class="dados-acoes"><button class="btn pri" data-a="rd-editar" data-v="">${ic('plus', 'ic-s')}Nova ronda</button></div>
+        <div class="linha-sw rd-av"><div>${tituloLinha('sparkles', 'Modo avançado')}<span>Você escreve o que a IA lê em cada etapa e cria etapas livres. Uma instrução mal escrita faz a IA ler a coisa errada ou inventar.</span></div>
+          <button class="sw${av ? ' on' : ''}" data-a="rd-avancado" role="switch" aria-checked="${av}" aria-label="Modo avançado"></button></div></section>`;
     return `${topoTela('Rondas', 'Mais')}
       ${cartoes}
+      ${suas}
       <section class="card" id="ronda-aviso">${cab('alert', 'Aviso')}
         <div class="linha-sw"><div>${tituloLinha('alert', 'Avisar cômodo sem ronda')}<span>${(R.atrasados || []).length ? `Atrasados: ${esc(R.atrasados.join(', '))}.` : 'No botão das Rondas e no sino do Home Assistant.'}</span></div>
           <button class="sw${on ? ' on' : ''}" data-a="ronda-aviso" role="switch" aria-checked="${on}" aria-label="Avisar cômodo sem ronda"></button></div>
@@ -667,7 +724,7 @@
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
-  const ICONE_TELA = { Rondas: 'ronda', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
+  const ICONE_TELA = { Rondas: 'ronda', 'Editar ronda': 'nova', 'Nova ronda': 'plus', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
   const tituloTela = titulo => `${ICONE_TELA[titulo] ? `<span class="rot-ic tela-ic" aria-hidden="true">${ic(ICONE_TELA[titulo])}</span>` : ''}${titulo}`;
   const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${tituloTela(titulo)}</h1></header>`;
   function sobre(e) {
@@ -1191,7 +1248,7 @@
     pintarLado();
     aplicarCor();
     if (S.tela) $('#app').style.paddingBottom = '';
-    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'ronda-editor' ? telaEditor() : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) {
       const el = document.getElementById(ativo);
       if (el && el.focus) el.focus();
@@ -1258,6 +1315,7 @@
     window.scrollTo(0, 0);
     render();
     if (S.tela === 'rondas' && !S.rondas) carregarRondas();
+    if (S.tela === 'ronda-editor' && !S.ed) { S.tela = 'rondas'; render(); }
   });
   function carregarConversa() {
     return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; S.ch.ronda = (r.ronda && r.ronda.ativa) || null; S.ch.rondaFeitos = (r.ronda && r.ronda.feitos) || []; render(); })
@@ -1516,6 +1574,44 @@
       guardar('correria-conversa-fixa', fixa() ? '' : '1');
       armarRecolher();
       render();
+    } else if (a === 'rd-editar') {  // 1.30.0: criar e mudar rondas
+      if (!S.editor) await carregarEditor();
+      if (S.editor) abrirEditor(el.dataset.v);
+    } else if (a === 'rd-avancado') {
+      try { S.editor = await api.post('rondas/editor', { acao: 'avancado', liga: !(S.editor && S.editor.avancado) }); toast(S.editor.avancado ? 'Modo avançado ligado' : 'Modo avançado desligado'); }
+      catch (err) { toast(err.message); }
+      render();
+    } else if (a === 'rd-onde') {
+      S.ed.onde = !S.ed.onde; render();
+    } else if (a === 'rd-sobe' || a === 'rd-desce') {
+      const i = Number(el.dataset.i), j = a === 'rd-sobe' ? i - 1 : i + 1, L = S.ed.etapas;
+      if (L[i] && L[j]) { [L[i], L[j]] = [L[j], L[i]]; render(); }
+    } else if (a === 'rd-tira') {
+      S.ed.etapas.splice(Number(el.dataset.i), 1); render();
+    } else if (a === 'rd-abrir-add') {
+      S.ed.add = true; render();
+    } else if (a === 'rd-add' || a === 'rd-add-livre') {
+      if (S.ed.etapas.length >= S.editor.max.etapas) return toast(`Uma ronda tem até ${S.editor.max.etapas} etapas.`);
+      if (a === 'rd-add') {
+        const c = S.editor.catalogo.find(x => x.de === el.dataset.v);
+        if (c) S.ed.etapas.push({ de: c.de, app: c.nome_app, grupo: c.grupo, titulo: c.titulo, pergunta: c.pergunta, pedido: '', le: c.le, ligada: c.ligada });
+      } else {
+        const f = S.editor.leituras.find(x => x.id === ($('#rd-livre') || {}).value);
+        if (f) S.ed.etapas.push({ ferramenta: f.id, app: f.nome_app, grupo: '', titulo: f.titulo, pergunta: '', pedido: '', le: true, ligada: true });
+      }
+      S.ed.add = false; render();
+    } else if (a === 'rd-salvar' || a === 'rd-apagar') {
+      const ed = S.ed;
+      el.disabled = true;
+      try {
+        S.editor = await api.post('rondas/editor', a === 'rd-salvar'
+          ? { acao: 'salvar', ronda: { id: ed.id, nome: ed.nome, onde: ed.onde, etapas: ed.etapas.map(e => ({ id: e.id, de: e.de, ferramenta: e.ferramenta, titulo: e.titulo, pergunta: e.pergunta, pedido: e.pedido })) } }
+          : { acao: ed.mudada ? 'restaurar' : 'apagar', id: ed.id });
+        S.confirma = ''; S.ed = null; S.rondas = null; S.ch.rondas = null; S.ch.ronda = null;
+        toast(a === 'rd-salvar' ? 'Ronda salva' : ed.mudada ? 'Ronda como era' : 'Ronda apagada');
+        voltar();
+        carregarRondas();
+      } catch (err) { el.disabled = false; toast(err.message); }
     } else if (a === 'dados-pedir') {  // 1.29.0: Configurações › Dados
       S.confirma = el.dataset.v; render();
     } else if (a === 'dados-cancelar') {
@@ -1534,7 +1630,7 @@
         if (a !== 'dados-backup') {  // os dados são outros: a tela busca tudo de novo
           Object.assign(S.ch, { lista: null, ronda: null, rondas: null });
           carregarConversa();
-          S.lembrancas = null; S.lembPedidas = false; S.rondas = null;
+          S.lembrancas = null; S.lembPedidas = false; S.rondas = null; S.editor = null; S.ed = null;
           await carregar();
         }
         toast(pedido[2]);
@@ -1551,7 +1647,7 @@
     } else if (a === 'ch-desfazer') {  // 1.27.0: desfazer o que o último sim fez
       enviarConversa('Desfazer', null, true);
     } else if (a === 'tela-rondas') {
-      abrirTela('rondas'); carregarRondas();
+      abrirTela('rondas'); carregarRondas(); carregarEditor();
     } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {
       abrirTela(a);
     } else if (a === 'lado-ir') {  // 1.8.0: Conversa e Mais, na barra lateral
@@ -1670,6 +1766,11 @@
     const el = ev.target;
     if (el.dataset.f) S.form[el.dataset.f] = el.value;
     if (el.id === 'ch-ed-txt' && S.ch.editando) S.ch.editando.rascunho = el.value;
+    if (S.ed) {  // 1.30.0: o editor das rondas guarda o que se escreve (a tela é refeita a cada toque)
+      if (el.id === 'rd-nome') S.ed.nome = el.value;
+      if (el.dataset.rdP != null && S.ed.etapas[Number(el.dataset.rdP)]) S.ed.etapas[Number(el.dataset.rdP)].pergunta = el.value;
+      if (el.dataset.rdL != null && S.ed.etapas[Number(el.dataset.rdL)]) S.ed.etapas[Number(el.dataset.rdL)].pedido = el.value;
+    }
     if (el.dataset.edI != null && S.ch.editando) S.ch.editando.lista[Number(el.dataset.edI)] = el.value;  // 1.12.0: mudar uma pergunta
     if (el.id === 'ch-txt') {
       S.ch.texto = el.value; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';

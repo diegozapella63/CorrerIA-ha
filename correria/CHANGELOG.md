@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.30.0
+
+- **Criar e mudar rondas** (Mais › Rondas): cada ronda ganhou o **Editar**, e há a **Nova ronda**. Você escolhe o nome, se ela é por cômodo, quais etapas entram (das prontas, de cada app), a ordem e a pergunta de cada uma. Uma ronda daqui que você mudou tem o **Voltar ao original**; uma sua, o **Apagar**.
+- **Modo avançado** (desligado de início, na mesma tela): você escreve o que a IA lê em cada etapa e cria etapas livres, com qualquer leitura dos apps ligados. Uma instrução mal escrita faz a IA ler a coisa errada ou inventar.
+
 ## 1.29.0
 
 - **Configurações › Dados**, como nos outros apps: **Exportar** (um arquivo para baixar), **Backup na pasta share** (os 10 últimos, com Restaurar), **Importar**, **Versões anteriores** (o app guarda uma antes de importar, restaurar ou começar do zero) e **Começar do zero**.

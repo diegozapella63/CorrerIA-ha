@@ -683,6 +683,7 @@ def _dados_trocados():
         d.clear()
     SEM_ESTRUTURA.clear()
     publicar_lembrancas()
+    montar_rondas()
 
 
 def trocar_dados(zip_bytes, motivo):
@@ -1904,6 +1905,68 @@ def _conversar(corpo, pessoa, chave):
 # como uma mensagem da pessoa (só o rótulo: "Ronda da casa · Sala · Tarefas (1 de 4)") e a resposta da IA, que leu o app da
 # etapa e faz a pergunta; o que a pessoa responder segue pela Conversa de sempre, com o sim antes de qualquer mudança.
 RONDAS_ATIVAS = {}
+# 1.30.0: as rondas que a pessoa criou ou mudou (Mais › Rondas › Editar), em /data/rondas_minhas.json; o rondas.montar põe por
+# cima das daqui. avancado: o modo avançado (escrever o que a IA lê e criar etapas livres), desligado de início.
+MINHAS_ARQ = os.path.join(DATA_DIR, "rondas_minhas.json")
+TRAVA_MINHAS = threading.Lock()
+
+
+def ler_minhas():
+    m = ler_json(MINHAS_ARQ)
+    return {"avancado": m.get("avancado") is True, "rondas": m.get("rondas") if isinstance(m.get("rondas"), dict) else {}}
+
+
+def montar_rondas():
+    rondas.montar(ler_minhas())
+
+
+def _leituras():
+    """As ferramentas de leitura ligadas agora, para as etapas livres: {id: {app, nome_app, titulo}} (sem as que pedem arquivo)."""
+    return {f["id"]: {"app": f["app"]["app"], "nome_app": f["app"]["nome"], "titulo": f["titulo"]}
+            for f in FERR.todas() if not f["grava"] and not f.get("anexo")}
+
+
+def editor_rondas():
+    m, todas = ler_minhas(), FERR.todas()
+    ids = {f["id"] for f in todas}
+    return {"avancado": m["avancado"], "rondas": rondas.para_editor(ids),
+            "catalogo": [dict(c, ligada=c["precisa"] in ids) for c in rondas.catalogo()],
+            "leituras": [dict(v, id=k) for k, v in sorted(_leituras().items(), key=lambda kv: (kv[1]["nome_app"], kv[1]["titulo"]))] if m["avancado"] else [],
+            "max": {"etapas": rondas.MAX_ETAPAS, "pergunta": rondas.MAX_PERGUNTA, "pedido": rondas.MAX_PEDIDO}}
+
+
+def editar_rondas(c):
+    """{acao: salvar, ronda: {id?, nome, onde, etapas}} | {acao: apagar | restaurar, id} | {acao: avancado, liga}."""
+    acao = str(c.get("acao") or "")
+    with TRAVA_MINHAS:
+        m = ler_minhas()
+        if acao == "avancado":
+            m["avancado"] = c.get("liga") is True
+        elif acao == "salvar":
+            r = c.get("ronda") if isinstance(c.get("ronda"), dict) else {}
+            rid = str(r.get("id") or "")
+            if rid and rid not in rondas.RONDAS:
+                raise ValueError("Essa ronda não existe mais.")
+            if not rid:
+                if len([k for k in m["rondas"] if k not in rondas.PADRAO]) >= rondas.MAX_RONDAS:
+                    raise ValueError(f"Já são {rondas.MAX_RONDAS} rondas suas. Apague alguma.")
+                rid = rondas.nova_id(set(rondas.RONDAS) | set(m["rondas"]))
+            m["rondas"][rid] = rondas.conferir_ronda(r, m["rondas"].get(rid), m["avancado"], _leituras() if m["avancado"] else None)
+        elif acao in ("apagar", "restaurar"):
+            rid = str(c.get("id") or "")
+            if rid not in m["rondas"] or (acao == "apagar") != (rid not in rondas.PADRAO):
+                raise ValueError("Essa ronda não existe mais.")
+            m["rondas"].pop(rid)
+        else:
+            raise ValueError("Pedido inválido.")
+        gravar_arquivo(MINHAS_ARQ, json.dumps(m, ensure_ascii=False))
+        montar_rondas()
+    if acao != "avancado":  # uma ronda em andamento era a de antes: acaba
+        RONDAS_ATIVAS.clear()
+    return editor_rondas()
+
+
+montar_rondas()
 HORA_RE = re.compile(r"^([01]\d|2[0-3]):(00|30)$")
 PESSOA_RE = re.compile(r"^person\.[a-z0-9_]+$")
 MAX_RONDAS = 500
@@ -2212,6 +2275,8 @@ class Tela(BaseHTTPRequestHandler):
             return self.enviar(200, {"passo": PASSOS.get("tela:" + pessoa_da_tela(self.headers)[1], "")})
         if p == "/api/lembrancas":  # 1.27.0: o que a casa pediu para a IA lembrar
             return self.enviar(200, {"lembrancas": lembrancas(), "max": MAX_LEMBRANCAS})
+        if p == "/api/rondas/editor":  # 1.30.0: as rondas para editar, as etapas prontas e o modo avançado
+            return self.enviar(200, editor_rondas())
         if p == "/api/rondas":  # 1.18.0: as rondas que dá para fazer agora (os cômodos vêm do InventarIA)
             pessoa, chave = pessoa_da_tela(self.headers)
             return self.enviar(200, dict(rondas_estado(chave, pessoa, listar=True), aviso=pessoas_do_aviso(self.headers.get("X-Remote-User-Id") or "")))
@@ -2289,6 +2354,8 @@ class Tela(BaseHTTPRequestHandler):
                 else:
                     lembrar(c.get("texto"), pessoa_da_tela(self.headers)[0])
                 return self.enviar(200, {"lembrancas": lembrancas(), "max": MAX_LEMBRANCAS})
+            if p == "/api/rondas/editor":  # 1.30.0: salvar, apagar, voltar ao original, o modo avançado
+                return self.enviar(200, editar_rondas(c))
             if p == "/api/ronda/testar":  # 1.21.0: o Testar no meu celular
                 return self.enviar(200, testar_aviso_ronda(self.headers.get("X-Remote-User-Id") or ""))
             if p == "/api/ronda":  # 1.18.0: começar, próxima etapa, voltar ou sair
