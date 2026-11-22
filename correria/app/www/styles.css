@@ -604,4 +604,12 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 .bt-icone.aviso::after { content: ""; position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
 .ronda-hist li { display: flex; justify-content: space-between; gap: 10px; }
 .ronda-hist li span { color: var(--muted); font-size: 13.5px; white-space: nowrap; }
-#rondas .chips-tempo { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* 1.20.0: a tela Rondas (Mais › Rondas) e a escolha de uma ronda sem cômodo */
+.ronda-grupos { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+.ronda-card .acoes .btn { width: 100%; }
+@media (min-width: 1000px) { .ronda-card .acoes .btn { width: 280px; } }
+.ronda-outro { margin-top: 10px; }
+.ch-ronda-onde.um { grid-template-columns: 1fr; }
+ul.ronda-hist { list-style: none; margin: 0; padding: 0; }
+ul.ronda-hist li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+ul.ronda-hist li:last-child { border-bottom: 0; }

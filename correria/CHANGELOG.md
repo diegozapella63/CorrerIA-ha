@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.20.0
+
+- **Mais › Rondas**: a tela nova das rondas, antes de Configurações e do Sobre: cada ronda com o **Começar**, o aviso e as **Últimas rondas**.
+- **Três rondas novas**, sem cômodo: a **Ronda de compras** (antes de sair: a lista, a reposição, os consumíveis acabando, as ofertas e onde comprar), a **Ronda da chegada das compras** (o que comprou e por quanto tempo dura, o que guardar no InventarIA e o gasto no GerencIA) e a **Ronda do mês** (as finanças, as contas, a agenda, as rotinas, as tarefas atrasadas, os itens e a reposição).
+- **Ronda da casa**: também passa pelas **rotinas** do CronologIA (alguma precisa mudar, falta alguma, alguma pode sair) e, com **Consumíveis por cômodo** ligado no InventarIA 1.88.0, mostra os consumíveis usados em cada cômodo.
+- **Aviso de cômodo sem ronda**: agora é uma chave que liga e desliga, com o prazo embaixo (15, 30, 45 ou Outro). O botão Nunca saiu.
+
 ## 1.19.1
 
 - **Rondas**: o cômodo já feito hoje aparece em verde na escolha.

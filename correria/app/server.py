@@ -1309,7 +1309,7 @@ def estado():
         "recolher": c["recolher"], "apagar_dias": c["apagar_dias"],
         # 1.19.0: as rondas: o prazo do aviso, os cômodos atrasados (conferidos de hora em hora) e as últimas 30 do histórico
         "rondas": {"avisar_dias": c["ronda_dias"], "atrasados": [a["onde"] for a in ESTADO.get("rondas_atrasadas") or []],
-                   "historico": [{"onde": x["onde"], "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
+                   "historico": [{"ronda": rondas.RONDAS[x["ronda"]]["nome"], "onde": x.get("onde") or "", "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
@@ -1584,7 +1584,7 @@ TRAVA_RONDAS = threading.Lock()
 
 def historico_rondas():
     h = ler_json(RONDAS_ARQ).get("historico")
-    return [x for x in h if isinstance(x, dict) and x.get("onde") and x.get("em")] if isinstance(h, list) else []
+    return [x for x in h if isinstance(x, dict) and x.get("em") and x.get("ronda") in rondas.RONDAS] if isinstance(h, list) else []
 
 
 def anotar_ronda(rid, onde, pessoa, perguntas):
@@ -1605,7 +1605,7 @@ def ultimas_rondas(rid="casa", agora=None):
     """{cômodo: há quantos dias foi a última ronda concluída ali}."""
     out = {}
     for x in historico_rondas():
-        d = _dias_desde(x["em"], agora) if x.get("ronda") == rid else None
+        d = _dias_desde(x["em"], agora) if x.get("ronda") == rid and x.get("onde") else None
         if d is not None:
             out[x["onde"]] = d if x["onde"] not in out else min(out[x["onde"]], d)
     return out
@@ -1670,21 +1670,28 @@ def ronda_passo(corpo, pessoa, chave):
         disp = next((x for x in rondas.disponiveis(FERR, pessoa) if x["id"] == rid), None) if FERR.tem() else None
         if not disp:
             raise ValueError("Esta ronda não está disponível: ligue o CorrerIA nos apps (Mais › Configurações › Integrações).")
-        if not onde or (disp["onde"] and onde not in disp["onde"]):
+        if disp["sem_onde"]:
+            onde = ""
+        elif not onde or (disp["onde"] and onde not in disp["onde"]):
             raise ValueError("Escolha o cômodo.")
-        r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": [e["id"] for e in disp["etapas"]]}
+        r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": [e["id"] for e in disp["etapas"]], "opcoes": disp["opcoes"]}
     elif not r:
         raise ValueError("Nenhuma ronda em andamento.")
     elif acao == "proxima":
         if r["i"] + 1 >= len(r["etapas"]):  # a última etapa: o cômodo fica feito e a ronda espera o próximo
             RONDAS_ATIVAS.pop(chave, None)
             lista = conversa_tela(chave)
-            lista += [{"papel": "eu", "texto": f"{rondas.RONDAS[r['id']]['nome']} · {r['onde']} · concluída", "em": agora_iso(), "ronda": True},
-                      {"papel": "ia", "texto": f"Ronda de {r['onde']} concluída. Quando quiser, escolha o próximo cômodo.", "em": agora_iso(), "app": "CorrerIA", "app_id": "_ia"}]
+            nome = rondas.RONDAS[r["id"]]["nome"]
+            lista += [{"papel": "eu", "texto": f"{nome}{' · ' + r['onde'] if r['onde'] else ''} · concluída", "em": agora_iso(), "ronda": True},
+                      {"papel": "ia", "texto": f"Ronda de {r['onde']} concluída. Quando quiser, escolha o próximo cômodo." if r["onde"] else f"{nome} concluída.",
+                       "em": agora_iso(), "app": "CorrerIA", "app_id": "_ia"}]
             _gravar_tela(chave, lista)
             anotar_ronda(r["id"], r["onde"], pessoa, len(r["etapas"]))
             threading.Thread(target=lambda: _tentar(conferir_rondas), daemon=True).start()
-            return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave, pessoa, listar=True)}
+            est = rondas_estado(chave, pessoa, listar=True)
+            if r["onde"]:
+                est["proximo"] = r["id"]  # a tela abre a escolha do próximo cômodo
+            return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": est}
         r["i"] += 1
     elif acao == "voltar":
         r["i"] = max(0, r["i"] - 1)
@@ -1695,7 +1702,7 @@ def ronda_passo(corpo, pessoa, chave):
     lista = conversa_tela(chave)
     hist = [{"papel": m.get("papel"), "texto": m.get("texto") or ""} for m in lista][-MAX_HISTORICO:]
     eu = {"papel": "eu", "texto": rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, total), "em": agora_iso(), "ronda": True}
-    ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total)
+    ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total, r.get("opcoes") or ())
     etapa = rondas.etapa_de(r["id"], eid)
     if ped is None:  # a etapa só pergunta: sem a IA, na hora
         texto, nomes, confirmar = rondas.arrumar("", r["id"], eid, r["onde"]), [etapa["nome_app"]], False
