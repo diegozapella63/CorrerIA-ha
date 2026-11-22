@@ -1824,8 +1824,10 @@ def ronda_passo(corpo, pessoa, chave):
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:
         ia_msg["confirmar"] = True
-    link = rondas.abrir(r["id"], eid, r["onde"], {a["app"]: a.get("painel") for a in APPS.lista()})
-    if link:  # 1.22.0: o botão embaixo da mensagem abre o app da etapa, já no lugar
+    # 1.22.0: o botão embaixo da mensagem abre o app da etapa, já no lugar. 1.22.2 (o dono: "é só uma pergunta e ele já
+    # mostrou o abrir"): só na etapa que leu o app e mostrou o que há lá; numa pergunta só, não
+    link = rondas.abrir(r["id"], eid, r["onde"], {a["app"]: a.get("painel") for a in APPS.lista()}) if ped is not None else None
+    if link:
         ia_msg["abrir"] = link
     eu["texto"] = rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, len(r["etapas"]))
     lista += [eu, ia_msg]

@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.22.2
+
+- **Rondas**: o botão **Abrir no …** aparece só quando a etapa mostra o que há no app (as tarefas, os itens, as rotinas). Numa pergunta só, não aparece mais.
+
 ## 1.22.1
 
 - **O Sim que não aparecia**: às vezes a IA escrevia "Toque em Sim para confirmar" sem ter preparado a mudança, e os botões não vinham. Agora ela é obrigada a preparar a mudança de verdade; se não conseguir, a resposta diz para pedir de novo.

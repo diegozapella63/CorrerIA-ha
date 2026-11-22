@@ -133,8 +133,10 @@ class TestLinksEMais(Base):
         m = r["mensagens"][-1]
         self.assertEqual(m["abrir"], {"texto": "Abrir no ResolvIA", "href": "/app/x_resolvia?aba=buscar&comodo=Sala"})
         self.assertIn("- Regar a planta\n- e mais 3", m["texto"])
-        for _ in range(2):  # Tarefas: Nova (ResolvIA, com link) e Itens (InventarIA, sem o endereço: sem link)
-            st, r = self.j("/api/ronda", {"acao": "proxima"})
+        st, r = self.j("/api/ronda", {"acao": "proxima"})  # 1.22.2: Tarefas: Nova é só uma pergunta: sem o botão
+        self.assertEqual(r["ronda"]["ativa"]["etapa"], "Nova")
+        self.assertNotIn("abrir", r["mensagens"][-1], "uma pergunta só não tem o que abrir")
+        st, r = self.j("/api/ronda", {"acao": "proxima"})  # Itens (InventarIA, sem o endereço do app: sem link)
         self.assertNotIn("abrir", r["mensagens"][-1])
 
 
