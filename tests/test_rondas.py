@@ -550,6 +550,16 @@ class TestMaisRondas(Base):
         self.assertTrue(r["mensagens"][-1]["texto"].endswith("*O que da lista você comprou?*"))
         self.assertIn("dura_dias", rondas.pedido("chegada", "comprei", "", S.FERR.todas(), 1, 3))
         self.assertIn("dura_dias", rondas.contexto("chegada", "comprei", ""))
+        # 1.25.1 (o dono, na etapa dos consumíveis: "são bens (valor em R$) ou consumíveis?" e a foto dos cremes lida como móveis):
+        # ali tudo é consumível, e a foto é lida como de consumíveis
+        c = rondas.contexto("casa", "cons_novo", "Banheiro")
+        self.assertIn("nunca pergunte se é bem ou consumível e nunca peça valor", c)
+        self.assertIn("no cômodo «Consumíveis», com usado_em «Banheiro», com duracao_dias", c)
+        e = rondas.etapa_de("casa", "cons_novo")
+        self.assertIn("ao ler, mande consumiveis: true", rondas.contexto_anexo(e, "image/jpeg"))
+        outro = next(x for x in rondas.RONDAS["casa"]["etapas"] if not rondas.de_consumiveis(x))
+        self.assertNotIn("consumiveis: true", rondas.contexto_anexo(outro, "image/jpeg"))
+        self.assertNotIn("nunca peça valor", rondas.contexto("casa", outro["id"], "Banheiro"))
         r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "mes"})[1]
         self.assertEqual((r["ronda"]["ativa"]["nome"], r["mensagens"][-2]["texto"]), ("Ronda do mês", "Ronda do mês · Finanças: Gastos do mês (1 de 5)"))
         self.assertIn("Entrou 100", r["mensagens"][-1]["texto"])

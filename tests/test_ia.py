@@ -83,6 +83,46 @@ class TestAgente(unittest.TestCase):
         r = ag.responder(self.hist("cadastra"), ANA, "correria", "CorrerIA", AGORA)
         self.assertEqual(r, {"resposta": "Não consegui preparar essa mudança agora. Pode pedir de novo?", "pendente": [], "apps": []})
 
+    def test_a_ia_nao_diz_que_fez_nem_que_viu_a_foto(self):
+        """1.25.1 (o dono: "a mensagem é equivocada, diz que adicionou, mas não adicionou nada" e "alucinações": «Analisando a foto
+        novamente, identifiquei…»): antes do sim nada foi feito, e a IA só fala da foto depois de uma ferramenta que a lê."""
+        from unittest import mock
+        prop = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 3}, "resumo": "Lançar R$ 3,00 de Feira"}]}
+        r = self.agente(dict(prop, resposta="Feito! Cadastrei os itens como consumíveis. Se não houver mais nada, toque em Próxima.")).responder(self.hist("lança"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(r["resposta"], "Vou fazer isto:\n- Lançar R$ 3,00 de Feira\n\nToque em *Sim* para confirmar.", "o «Feito!» da IA sai: nada foi feito ainda")
+        r = self.agente(dict(prop, resposta="Vou lançar a feira.")).responder(self.hist("lança"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertTrue(r["resposta"].startswith("Vou lançar a feira.\n\nVou fazer isto:"), "uma frase que não diz que fez continua")
+        # só texto dizendo que fez: volta para a IA; insistindo, a resposta diz que não deu
+        ag = self.agente({"resposta": "Pronto! Adicionei os cremes."}, prop)
+        r = ag.responder(self.hist("adiciona"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(len(r["pendente"]), 1)
+        self.assertIn("nenhuma ferramenta que grava foi chamada: nada mudou", self.ia.pedidos[1])
+        r = self.agente(*([{"resposta": "Cadastrei tudo."}] * I.RODADAS)).responder(self.hist("adiciona"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(r["resposta"], "Não consegui preparar essa mudança agora. Pode pedir de novo?")
+        for ok in ("Já está cadastrado.", "O pão custou R$ 5,00.", "Prontos para a feira?"):
+            self.assertIsNone(I.JA_FIZ_RE.search(ok), ok)
+        # a foto: descrever sem ler volta; com a foto à mão, manda ler; sem ela, manda pedir de novo
+        inventou = {"resposta": "Desculpe a falha. Analisando a foto novamente, identifiquei estes itens:\n- Amostra de gel"}
+        for frase in ("Analisei os itens da foto novamente: há o Creme.", "Na foto identifiquei o Gabinete e a Cuba.", "Na foto há 3 cremes."):
+            self.assertTrue(I.VI_A_FOTO_RE.search(frase), frase)
+        for ok in ("Quer cadastrar os cremes da foto?", "Identifiquei 3 contas a vencer.", "Mande a foto de novo."):
+            self.assertIsNone(I.VI_A_FOTO_RE.search(ok), ok)
+        ag = self.agente(inventou, {"resposta": "Mande a foto de novo, por favor."})
+        r = ag.responder(self.hist("tá cheio de coisa na foto"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(r["resposta"], "Mande a foto de novo, por favor.")
+        self.assertIn("O arquivo não está mais à mão: peça à pessoa para mandar a foto de novo", self.ia.pedidos[1])
+        ag = self.agente(inventou, inventou, inventou, inventou)
+        r = ag.responder(self.hist("e a foto?"), ANA, "correria", "CorrerIA", AGORA, foto="Foto 16:44, foto JPG", anexo={"tipo": "image/jpeg", "nome": "f", "b64": "x"})
+        self.assertEqual(r["resposta"], "Não consegui ler a foto agora. Pode mandar de novo?")
+        self.assertIn("Chame a ferramenta que lê o arquivo (a do app do assunto) e fale só do que ela devolver.", self.ia.pedidos[1])
+        # depois de uma ferramenta que leu o arquivo nesta resposta, falar da foto vale
+        base = next(f for f in self.ferr.todas() if not f["grava"])
+        leitora = dict(base, id="gerencia_ler_arquivo", nome="ler_arquivo", anexo=["image/jpeg"])
+        ag = self.agente({"chamar": [{"ferramenta": "gerencia_ler_arquivo", "argumentos": {}}]}, {"resposta": "Na foto há 2 consumíveis: Loção e Creme."})
+        with mock.patch.object(self.ferr, "todas", return_value=self.ferr.todas() + [leitora]), mock.patch.object(ag, "usar", return_value=("Na foto há 2 consumíveis", False)):
+            r = ag.responder(self.hist("olha"), ANA, "correria", "CorrerIA", AGORA, foto="Foto, foto JPG", anexo={"tipo": "image/jpeg", "nome": "f", "b64": "x"})
+        self.assertEqual(r["resposta"], "Na foto há 2 consumíveis: Loção e Creme.")
+
     def test_sem_resumo_monta_um(self):
         ag = self.agente({"chamar": [{"ferramenta": "gerencia_apagar", "argumentos": {"id": "l1"}}, {"ferramenta": "gerencia_lancar", "argumentos": {"valor": 1}}]})
         r = ag.responder(self.hist("apaga e lança"), ANA, "whatsapp", "WhatsApp", AGORA)

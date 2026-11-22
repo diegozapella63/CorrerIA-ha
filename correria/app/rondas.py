@@ -188,11 +188,24 @@ def rotulo(rid, eid, onde, n, total):
     return f"{onde or RONDAS[rid]['nome']} · {e['grupo']}: {e['titulo']} ({n} de {total})"
 
 
+# 1.25.1 (o dono, na etapa dos consumíveis: a IA perguntou "são bens (valor em R$) ou consumíveis?" e leu a foto dos cremes como
+# móveis e toalha: "alucinações"): numa etapa de consumíveis, tudo o que a pessoa manda é consumível
+CONSUMIVEIS = ("Nesta etapa tudo o que eu citar ou mandar em foto é consumível: nunca pergunte se é bem ou consumível e nunca peça valor. "
+               "Cadastre com inventario_cadastrar_itens no cômodo «Consumíveis»{usado}, com duracao_dias: a que eu disser; sem ela, a "
+               "estimada pela leitura da foto (dizendo que é estimada); sem nenhuma das duas, pergunte só a duração. Antes de cadastrar, "
+               "não repita o que já está nos consumíveis.")
+
+
+def de_consumiveis(e):
+    return bool(e) and (e.get("grupo") == "Consumíveis" or "consum" in e.get("id", ""))
+
+
 def contexto(rid, eid, onde):
     """O que a IA precisa saber quando a pessoa responde no meio de uma etapa."""
     e = etapa_de(rid, eid)
     return (f"(Estou na {RONDAS[rid]['nome']}{f', cômodo «{onde}»' if onde else ''}, etapa {e['titulo']}: a minha próxima mensagem responde a «{e['pergunta'].format(onde=onde)}». "
             f"As mudanças desta etapa são no {e['nome_app']}; responda só a isso, sem fazer outra pergunta; se eu disser que não há nada, diga só para eu tocar em Próxima."
+            + (" " + CONSUMIVEIS.format(usado=f", com usado_em «{onde}»" if onde else "") if de_consumiveis(e) else "")
             + (" " + e["depois"] if e.get("depois") else "") + ")")
 
 
@@ -202,7 +215,9 @@ def contexto_anexo(e, tipo):
     return (f"(A pessoa mandou {que} junto com esta mensagem, no meio da ronda. Você não vê o arquivo. Ele é desta etapa, do "
             f"{e['nome_app']}: use só as ferramentas do {e['nome_app']} que recebem o arquivo. Para saber o que há nele, a de ler o "
             "arquivo; para cadastrar ou guardar, a que cadastra ou guarda, sem pedir o nome do que está nele (o app lê). Não use a "
-            "ferramenta de outro app e não descreva o arquivo sem tê-lo lido.)")
+            "ferramenta de outro app e não descreva o arquivo sem tê-lo lido."
+            + (" A foto é de consumíveis: ao ler, mande consumiveis: true (a leitura traz só os consumíveis e diz os que já estão "
+               "cadastrados); fale só do que a leitura trouxe." if de_consumiveis(e) and que == "uma foto" else "") + ")")
 
 
 def sem_anexo(e, tipo):

@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.25.1
+
+- Na etapa dos **Consumíveis** de uma ronda, tudo o que você cita ou manda em foto é consumível: a IA não pergunta mais se é bem ou consumível nem pede valor, e a foto é lida só pelos consumíveis (os cremes, não o gabinete e a toalha). Precisa do InventarIA 1.94.0.
+- A resposta não diz mais «Feito! Cadastrei…» antes do seu Sim: até o Sim, nada foi feito.
+- A IA só fala do que há numa foto depois de o app ler a foto de verdade; se a foto não está mais à mão, ela pede para mandar de novo, em vez de inventar.
+
 ## 1.25.0
 
 - **Era para outro app?** Quando um app lê a foto ou o PDF que você mandou e a resposta não era o que você queria, embaixo dela aparecem os outros apps que recebem aquele arquivo. Um toque manda o mesmo arquivo para o app certo, sem precisar enviar de novo.
