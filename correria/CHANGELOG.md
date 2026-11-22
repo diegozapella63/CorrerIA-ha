@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.29.0
+
+- **Configurações › Dados**, como nos outros apps: **Exportar** (um arquivo para baixar), **Backup na pasta share** (os 10 últimos, com Restaurar), **Importar**, **Versões anteriores** (o app guarda uma antes de importar, restaurar ou começar do zero) e **Começar do zero**.
+- O arquivo leva tudo, inclusive o token da Meta, a chave secreta e as conversas: guarde como uma senha.
+- O Começar do zero apaga as conversas, as rondas, a Memória da IA e o Uso da IA; as configurações e as IAs conectadas ficam.
+
 ## 1.28.0
 
 - **Memória da IA** (Configurações › Integrações): é o novo lugar e o novo nome das Lembranças. O que você escreve ali passa a valer **em todos os apps**: na Conversa e na leitura de fotos de cada um (com a opção CorrerIA ligada no app) e no conector MCP.

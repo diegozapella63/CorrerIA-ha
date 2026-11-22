@@ -143,6 +143,16 @@ No computador (a partir de 1000 px de largura), fica a barra lateral dos outros 
 
 Para não guardar conversas para sempre, em **Configurações › Opções › Conversas**, em **Guardar as conversas por**, escolha por quanto tempo sem uso uma conversa fica: **7**, **30** (o de início) ou **90 dias**, ou **Sempre**. Vale para as conversas daqui e para as mensagens do WhatsApp guardadas no CorrerIA (as do celular de cada pessoa continuam no WhatsApp dela).
 
+## Dados: exportar, backup, importar e começar do zero
+
+Em **Configurações › Dados**:
+
+- **Exportar** baixa um arquivo .zip com tudo o que o CorrerIA guarda: as configurações, o token da Meta, a chave secreta, as IAs conectadas, as conversas, as rondas, a Memória da IA e o Uso da IA. Quem tem esse arquivo tem a sua conta do WhatsApp Business: guarde como uma senha.
+- **Backup na pasta share** grava o mesmo arquivo em `share/correria/backups` (os 10 últimos) e mostra a lista, com **Restaurar**.
+- **Importar** troca tudo o que há agora pelo arquivo escolhido.
+- **Versões anteriores**: antes de importar, restaurar ou começar do zero, o app guarda como estava (as 3 últimas), para voltar atrás.
+- **Começar do zero** apaga as conversas, as rondas (as feitas e as que você criou), a Memória da IA e o Uso da IA. As configurações (o WhatsApp, os números, a aparência) e as IAs conectadas ficam.
+
 ## Memória da IA, Desfazer e o passo de agora
 
 **Configurações › Integrações › Memória da IA** guarda o que a IA deve lembrar em toda conversa (até 60 frases, da casa toda): escreva ali ou peça na conversa («lembra que a feira é no sábado»; ela guarda depois do seu Sim). Apagar é ali mesmo. Vale em todos os apps: a Conversa e a leitura de fotos de cada um leem as mesmas frases, desde que a opção CorrerIA esteja ligada no app (as frases ficam em `share/correria/lembrancas.json`).

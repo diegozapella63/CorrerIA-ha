@@ -30,6 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import apps
 import casa
+import dados as copias  # com outro nome: aqui «dados» é nome de variável em vários lugares
 import fala
 import ferramentas
 import ia
@@ -651,6 +652,59 @@ def esquecer(lid):
     with TRAVA_LEMBRANCAS:
         gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": [x for x in lembrancas() if x["id"] != lid]}, ensure_ascii=False))
     publicar_lembrancas()
+
+
+# 1.29.0 (o dono: "não tem o backup no correria, igual nos outros apps… nem exportar, importar, começar do zero"; "pode colocar
+# os segredos e conversas no backup"): Configurações › Dados. O .zip leva tudo de /data (o token da Meta, a chave secreta e as
+# conversas inclusive); os backups ficam em share/correria/backups (só do dono) e, antes de trocar ou apagar os dados, uma
+# versão vai para /data/versoes (as 3 últimas).
+BACKUPS_DIR = os.path.join(SHARE_DIR, "correria", "backups")
+VERSOES_DIR = os.path.join(DATA_DIR, "versoes")
+
+
+def dados_estado():
+    return {"backups": copias.listar(BACKUPS_DIR), "versoes": copias.listar(VERSOES_DIR)}
+
+
+def exportar_zip():
+    return copias.montar_zip(DATA_DIR, VERSAO, agora_iso())
+
+
+def fazer_backup():
+    try:
+        return copias.guardar(BACKUPS_DIR, exportar_zip(), copias.MAX_BACKUPS)
+    except OSError as e:
+        raise ValueError(f"Não consegui gravar na pasta share ({e.strerror or e}).") from None
+
+
+def _dados_trocados():
+    """Depois de importar, restaurar ou começar do zero: nada do que estava na memória vale mais."""
+    for d in (RONDAS_ATIVAS, FOTOS, FEITOS, PASSOS):
+        d.clear()
+    SEM_ESTRUTURA.clear()
+    publicar_lembrancas()
+
+
+def trocar_dados(zip_bytes, motivo):
+    """Importar ou restaurar: confere o .zip, guarda uma versão do que há agora e troca tudo pelo que veio."""
+    arquivos, man = copias.ler_zip(zip_bytes)
+    with TRAVA:
+        copias.guardar(VERSOES_DIR, exportar_zip(), copias.MAX_VERSOES, motivo=motivo)
+        copias.aplicar(DATA_DIR, arquivos, gravar_arquivo)
+    _dados_trocados()
+    log(f"Dados: {copias.MOTIVOS[motivo].replace('antes de ', '')} um backup da versão {man.get('versao') or '?'}.")
+
+
+def restaurar_dados(origem, nome):
+    trocar_dados(copias.abrir(BACKUPS_DIR if origem == "backup" else VERSOES_DIR, nome), "restaurar")
+
+
+def comecar_do_zero():
+    with TRAVA:
+        copias.guardar(VERSOES_DIR, exportar_zip(), copias.MAX_VERSOES, motivo="zero")
+        copias.zerar(DATA_DIR)
+    _dados_trocados()
+    log("Dados: começou do zero (as configurações ficam).")
 
 
 AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN, pesquisar=pesquisar_internet, lembrancas=lambda: [x["texto"] for x in lembrancas()])
@@ -2118,7 +2172,8 @@ class Tela(BaseHTTPRequestHandler):
 
     def corpo_json(self):
         n = int(self.headers.get("Content-Length") or 0)
-        if n > (22 * 1024 * 1024 if self.caminho() == "/api/conversa" else 1024 * 1024):  # a conversa leva foto ou PDF
+        if n > (42 * 1024 * 1024 if self.caminho() == "/api/dados/importar" else 22 * 1024 * 1024 if self.caminho() == "/api/conversa"
+                else 1024 * 1024):  # a conversa leva foto ou PDF; o Importar, o .zip do backup
             resto = min(n, 64 * 1024 * 1024)
             while resto > 0:  # lê e joga fora, para a resposta chegar (sem cortar a conexão no meio do envio)
                 pedaco = self.rfile.read(min(resto, 1024 * 1024))
@@ -2142,6 +2197,17 @@ class Tela(BaseHTTPRequestHandler):
             pessoa, chave = pessoa_da_tela(self.headers)
             return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "ola": ola_da_tela(self.headers),
                                      "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)})
+        if p == "/api/dados":  # 1.29.0: os backups da pasta share e as versões anteriores
+            return self.enviar(200, dados_estado())
+        if p == "/api/dados/exportar":  # o .zip com tudo, para baixar
+            corpo = exportar_zip()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{copias.nome_do_arquivo()}"')
+            self.send_header("Content-Length", str(len(corpo)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return self.wfile.write(corpo)
         if p == "/api/conversa/passo":  # 1.27.0: o que a IA está fazendo agora nesta conversa
             return self.enviar(200, {"passo": PASSOS.get("tela:" + pessoa_da_tela(self.headers)[1], "")})
         if p == "/api/lembrancas":  # 1.27.0: o que a casa pediu para a IA lembrar
@@ -2199,6 +2265,24 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/conversa":
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, dict(conversar(c, pessoa, chave), ronda=rondas_estado(chave)))
+            if p.startswith("/api/dados/"):  # 1.29.0: backup, restaurar, importar e começar do zero
+                if p == "/api/dados/backup":
+                    fazer_backup()
+                elif p == "/api/dados/restaurar":
+                    restaurar_dados(str(c.get("origem") or ""), str(c.get("nome") or ""))
+                elif p == "/api/dados/importar":
+                    try:
+                        bruto = base64.b64decode(str(c.get("zip") or "").split(",")[-1], validate=True)
+                    except ValueError:
+                        raise copias.ErroDados("Não consegui abrir esse arquivo. É o .zip de um backup do CorrerIA?") from None
+                    trocar_dados(bruto, "importar")
+                elif p == "/api/dados/zerar":
+                    if c.get("confirmar") is not True:
+                        raise ValueError("Confirme para começar do zero.")
+                    comecar_do_zero()
+                else:
+                    return self.enviar(404, {"erro": "Não achei."})
+                return self.enviar(200, dados_estado())
             if p == "/api/lembrancas":  # 1.27.0: {acao: nova, texto} ou {acao: apagar, id}
                 if c.get("acao") == "apagar":
                     esquecer(str(c.get("id") or ""))

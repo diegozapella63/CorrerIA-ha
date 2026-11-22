@@ -24,6 +24,8 @@
     trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
     book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
     voltar: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    baixar: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+    subir: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
     nova: '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     conversas: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
     camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -415,9 +417,46 @@
   }
 
   /* ---------- Configurações › Dados e Aparência (como nos outros apps) */
+  // 1.29.0: Configurações › Dados, na ordem da família: Exportar › Backup na pasta share › Importar › Versões anteriores ›
+  // Onde ficam os dados › Começar do zero. O arquivo leva tudo (o token, a chave secreta e as conversas).
+  function carregarDados() {
+    return fetch('api/dados', { cache: 'no-store' }).then(ok).then(r => { S.dados = r; render(); }).catch(err => { S.dados = { backups: [], versoes: [] }; toast(err.message); render(); });
+  }
+  const tamanho = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  // a confirmação fica no lugar do botão: Cancelar e o botão que faz, lado a lado
+  const confirma = (id, texto, icone, rotuloBotao, dados2) => `<div class="dados-conf"><p>${esc(texto)}</p><div class="dados-acoes dois">
+      <button class="btn out" data-a="dados-cancelar">${ic('x', 'ic-s')}Cancelar</button>
+      <button class="btn pri" data-a="${id}" ${dados2 || ''}>${ic(icone, 'ic-s')}${esc(rotuloBotao)}</button></div></div>`;
+  function listaZips(origem, lista) {
+    return `<ul class="zips">${lista.map(x => {
+      const chave = `${origem}:${x.nome}`;
+      return `<li><span>${esc(dataCurta(x.em))}<small>${esc(tamanho(x.tamanho))}${x.motivo ? ' · ' + esc(x.motivo) : ''}</small></span>
+        ${S.confirma === chave ? '' : `<button class="btn out peq" data-a="dados-pedir" data-v="${esc(chave)}">${ic('refresh', 'ic-s')}Restaurar</button>`}
+        ${S.confirma === chave ? confirma('dados-restaurar', 'Trocar tudo o que há agora por este?', 'refresh', 'Restaurar', `data-origem="${origem}" data-nome="${esc(x.nome)}"`) : ''}</li>`;
+    }).join('')}</ul>`;
+  }
   function cardDados() {
-    return `<section class="card" id="onde">${cab('database', 'Onde ficam os dados')}
-      <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código) e <code>uso_ia.json</code> (o Uso da IA). O token e a chave secreta nunca voltam para a tela.</p></section>`;
+    if (!S.dados && !S.dadosPedidos) { S.dadosPedidos = true; carregarDados(); }
+    const d = S.dados || { backups: [], versoes: [] }, imp = S.importar;
+    return `<section class="card" id="exportar">${cab('baixar', 'Exportar')}
+        <p class="lead">Um arquivo com tudo: as configurações, o token, a chave secreta e as conversas. Guarde como uma senha.</p>
+        <div class="dados-acoes"><a class="btn pri" href="api/dados/exportar" download>${ic('baixar', 'ic-s')}Baixar</a></div></section>
+      <section class="card" id="backup">${cab('arquivo', 'Backup na pasta share')}
+        <p class="lead">Em <code>share/correria/backups</code>, os 10 últimos.</p>
+        <div class="dados-acoes"><button class="btn pri" data-a="dados-backup">${ic('arquivo', 'ic-s')}Fazer backup agora</button></div>
+        ${d.backups.length ? listaZips('backup', d.backups) : ''}</section>
+      <section class="card" id="importar">${cab('subir', 'Importar')}
+        <p class="lead">O arquivo de um Exportar ou de um backup. Troca tudo o que há agora.</p>
+        ${imp ? confirma('dados-importar', `Trocar tudo pelo arquivo ${imp.nome}?`, 'subir', 'Importar')
+          : `<div class="dados-acoes"><button class="btn pri" data-a="dados-escolher">${ic('subir', 'ic-s')}Escolher arquivo</button></div>`}
+        <input type="file" id="dados-arquivo" accept=".zip,application/zip" hidden></section>
+      ${d.versoes.length ? `<section class="card" id="versoes">${cab('clock', `Versões anteriores (${d.versoes.length})`)}${listaZips('versao', d.versoes)}</section>` : ''}
+      <section class="card" id="onde">${cab('database', 'Onde ficam os dados')}
+        <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código), <code>rondas.json</code>, <code>lembrancas.json</code> (a Memória da IA) e <code>uso_ia.json</code> (o Uso da IA).</p></section>
+      <section class="card" id="zerar">${cab('trash', 'Começar do zero')}
+        <p class="lead">Apaga as conversas, as rondas feitas e as que você criou, a Memória da IA e o Uso da IA. As configurações e as IAs conectadas ficam.</p>
+        ${S.confirma === 'zerar' ? confirma('dados-zerar', 'Apagar tudo isso agora?', 'trash', 'Apagar')
+          : `<div class="dados-acoes"><button class="btn out" data-a="dados-pedir" data-v="zerar">${ic('trash', 'ic-s')}Começar do zero</button></div>`}</section>`;
   }
   const TEMAS = [['auto', 'Sistema', 'phone'], ['claro', 'Claro', 'sun'], ['escuro', 'Escuro', 'moon']];
   function cardTema() {
@@ -1477,6 +1516,30 @@
       guardar('correria-conversa-fixa', fixa() ? '' : '1');
       armarRecolher();
       render();
+    } else if (a === 'dados-pedir') {  // 1.29.0: Configurações › Dados
+      S.confirma = el.dataset.v; render();
+    } else if (a === 'dados-cancelar') {
+      S.confirma = ''; S.importar = null; render();
+    } else if (a === 'dados-escolher') {
+      $('#dados-arquivo').click();
+    } else if (a === 'dados-backup' || a === 'dados-restaurar' || a === 'dados-importar' || a === 'dados-zerar') {
+      const pedido = { 'dados-backup': ['dados/backup', {}, 'Backup feito'],
+        'dados-restaurar': ['dados/restaurar', { origem: el.dataset.origem, nome: el.dataset.nome }, 'Restaurado'],
+        'dados-importar': ['dados/importar', { zip: (S.importar || {}).b64 }, 'Importado'],
+        'dados-zerar': ['dados/zerar', { confirmar: true }, 'Começou do zero'] }[a];
+      el.disabled = true;
+      try {
+        S.dados = await api.post(pedido[0], pedido[1]);
+        S.confirma = ''; S.importar = null;
+        if (a !== 'dados-backup') {  // os dados são outros: a tela busca tudo de novo
+          Object.assign(S.ch, { lista: null, ronda: null, rondas: null });
+          carregarConversa();
+          S.lembrancas = null; S.lembPedidas = false; S.rondas = null;
+          await carregar();
+        }
+        toast(pedido[2]);
+      } catch (err) { toast(err.message); }
+      render();
     } else if (a === 'lembrar-nova' || a === 'lembrar-apagar') {
       const campo = $('#lembrar-texto');
       try {
@@ -1648,6 +1711,16 @@
       if (f.size > 15 * 1024 * 1024) return toast('O arquivo é grande demais (até 15 MB).');
       const b64 = await new Promise((ok2, erro) => { const r = new FileReader(); r.onload = () => ok2(r.result); r.onerror = erro; r.readAsDataURL(f); });
       S.ch.anexo = { nome: f.name || 'Foto', b64 };
+      render();
+      return;
+    }
+    if (el.id === 'dados-arquivo') {  // 1.29.0: o .zip do Importar; a troca só depois de confirmar
+      const f = el.files && el.files[0];
+      el.value = '';
+      if (!f) return;
+      if (f.size > 30 * 1024 * 1024) return toast('O arquivo é grande demais (até 30 MB).');
+      const b64 = await new Promise((ok2, erro) => { const r = new FileReader(); r.onload = () => ok2(r.result); r.onerror = erro; r.readAsDataURL(f); });
+      S.importar = { nome: f.name || 'backup.zip', b64 };
       render();
       return;
     }

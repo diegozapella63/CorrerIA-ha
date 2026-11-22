@@ -815,6 +815,64 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
         self.assertGreaterEqual(alto, 0)
 
+    def test_dados_exportar_backup_importar_e_zerar(self):
+        """1.29.0: Configurações › Dados na ordem da família; restaurar, importar e começar do zero pedem a confirmação no lugar."""
+        import json as _json
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        est = {"backups": [{"nome": "correria-2026-11-20-101500.zip", "em": "2026-11-20T10:15:00", "tamanho": 20480, "motivo": ""}],
+               "versoes": [{"nome": "correria-2026-11-21-090000-importar.zip", "em": "2026-11-21T09:00:00", "tamanho": 2097152, "motivo": "antes de importar"}]}
+        posts = []
+
+        def dados(route):
+            if route.request.method == "POST":
+                posts.append([route.request.url.split("/api/")[1], route.request.post_data_json])
+            route.fulfill(status=200, content_type="application/json", body=_json.dumps(est))
+        self.pg.route("**/api/dados", dados)
+        self.pg.route("**/api/dados/*", dados)
+        self.pg.goto(self.url)
+        self.pg.evaluate("localStorage.setItem('correria-aba', 'dados')")
+        self.pg.reload()
+        self.pg.locator("[data-a='mais']").first.click()
+        self.pg.locator("[data-a='opcoes']").click()
+        self.pg.wait_for_selector("#backup ul.zips li")
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app section.card')].map(s => s.id)"), ["exportar", "backup", "importar", "versoes", "onde", "zerar"])
+        self.assertEqual([t.strip() for t in self.pg.locator("#app section.card h2").all_inner_texts()],
+                         ["Exportar", "Backup na pasta share", "Importar", "Versões anteriores (1)", "Onde ficam os dados", "Começar do zero"])
+        self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app section.card .btn')].filter(b => !b.querySelector('svg')).length"), 0, "todo botão com ícone")
+        baixar = self.pg.locator("#exportar a.btn")
+        self.assertEqual((baixar.get_attribute("href"), baixar.get_attribute("download") is not None), ("api/dados/exportar", True))
+        self.assertIn("20/11/2026 10:15", self.pg.locator("#backup ul.zips li").inner_text())
+        self.assertIn("2,0 MB · antes de importar", self.pg.locator("#versoes ul.zips li").inner_text())
+        self.pg.locator("[data-a='dados-backup']").click()
+        self.pg.wait_for_function("document.querySelector('#toast').textContent === 'Backup feito'")
+        # restaurar: Cancelar e Restaurar lado a lado, do mesmo tamanho
+        self.pg.locator("#backup [data-a='dados-pedir']").click()
+        caixas = self.pg.evaluate("[...document.querySelectorAll('#backup .dados-conf .btn')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+        self.assertEqual((len(caixas), caixas[0]), (2, caixas[1]))
+        self.pg.locator("[data-a='dados-cancelar']").click()
+        self.assertEqual(self.pg.locator(".dados-conf").count(), 0)
+        self.pg.locator("#versoes [data-a='dados-pedir']").click()
+        self.pg.locator("[data-a='dados-restaurar']").click()
+        self.pg.wait_for_function("document.querySelector('#toast').textContent === 'Restaurado'")
+        # importar: escolher o arquivo, confirmar
+        self.pg.set_input_files("#dados-arquivo", {"name": "meu-backup.zip", "mimeType": "application/zip", "buffer": b"PK-inventado"})
+        self.pg.wait_for_selector("#importar .dados-conf")
+        self.assertIn("Trocar tudo pelo arquivo meu-backup.zip?", self.pg.locator("#importar .dados-conf p").inner_text())
+        self.pg.locator("[data-a='dados-importar']").click()
+        self.pg.wait_for_function("document.querySelector('#toast').textContent === 'Importado'")
+        # começar do zero
+        self.pg.locator("#zerar [data-a='dados-pedir']").click()
+        self.assertEqual(self.pg.locator("#zerar .dados-conf p").inner_text().strip(), "Apagar tudo isso agora?")
+        self.pg.locator("[data-a='dados-zerar']").click()
+        self.pg.wait_for_function("document.querySelector('#toast').textContent === 'Começou do zero'")
+        self.assertEqual([p[0] for p in posts], ["dados/backup", "dados/restaurar", "dados/importar", "dados/zerar"])
+        self.assertEqual(posts[1][1], {"origem": "versao", "nome": "correria-2026-11-21-090000-importar.zip"})
+        self.assertTrue(posts[2][1]["zip"].startswith("data:application/zip;base64,"))
+        self.assertEqual(posts[3][1], {"confirmar": True})
+        self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
+
     def test_lembrancas_desfazer_e_o_passo(self):
         """1.27.0: Mais › Lembranças (escrever, a lista, apagar); o Desfazer embaixo do Feito; o passo de agora ao lado dos pontos."""
         import json as _json

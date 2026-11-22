@@ -237,6 +237,19 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-bolha ul { margin: 4px 0 0; padding-left: 20px; }
 .ch-anexo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
 .ch-anexo + p { margin-top: 6px; }
+/* 1.29.0: Configurações › Dados: os botões na largura do cartão (dois lado a lado dividem a linha; no computador, 280 px),
+   a lista dos backups e das versões e a confirmação no lugar do botão */
+.dados-acoes { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.dados-acoes.dois { grid-template-columns: 1fr 1fr; }
+.dados-acoes .btn { width: 100%; min-width: 0; text-decoration: none; }
+@media (min-width: 1000px) { .dados-acoes { grid-template-columns: 280px; justify-content: end; } .dados-acoes.dois { grid-template-columns: 280px 280px; } }
+.dados-conf p { margin: 0 0 10px; overflow-wrap: anywhere; }
+ul.zips { list-style: none; margin: 14px 0 0; padding: 0; }
+ul.zips li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+ul.zips li:last-child { border-bottom: 0; padding-bottom: 0; }
+ul.zips li > span { flex: 1; min-width: 0; }
+ul.zips small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+ul.zips .dados-conf { flex-basis: 100%; }
 /* 1.27.0: o passo de agora ao lado dos pontos, o Desfazer embaixo do Feito e a lista das Lembranças */
 .ch-pensando { align-items: center; }
 .ch-pensando em { font-style: normal; color: var(--muted); font-size: 14px; margin-left: 4px; }
