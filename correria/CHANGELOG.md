@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.28.0
+
+- **Memória da IA** (Configurações › Integrações): é o novo lugar e o novo nome das Lembranças. O que você escreve ali passa a valer **em todos os apps**: na Conversa e na leitura de fotos de cada um (com a opção CorrerIA ligada no app) e no conector MCP.
+- Para isso, o CorrerIA passa a gravar um arquivo na pasta share do Home Assistant (`share/correria/lembrancas.json`), só com as frases.
+
 ## 1.27.0
 
 - **Lembranças** (Mais › Lembranças): o que você pede para a IA lembrar sempre («creme é sempre Higiene», «a feira é no sábado») vale em toda conversa. Escreva ali ou peça na conversa («lembra que…»); dá para ver e apagar.

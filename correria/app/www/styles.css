@@ -244,7 +244,8 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-desfazer { margin: 8px 0 2px; max-width: 420px; }
 .ch-desfazer .btn { width: 100%; }
 @media (min-width: 1000px) { .ch-desfazer .btn { width: 250px; } }
-.lembrancas { list-style: none; margin: 0; padding: 0; }
+#lembrar-texto { min-height: 50px; height: 50px; }  /* uma linha, da altura da família; aumenta puxando o canto */
+.lembrancas { list-style: none; margin: 12px 0 0; padding: 0; }
 .lembrancas li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--linha, color-mix(in srgb, currentColor 14%, transparent)); }
 .lembrancas li:last-child { border-bottom: 0; }
 .lembrancas li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }

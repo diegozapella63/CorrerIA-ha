@@ -782,7 +782,7 @@ class TestComFerramentas(Base):
 
     def test_lembrancas_da_casa(self):
         """1.27.0: Mais › Lembranças: guardar, não repetir, apagar; a IA guarda pelo sim e passa a receber em toda conversa."""
-        self.addCleanup(lambda: os.path.exists(S.LEMBRANCAS_ARQ) and os.remove(S.LEMBRANCAS_ARQ))
+        self.addCleanup(lambda: [os.remove(a) for a in (S.LEMBRANCAS_ARQ, S.LEMBRANCAS_SHARE) if os.path.exists(a)])
         self.assertEqual(S.lembrar("  Creme é   sempre Higiene ", {"nome": "Ana"}), "Creme é sempre Higiene")
         S.lembrar("creme é sempre higiene")
         L = S.lembrancas()
@@ -800,8 +800,17 @@ class TestComFerramentas(Base):
         self.assertIn("- Creme é sempre Higiene", self.falsa.pedidos[0])
         self.assertEqual(self.mandar("sim")[0][1], "Feito!\n- Vou lembrar: A feira é no sábado")
         self.assertEqual(len(S.lembrancas()), 2)
+        # 1.28.0: as frases vão para a pasta share (para a IA de cada app) e para as instruções do conector MCP
+        pub = json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))
+        self.assertEqual((pub["app"], pub["lembrancas"]), ("correria", ["Creme é sempre Higiene", "A feira é no sábado"]))
+        self.assertNotIn("Ana", json.dumps(pub), "só as frases, sem quem escreveu")
+        self.assertEqual(oct(os.stat(S.LEMBRANCAS_SHARE).st_mode & 0o777), "0o600")
+        self.assertIn("O que a casa pediu para lembrar (vale em toda conversa):\n- Creme é sempre Higiene\n- A feira é no sábado", S.MCP.instrucoes())
         S.esquecer(L[0]["id"])
         self.assertEqual([x["texto"] for x in S.lembrancas()], ["A feira é no sábado"])
+        self.assertEqual(json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))["lembrancas"], ["A feira é no sábado"])
+        with mock.patch.object(S, "gravar_arquivo", side_effect=OSError("só leitura")):
+            S.publicar_lembrancas()  # a pasta share só para leitura (um app de antes): avisa no log e segue
 
     def test_desfazer_e_o_passo_de_agora(self):
         """1.27.0: o que o sim fez pode ser desfeito por 10 minutos (a IA propõe o contrário, que espera o sim); enquanto a IA

@@ -398,7 +398,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardCasa(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardCasa(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -410,7 +410,7 @@
   function telaMais() {
     const linha = (a, icone, titulo, txt) => `<button class="linha" data-a="${a}"><span class="rot-ic">${ic(icone)}</span><span class="linha-t"><b>${titulo}</b><small>${txt}</small></span>${ic('chev', 'ic-s chev')}</button>`;
     return `${topoTela('Mais', 'Conversa')}
-      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps, o aviso e as últimas rondas.') : ''}${S.e && S.e.apps.length ? linha('tela-lembrancas', 'book', 'Lembranças', 'O que a IA lembra em toda conversa.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
+      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps, o aviso e as últimas rondas.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
         ${linha('sobre', 'info', 'Sobre', 'CorrerIA Code, os apps e o GitHub.')}</section>`;
   }
 
@@ -551,20 +551,21 @@
     }
     return h + `</div><button class="btn out op-testar" data-a="ronda-testar"${eu && eu.celular ? '' : ' disabled'}${porque ? ` title="${esc(porque)}"` : ''}>${ic('send', 'ic-s')}Testar no meu celular</button>`;
   }
-  // 1.27.0: Mais › Lembranças: o que a casa pediu para a IA lembrar (vale em toda conversa); escrever uma, apagar
+  // 1.28.0 (o dono: "deve ficar dentro das opções, nas seções de integrações, chamando de Memória da IA"): o cartão em
+  // Configurações › Integrações, depois do IA: o que a casa pediu para a IA lembrar, em toda conversa e em todos os apps
   function carregarLembrancas() {
     return fetch('api/lembrancas', { cache: 'no-store' }).then(ok).then(r => { S.lembrancas = r.lembrancas || []; render(); }).catch(err => { S.lembrancas = []; toast(err.message); render(); });
   }
-  function telaLembrancas() {
+  function cardMemoria() {
+    if (!S.lembrancas && !S.lembPedidas) { S.lembPedidas = true; carregarLembrancas(); }
     const L = S.lembrancas;
-    return `${topoTela('Lembranças', 'Mais')}
-      <section class="card" id="lembrar-nova">${cab('nova', 'Nova lembrança')}
-        <div class="campo">${rotulo('lembrar-texto', 'book', 'O que lembrar')}
-          <textarea id="lembrar-texto" class="inp" rows="2" maxlength="240" placeholder="Creme é sempre da categoria Higiene"></textarea></div>
-        <div class="acoes"><button class="btn pri" data-a="lembrar-nova">${ic('check', 'ic-s')}Salvar</button></div></section>
-      <section class="card" id="lembrar-lista">${cab('book', `Lembranças${L && L.length ? ` (${L.length})` : ''}`)}
+    return `<section class="card" id="memoria-ia">${cab('book', 'Memória da IA')}
+        <p class="lead">O que a IA lembra em toda conversa, em todos os apps.</p>
+        <div class="campo">${rotulo('lembrar-texto', 'nova', 'O que lembrar')}
+          <textarea id="lembrar-texto" class="inp" rows="1" maxlength="240" placeholder="Creme é sempre da categoria Higiene"></textarea></div>
+        <div class="acoes"><button class="btn pri" data-a="lembrar-nova">${ic('check', 'ic-s')}Salvar</button></div>
         <ul class="lembrancas">${!L ? '<li>Carregando…</li>' : L.map(x => `<li><span>${esc(x.texto)}<small>${esc(dataCurta(x.em))}${x.quem ? ' · ' + esc(x.quem) : ''}</small></span>
-          <button class="bt-icone" data-a="lembrar-apagar" data-v="${esc(x.id)}" aria-label="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('') || '<li>Nenhuma ainda.</li>'}</ul></section>`;
+          <button class="bt-icone" data-a="lembrar-apagar" data-v="${esc(x.id)}" aria-label="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('') || '<li>Nada ainda.</li>'}</ul></section>`;
   }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;
@@ -627,7 +628,7 @@
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
-  const ICONE_TELA = { Rondas: 'ronda', 'Lembranças': 'book', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
+  const ICONE_TELA = { Rondas: 'ronda', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
   const tituloTela = titulo => `${ICONE_TELA[titulo] ? `<span class="rot-ic tela-ic" aria-hidden="true">${ic(ICONE_TELA[titulo])}</span>` : ''}${titulo}`;
   const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${tituloTela(titulo)}</h1></header>`;
   function sobre(e) {
@@ -1151,7 +1152,7 @@
     pintarLado();
     aplicarCor();
     if (S.tela) $('#app').style.paddingBottom = '';
-    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'lembrancas' ? telaLembrancas() : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) {
       const el = document.getElementById(ativo);
       if (el && el.focus) el.focus();
@@ -1218,7 +1219,6 @@
     window.scrollTo(0, 0);
     render();
     if (S.tela === 'rondas' && !S.rondas) carregarRondas();
-    if (S.tela === 'lembrancas' && !S.lembrancas) carregarLembrancas();
   });
   function carregarConversa() {
     return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; S.ch.ronda = (r.ronda && r.ronda.ativa) || null; S.ch.rondaFeitos = (r.ronda && r.ronda.feitos) || []; render(); })
@@ -1477,14 +1477,12 @@
       guardar('correria-conversa-fixa', fixa() ? '' : '1');
       armarRecolher();
       render();
-    } else if (a === 'tela-lembrancas') {
-      abrirTela('lembrancas'); carregarLembrancas();
     } else if (a === 'lembrar-nova' || a === 'lembrar-apagar') {
       const campo = $('#lembrar-texto');
       try {
         const r = await api.post('lembrancas', a === 'lembrar-nova' ? { acao: 'nova', texto: campo ? campo.value : '' } : { acao: 'apagar', id: el.dataset.v });
         S.lembrancas = r.lembrancas || [];
-        toast(a === 'lembrar-nova' ? 'Lembrança salva' : 'Lembrança apagada');
+        toast(a === 'lembrar-nova' ? 'A IA vai lembrar' : 'Apagado da memória');
         render();
       } catch (err) { toast(err.message); }
     } else if (a === 'ch-desfazer') {  // 1.27.0: desfazer o que o último sim fez

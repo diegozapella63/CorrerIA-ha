@@ -28,13 +28,16 @@ def ferramenta_mcp(f):
 class Servidor:
     """tratar(mensagem, quem) → a resposta (ou None para notificações). quem: {pessoa, cliente} da conexão."""
 
-    def __init__(self, ferramentas, versao, instrucoes_base, ao_gravar=None):
+    def __init__(self, ferramentas, versao, instrucoes_base, ao_gravar=None, lembrancas=None):
         self.ferr, self.versao, self.base = ferramentas, versao, instrucoes_base
+        self.lembrancas = lembrancas  # 1.28.0: lembrancas() -> o que a casa pediu para lembrar, também para a IA conectada
         self.ao_gravar = ao_gravar  # ao_gravar(quem, ferramenta, argumentos, texto, erro): o registro da tela
 
     def instrucoes(self):
         apps = self.ferr.instrucoes()
-        return self.base + ("\n\nOs apps:\n" + apps if apps else "\n\nNenhum app ligado ainda: em cada app, ligue a opção CorrerIA.")
+        fatos = [x for x in (self.lembrancas() if self.lembrancas else []) if str(x).strip()]
+        return (self.base + ("\n\nOs apps:\n" + apps if apps else "\n\nNenhum app ligado ainda: em cada app, ligue a opção CorrerIA.")
+                + ("\n\nO que a casa pediu para lembrar (vale em toda conversa):\n" + "\n".join(f"- {x}" for x in fatos) if fatos else ""))
 
     def tratar(self, msg, quem):
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):

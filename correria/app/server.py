@@ -616,6 +616,20 @@ def lembrancas():
     return [x for x in v if isinstance(x, dict) and x.get("id") and str(x.get("texto") or "").strip()] if isinstance(v, list) else []
 
 
+# 1.28.0 (o dono: "tenho chat em todos os apps, então as lembranças deveriam ser compartilhadas em TODOS os apps"): as frases
+# vão para share/correria/lembrancas.json, que a IA de cada app lê (com a opção CorrerIA ligada nele). É o único arquivo que o
+# CorrerIA grava na pasta share; só as frases, sem quem escreveu.
+LEMBRANCAS_SHARE = os.path.join(SHARE_DIR, "correria", "lembrancas.json")
+
+
+def publicar_lembrancas():
+    try:
+        gravar_arquivo(LEMBRANCAS_SHARE, json.dumps({"app": "correria", "nome": "CorrerIA", "versao": VERSAO, "gravado_em": agora_iso(),
+                                                     "lembrancas": [x["texto"] for x in lembrancas()]}, ensure_ascii=False))
+    except OSError as e:
+        log("Lembranças: não consegui gravar na pasta share:", e)
+
+
 def lembrar(texto, pessoa=None):
     """Guarda uma lembrança (a mesma frase não entra duas vezes). Devolve o texto guardado; ValueError diz o que vale."""
     t = " ".join(str(texto or "").split())[:MAX_LEMBRANCA]
@@ -626,15 +640,17 @@ def lembrar(texto, pessoa=None):
         if any(x["texto"].lower() == t.lower() for x in lista):
             return t
         if len(lista) >= MAX_LEMBRANCAS:
-            raise ValueError(f"Já são {MAX_LEMBRANCAS} lembranças. Apague alguma em Mais › Lembranças.")
+            raise ValueError(f"Já são {MAX_LEMBRANCAS} lembranças. Apague alguma em Configurações › Integrações › Memória da IA.")
         lista.append({"id": secrets.token_hex(4), "texto": t, "em": agora_iso(), "quem": str((pessoa or {}).get("nome") or "")})
         gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": lista}, ensure_ascii=False))
+    publicar_lembrancas()
     return t
 
 
 def esquecer(lid):
     with TRAVA_LEMBRANCAS:
         gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": [x for x in lembrancas() if x["id"] != lid]}, ensure_ascii=False))
+    publicar_lembrancas()
 
 
 AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN, pesquisar=pesquisar_internet, lembrancas=lambda: [x["texto"] for x in lembrancas()])
@@ -1221,7 +1237,7 @@ def _tentar(fn, *args):
         log("Home Assistant:", e)
 
 
-MCP = mcp.Servidor(FERR, VERSAO, INSTRUCOES_MCP, ao_gravar=registrar_mcp)
+MCP = mcp.Servidor(FERR, VERSAO, INSTRUCOES_MCP, ao_gravar=registrar_mcp, lembrancas=lambda: [x["texto"] for x in lembrancas()])
 AUT = oauth.Autorizacao(MCP_ARQ, gravar_arquivo, log, ao_pedir=avisar_pedido)
 
 
@@ -2298,6 +2314,7 @@ def main():
     hook = ServidorWebhook(("0.0.0.0", PORTA_WEBHOOK), Webhook)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
     ligar_tunel(c["tunel"])
+    publicar_lembrancas()  # 1.28.0: quem atualizou de uma versão sem o arquivo na pasta share
     threading.Thread(target=laco_sensores, daemon=True).start()
     cc = certificado()
     log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook e MCP na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")

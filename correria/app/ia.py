@@ -158,7 +158,7 @@ class Agente:
                           "por uma ferramenta.")
         fatos = [str(x).strip() for x in (self.lembrancas() if self.lembrancas else []) if str(x).strip()]
         if fatos:
-            partes.append("O que a casa pediu para você lembrar (vale em toda conversa; a pessoa vê e apaga em Mais › Lembranças):\n"
+            partes.append("O que a casa pediu para você lembrar (vale em toda conversa; a pessoa vê e apaga em Configurações › Integrações › Memória da IA):\n"
                           + "\n".join(f"- {x}" for x in fatos))
         if foto and lido:  # 1.26.0: a leitura guardada: é dela que a IA fala, sem ler de novo
             partes.append("O arquivo já foi lido nesta conversa. Fale dele só pelo que está aqui, sem chamar de novo a mesma leitura "
