@@ -1785,8 +1785,8 @@ def ronda_passo(corpo, pessoa, chave):
             RONDAS_ATIVAS.pop(chave, None)
             lista = conversa_tela(chave)
             nome = rondas.RONDAS[r["id"]]["nome"]
-            lista += [{"papel": "eu", "texto": f"{nome}{' · ' + r['onde'] if r['onde'] else ''} · concluída", "em": agora_iso(), "ronda": True},
-                      {"papel": "ia", "texto": f"Ronda de {r['onde']} concluída. Quando quiser, escolha o próximo cômodo." if r["onde"] else f"{nome} concluída.",
+            lista += [{"papel": "eu", "texto": f"{r['onde'] or nome} · concluída", "em": agora_iso(), "ronda": True},
+                      {"papel": "ia", "texto": "Ronda concluída. Quando quiser, escolha o próximo cômodo." if r["onde"] else f"{nome} concluída.",
                        "em": agora_iso(), "app": "CorrerIA", "app_id": "_ia"}]
             _gravar_tela(chave, lista)
             anotar_ronda(r["id"], r["onde"], pessoa, len(r["etapas"]))
@@ -1814,7 +1814,12 @@ def ronda_passo(corpo, pessoa, chave):
         texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
         achou, texto = rondas.total(texto)  # 1.21.0: sem nada ali, as perguntas que não fazem sentido saem
         r["etapas"] = rondas.sem_o_que_perguntar(r["id"], r["etapas"], r["i"], achou)
-        texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=not (achou == 0 and etapa.get("se_tem")))
+        junta = rondas.junta_com(r["id"], r["etapas"], r["i"], achou)
+        if junta is not None:  # 1.21.1: nada ali: a pergunta seguinte do grupo vem na mesma mensagem (a etapa que leu sai)
+            r["etapas"] = r["etapas"][:r["i"]] + r["etapas"][junta:]
+            eid = r["etapas"][r["i"]]
+            etapa = rondas.etapa_de(r["id"], eid)
+        texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=junta is not None or not (achou == 0 and etapa.get("se_tem")))
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:
         ia_msg["confirmar"] = True

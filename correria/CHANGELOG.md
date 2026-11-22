@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.21.1
+
+- **Rondas sem repetição**: as perguntas não repetem mais o nome do cômodo (a faixa já mostra), e a linha de cada etapa ficou curta.
+- **Tarefas**: com tarefas pendentes, a primeira pergunta é **Alguma dessas tarefas já foi feita?**; depois, **Tem algo novo para arrumar?** Sem pendentes, só a segunda.
+- Quando o app não tem nada (nenhum consumível acabando, nenhuma tarefa), a pergunta seguinte vem na mesma mensagem, sem um passo a mais: **Quer adicionar algum consumível?**
+
 ## 1.21.0
 
 - **Perguntas inteligentes**: a ronda não pergunta o que não faz sentido. Sem rotinas no cômodo, ela só pergunta se falta alguma (não se alguma precisa mudar ou sair); sem itens, não pergunta de descartar nem de transferir; sem nada na reposição ou nas ofertas, só diz que não há.

@@ -14,7 +14,7 @@ import re
 
 FIM = ("Não mude nada agora: só leia e conte. Responda assim: primeiro uma linha só com «TOTAL: N» (N é o número do que você achou "
        "para esta etapa; 0 se não há nada); depois uma frase curta com o total; depois, se houver itens, um por linha, "
-       "cada linha começando com «- » (no máximo 6); nada mais (não diga para seguir nem para tocar em nada). NÃO faça pergunta nenhuma: o app escreve a pergunta «{pergunta}» logo abaixo.")
+       "cada linha começando com «- » (no máximo 6); nada mais (não diga para seguir nem para tocar em nada, e não repita o nome do cômodo: a tela já mostra). NÃO faça pergunta nenhuma: o app escreve a pergunta «{pergunta}» logo abaixo.")
 DEPOIS = ("Quando a pessoa responder, proponha as mudanças só no {app} (é o app desta etapa); se ela disser que não há nada, "
           "diga só que pode seguir para a próxima etapa.")
 
@@ -32,30 +32,30 @@ RONDAS = {
         "nome": "Ronda da casa", "onde": "comodo",
         "resumo": "Um cômodo de cada vez, uma pergunta de cada vez.",
         "etapas": [
-            _e("arrumar", "Tarefas", "Arrumar", "resolvia", "ResolvIA", "resolvia_tarefas", "Tem algo para arrumar em {onde}?",
+            _e("feita", "Tarefas", "Concluir", "resolvia", "ResolvIA", "resolvia_tarefas", "Alguma dessas tarefas já foi feita?",
                "Use resolvia_tarefas para ver as tarefas pendentes{do_comodo} e conte o que há para fazer{em}, com o prazo das que têm.",
-               pedido_sem_filtro=" (a ferramenta não filtra por cômodo: veja as pendentes e fique com as que falam de «{onde}» no nome ou nas notas)"),
-            _e("tarefa", "Tarefas", "Outra", "resolvia", "ResolvIA", "resolvia_tarefas", "Alguma outra tarefa para {onde}?"),
-            _e("rotina_nova", "Rotinas", "Nova", "cronologia", "CronologIA", "cronologia_cadastros", "Falta alguma rotina para {onde}?",
+               pedido_sem_filtro=" (a ferramenta não filtra por cômodo: veja as pendentes e fique com as que falam de «{onde}» no nome ou nas notas)", se_tem=True),
+            _e("arrumar", "Tarefas", "Nova", "resolvia", "ResolvIA", "resolvia_tarefas", "Tem algo novo para arrumar?"),
+            _e("rotina_nova", "Rotinas", "Nova", "cronologia", "CronologIA", "cronologia_cadastros", "Falta alguma rotina?",
                "Use cronologia_cadastros e conte as rotinas da casa e as manutenções que são de «{onde}» (pelo cômodo, pelo nome ou pelas notas), "
                "com a repetição e a próxima vez de cada uma (se nenhuma for de lá, diga que não há)."),
-            _e("rotina_muda", "Rotinas", "Mudar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina de {onde} precisa mudar?", se_tem=True),
-            _e("rotina_sai", "Rotinas", "Tirar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina de {onde} pode sair?", se_tem=True),
-            _e("item_novo", "Itens", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Chegou algum item novo em {onde}?",
+            _e("rotina_muda", "Rotinas", "Mudar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina precisa mudar?", se_tem=True),
+            _e("rotina_sai", "Rotinas", "Tirar", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma rotina pode sair?", se_tem=True),
+            _e("item_novo", "Itens", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Chegou algum item novo?",
                "Use inventario_buscar_itens com o cômodo «{onde}» e a ordem recentes: diga quantos itens há e os últimos cadastrados."),
-            _e("item_saiu", "Itens", "Descartado", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item de {onde} foi descartado?", se_tem=True),
-            _e("item_mudou", "Itens", "Transferido", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item de {onde} foi transferido de cômodo?", se_tem=True),
-            _e("cons_acabando", "Consumíveis", "Acabando", "inventario", "InventarIA", "inventario_buscar_itens", "Algum consumível de {onde} está acabando?",
+            _e("item_saiu", "Itens", "Descartado", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item foi descartado?", se_tem=True),
+            _e("item_mudou", "Itens", "Transferido", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item foi transferido de cômodo?", se_tem=True),
+            _e("cons_acabando", "Consumíveis", "Acabando", "inventario", "InventarIA", "inventario_buscar_itens", "Algum desses consumíveis precisa repor?",
                "Os consumíveis não têm cômodo. Use inventario_buscar_itens com o cômodo «Consumíveis» e conte os que já passaram do dura_ate "
                "ou acabam nos próximos 30 dias (se nenhum, diga quantos há; o TOTAL é só o dos que estão acabando).", so_com="consumiveis", se_tem=True,
                # 1.20.0: com Consumíveis por cômodo ligado no InventarIA (1.88.0), só os usados neste cômodo
                pedido_com={"consumiveis_por_comodo": "Use inventario_buscar_itens com o cômodo «Consumíveis» e usado_em «{onde}»: conte os consumíveis usados em «{onde}», "
                                                      "primeiro os que já passaram do dura_ate ou acabam nos próximos 30 dias (se nenhum for de lá, diga que não há; o TOTAL é só o dos que estão acabando)."}),
-            _e("cons_novo", "Consumíveis", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Algum consumível novo em {onde}?", so_com="consumiveis"),
-            _e("mercado", "Compras", "Mercado", "economia", "EconomIA", "economia_lista", "Precisa de algo do mercado para {onde}?",
+            _e("cons_novo", "Consumíveis", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Quer adicionar algum consumível?", so_com="consumiveis"),
+            _e("mercado", "Compras", "Mercado", "economia", "EconomIA", "economia_lista", "Precisa de algo do mercado?",
                "Use economia_lista (e economia_reposicao, se existir) e conte o que já está na lista de compras e o que está na hora de repor."),
-            _e("farmacia", "Compras", "Farmácia", "economia", "EconomIA", "economia_lista", "Precisa de algo da farmácia para {onde}?"),
-            _e("pet", "Compras", "Pet shop", "economia", "EconomIA", "economia_lista", "Precisa de algo do pet shop para {onde}?"),
+            _e("farmacia", "Compras", "Farmácia", "economia", "EconomIA", "economia_lista", "Precisa de algo da farmácia?"),
+            _e("pet", "Compras", "Pet shop", "economia", "EconomIA", "economia_lista", "Precisa de algo do pet shop?"),
         ],
     },
     # 1.20.0: as rondas sem cômodo (onde: None): começam direto
@@ -186,7 +186,7 @@ def pedido(rid, eid, onde, todas, n, total, ligado=()):
 
 def rotulo(rid, eid, onde, n, total):
     e = etapa_de(rid, eid)
-    return f"{RONDAS[rid]['nome']}{' · ' + onde if onde else ''} · {e['grupo']}: {e['titulo']} ({n} de {total})"
+    return f"{onde or RONDAS[rid]['nome']} · {e['grupo']}: {e['titulo']} ({n} de {total})"
 
 
 def contexto(rid, eid, onde):
@@ -205,6 +205,17 @@ def total(texto):
     t = str(texto or "")
     m = TOTAL_RE.search(t)
     return (int(m.group(1)), TOTAL_RE.sub("", t).strip()) if m else (None, t)
+
+
+def junta_com(rid, etapas, i, n):
+    """1.21.1 (o dono: "direto ali e não em outra pergunta, se não quebra o ritmo"): a etapa i leu, não achou nada e a pergunta
+    dela só vale com alguma coisa: a pergunta da etapa seguinte do mesmo grupo (a que vale sempre) vem na mesma mensagem.
+    Devolve o índice dessa etapa, ou None. Chame depois do sem_o_que_perguntar."""
+    e = etapa_de(rid, etapas[i])
+    if n != 0 or not e.get("se_tem") or i + 1 >= len(etapas):
+        return None
+    p = etapa_de(rid, etapas[i + 1])
+    return i + 1 if p["grupo"] == e["grupo"] and not p.get("pedido") else None
 
 
 def sem_o_que_perguntar(rid, etapas, i, n):

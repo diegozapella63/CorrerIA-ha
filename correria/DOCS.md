@@ -151,10 +151,10 @@ Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no a
 
 **Ronda da casa** (escolha o cômodo):
 
-1. **Tarefas** (ResolvIA): *Tem algo para arrumar?* · *Alguma outra tarefa?*
+1. **Tarefas** (ResolvIA): *Alguma dessas tarefas já foi feita?* (com tarefas pendentes) · *Tem algo novo para arrumar?*
 2. **Rotinas** (CronologIA): *Falta alguma rotina?* · *Alguma rotina precisa mudar?* · *Alguma rotina pode sair?*
 3. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item foi descartado?* · *Algum item foi transferido de cômodo?*
-4. **Consumíveis** (InventarIA): *Algum está acabando?* · *Algum consumível novo?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
+4. **Consumíveis** (InventarIA): *Algum desses consumíveis precisa repor?* (com algum acabando) · *Quer adicionar algum consumível?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
 5. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
 
 Depois da última pergunta, escolha o próximo cômodo: o feito hoje fica verde e cada um mostra há quantos dias foi a última ronda.

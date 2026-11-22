@@ -1431,10 +1431,10 @@
     } else if (a === 'ronda-ir') {
       const sem = !!el.dataset.sem, onde = sem ? '' : el.dataset.onde || (($('#ch-ronda-onde') || {}).value || '').trim();
       if (!onde && !sem) { toast('Escreva o cômodo.'); return; }
-      rondaPasso({ acao: 'iniciar', ronda: el.dataset.v, onde, rotulo: sem ? 'Ronda' : `Ronda · ${onde}` });
+      rondaPasso({ acao: 'iniciar', ronda: el.dataset.v, onde, rotulo: sem ? 'Ronda' : onde });
     } else if (a === 'ronda-proxima' || a === 'ronda-voltar') {
       const r = S.ch.ronda;
-      if (r) rondaPasso({ acao: a === 'ronda-proxima' ? 'proxima' : 'voltar', rotulo: r.onde ? `${r.nome} · ${r.onde}` : r.nome });
+      if (r) rondaPasso({ acao: a === 'ronda-proxima' ? 'proxima' : 'voltar', rotulo: r.onde || r.nome });
     } else if (a === 'ronda-sair') {
       rondaPasso({ acao: 'sair' });
     } else if (a === 'ch-rapidas') {

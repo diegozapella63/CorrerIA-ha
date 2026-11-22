@@ -99,7 +99,7 @@ class TestRondas(Base):
                          [("casa", "Ronda da casa", ["Sala", "Cozinha"], False, False), ("compras", "Ronda de compras", [], False, True), ("mes", "Ronda do mês", [], False, True)],
                          "a da chegada pede o Anotar compra do EconomIA, que esta casa de teste não tem")
         self.assertEqual([(e["id"], e["grupo"], e["app"]) for e in r[0]["etapas"]],
-                         [("arrumar", "Tarefas", "ResolvIA"), ("tarefa", "Tarefas", "ResolvIA"),
+                         [("feita", "Tarefas", "ResolvIA"), ("arrumar", "Tarefas", "ResolvIA"),
                           ("item_novo", "Itens", "InventarIA"), ("item_saiu", "Itens", "InventarIA"), ("item_mudou", "Itens", "InventarIA"),
                           ("cons_acabando", "Consumíveis", "InventarIA"), ("cons_novo", "Consumíveis", "InventarIA"),
                           ("mercado", "Compras", "EconomIA"), ("farmacia", "Compras", "EconomIA"), ("pet", "Compras", "EconomIA")])
@@ -123,21 +123,23 @@ class TestRondas(Base):
     def test_o_texto_da_etapa_vem_arrumado(self):
         """O dono: "Não seria legal trazer mais organizado o texto?" A lista numa linha só vira uma linha por item, a
         pergunta que a IA repetiu (entre «») sai, e a pergunta da etapa vem no fim, à parte, em negrito."""
-        a = rondas.arrumar("No Quarto, temos 2 tarefas pendentes: - Tapar buracos da parede - Passar tíner no armário. Nenhuma delas tem prazo definido. "
-                           "«Tem algo para arrumar em Quarto?»", "casa", "arrumar", "Quarto")
-        self.assertEqual(a, "No Quarto, temos 2 tarefas pendentes:\n\n- Tapar buracos da parede\n- Passar tíner no armário\n\nNenhuma delas tem prazo definido.\n\n"
-                            "*Tem algo para arrumar em Quarto?*")
-        self.assertEqual(rondas.arrumar("Há 3 itens. Os últimos: Mesa e Abajur. Chegou algum item novo em Sala?", "casa", "item_novo", "Sala"),
-                         "Há 3 itens. Os últimos: Mesa e Abajur.\n\n*Chegou algum item novo em Sala?*")
-        self.assertEqual(rondas.arrumar("Há 2.\r\n- Um\n- Dois\n\n\n\nFim.", "casa", "arrumar", "Sala"), "Há 2.\n\n- Um\n- Dois\n\nFim.\n\n*Tem algo para arrumar em Sala?*")
-        self.assertEqual(rondas.arrumar(None, "casa", "pet", "Sala"), "*Precisa de algo do pet shop para Sala?*")
-        p = rondas.pedido("casa", "arrumar", "Sala", [], 1, 10)
+        a = rondas.arrumar("Temos 2 tarefas pendentes: - Tapar buracos da parede - Passar tíner no armário. Nenhuma delas tem prazo definido. "
+                           "«Alguma dessas tarefas já foi feita?»", "casa", "feita", "Quarto")
+        self.assertEqual(a, "Temos 2 tarefas pendentes:\n\n- Tapar buracos da parede\n- Passar tíner no armário\n\nNenhuma delas tem prazo definido.\n\n"
+                            "*Alguma dessas tarefas já foi feita?*")
+        self.assertEqual(rondas.arrumar("Há 3 itens. Os últimos: Mesa e Abajur. Chegou algum item novo?", "casa", "item_novo", "Sala"),
+                         "Há 3 itens. Os últimos: Mesa e Abajur.\n\n*Chegou algum item novo?*")
+        self.assertEqual(rondas.arrumar("Há 2.\r\n- Um\n- Dois\n\n\n\nFim.", "casa", "arrumar", "Sala"), "Há 2.\n\n- Um\n- Dois\n\nFim.\n\n*Tem algo novo para arrumar?*")
+        self.assertEqual(rondas.arrumar(None, "casa", "pet", "Sala"), "*Precisa de algo do pet shop?*")
+        p = rondas.pedido("casa", "feita", "Sala", [], 1, 10)
         self.assertIn("NÃO faça pergunta nenhuma", p)
+        self.assertIn("não repita o nome do cômodo", p)
+        self.assertIsNone(rondas.pedido("casa", "arrumar", "Sala", [], 2, 10), "a segunda só pergunta")
         self.assertIn("um por linha", p)
 
     def test_sem_os_consumiveis_no_inventaria_sem_a_etapa(self):
         self.casa(consumiveis=False)
-        self.assertEqual([e["id"] for e in self.j("/api/rondas")[1]["rondas"][0]["etapas"]], ["arrumar", "tarefa", "item_novo", "item_saiu", "item_mudou", "mercado", "farmacia", "pet"])
+        self.assertEqual([e["id"] for e in self.j("/api/rondas")[1]["rondas"][0]["etapas"]], ["feita", "arrumar", "item_novo", "item_saiu", "item_mudou", "mercado", "farmacia", "pet"])
 
     def test_so_um_app_ligado(self):
         self.ligar("economia", "EconomIA", [ferr("lista")], {"lista": "Na lista: Café."})
@@ -152,11 +154,11 @@ class TestRondas(Base):
         self.assertEqual((st, r["erro"]), (400, "Escolha o cômodo."), "só um cômodo da lista do InventarIA")
         st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.assertEqual(st, 200)
-        self.assertEqual(r["ronda"]["ativa"], {"id": "casa", "nome": "Ronda da casa", "onde": "Sala", "n": 1, "total": 10, "etapa": "Arrumar", "grupo": "Tarefas", "app": "ResolvIA"})
+        self.assertEqual(r["ronda"]["ativa"], {"id": "casa", "nome": "Ronda da casa", "onde": "Sala", "n": 1, "total": 10, "etapa": "Concluir", "grupo": "Tarefas", "app": "ResolvIA"})
         eu, ia_ = r["mensagens"][-2:]
-        self.assertEqual((eu["papel"], eu["texto"], eu["ronda"]), ("eu", "Ronda da casa · Sala · Tarefas: Arrumar (1 de 10)", True), "a pessoa vê só o rótulo, não o pedido")
+        self.assertEqual((eu["papel"], eu["texto"], eu["ronda"]), ("eu", "Sala · Tarefas: Concluir (1 de 10)", True), "a pessoa vê só o rótulo, não o pedido")
         self.assertIn("Trocar a lâmpada", ia_["texto"])
-        self.assertTrue(ia_["texto"].endswith("\n\n*Tem algo para arrumar em Sala?*"), ia_["texto"])
+        self.assertTrue(ia_["texto"].endswith("\n\n*Alguma dessas tarefas já foi feita?*"), ia_["texto"])
         self.assertEqual(self.resolvia.feitos[-1]["argumentos"], {"comodo": "Sala"}, "o ResolvIA com os cômodos: filtra")
         self.assertEqual(self.j("/api/conversa")[1]["ronda"]["ativa"]["n"], 1, "a conversa leva a ronda em andamento")
         # uma resposta da pessoa segue pela conversa de sempre, e a ronda continua
@@ -164,21 +166,21 @@ class TestRondas(Base):
         real = S.AGENTE.responder
         with mock.patch.object(S.AGENTE, "responder", lambda h, *a, **k: (visto.append(h), real(h, *a, **k))[1]):
             st, r = self.j("/api/conversa", {"texto": "nada"})
-        self.assertEqual(r["ronda"]["ativa"]["etapa"], "Arrumar")
-        self.assertIn("etapa Arrumar", visto[0][-2]["texto"], "a IA sabe de que etapa é a resposta")
+        self.assertEqual(r["ronda"]["ativa"]["etapa"], "Concluir")
+        self.assertIn("etapa Concluir", visto[0][-2]["texto"], "a IA sabe de que etapa é a resposta")
         self.assertIn("ResolvIA", visto[0][-2]["texto"])
         self.assertEqual((visto[0][-1]["texto"], r["mensagens"][-2]["texto"]), ("nada", "nada"), "na conversa, só o que a pessoa escreveu")
         n = len(self.resolvia.feitos)
         r = self.j("/api/ronda", {"acao": "proxima"})[1]  # a segunda do grupo: só a pergunta, sem ler de novo
-        self.assertEqual((r["ronda"]["ativa"]["etapa"], r["mensagens"][-2]["texto"]), ("Outra", "Ronda da casa · Sala · Tarefas: Outra (2 de 10)"))
-        self.assertEqual((r["mensagens"][-1]["texto"], r["mensagens"][-1]["app"]), ("*Alguma outra tarefa para Sala?*", "ResolvIA"))
+        self.assertEqual((r["ronda"]["ativa"]["etapa"], r["mensagens"][-2]["texto"]), ("Nova", "Sala · Tarefas: Nova (2 de 10)"))
+        self.assertEqual((r["mensagens"][-1]["texto"], r["mensagens"][-1]["app"]), ("*Tem algo novo para arrumar?*", "ResolvIA"))
         self.assertEqual(len(self.resolvia.feitos), n, "sem chamar o app")
         r = self.j("/api/ronda", {"acao": "voltar"})[1]
         self.assertEqual(r["ronda"]["ativa"]["n"], 1)
         self.assertEqual(self.j("/api/ronda", {"acao": "voltar"})[1]["ronda"]["ativa"]["n"], 1, "na primeira, fica")
-        fins = {"Outra": "Alguma outra tarefa para Sala?", "Novo": "Chegou algum item novo em Sala?", "Descartado": "Algum item de Sala foi descartado?",
-                "Transferido": "Algum item de Sala foi transferido de cômodo?", "Acabando": "Algum consumível de Sala está acabando?", "Consumível novo": "Algum consumível novo em Sala?",
-                "Mercado": "Precisa de algo do mercado para Sala?", "Farmácia": "Precisa de algo da farmácia para Sala?", "Pet shop": "Precisa de algo do pet shop para Sala?"}
+        fins = {"Nova": "Tem algo novo para arrumar?", "Novo": "Chegou algum item novo?", "Descartado": "Algum item foi descartado?",
+                "Transferido": "Algum item foi transferido de cômodo?", "Acabando": "Algum desses consumíveis precisa repor?", "Consumível novo": "Quer adicionar algum consumível?",
+                "Mercado": "Precisa de algo do mercado?", "Farmácia": "Precisa de algo da farmácia?", "Pet shop": "Precisa de algo do pet shop?"}
         for etapa, fim in fins.items():
             r = self.j("/api/ronda", {"acao": "proxima"})[1]
             self.assertEqual(r["ronda"]["ativa"]["etapa"], "Novo" if etapa == "Consumível novo" else etapa)
@@ -192,7 +194,7 @@ class TestRondas(Base):
         r = self.j("/api/ronda", {"acao": "proxima"})[1]  # a última: concluída, e a escolha do próximo cômodo
         self.assertIsNone(r["ronda"]["ativa"])
         self.assertEqual((r["ronda"]["feitos"], r["ronda"]["rondas"][0]["onde"]), (["Sala"], ["Sala", "Cozinha"]))
-        self.assertEqual([m["texto"] for m in r["mensagens"][-2:]], ["Ronda da casa · Sala · concluída", "Ronda de Sala concluída. Quando quiser, escolha o próximo cômodo."])
+        self.assertEqual([m["texto"] for m in r["mensagens"][-2:]], ["Sala · concluída", "Ronda concluída. Quando quiser, escolha o próximo cômodo."])
         r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Cozinha"})[1]
         self.assertEqual((r["ronda"]["ativa"]["onde"], r["ronda"]["feitos"]), ("Cozinha", ["Sala"]))
         r = self.j("/api/ronda", {"acao": "sair"})[1]
@@ -217,7 +219,7 @@ class TestRondas(Base):
         self.casa(comodo_no_resolvia=False)
         self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.assertEqual(self.resolvia.feitos[-1]["argumentos"], {})
-        p = rondas.pedido("casa", "arrumar", "Sala", S.FERR.todas(), 1, 4)
+        p = rondas.pedido("casa", "feita", "Sala", S.FERR.todas(), 1, 4)
         self.assertIn("não filtra por cômodo", p)
         self.assertNotIn("o campo comodo", p)
 
@@ -225,7 +227,7 @@ class TestRondas(Base):
         self.casa()
         with mock.patch.object(S, "responder_ia", lambda *a, **k: None):
             r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})[1]
-        self.assertEqual(r["mensagens"][-1]["texto"], "*Tem algo para arrumar em Sala?*", "sem a IA, a pergunta sai do mesmo jeito")
+        self.assertEqual(r["mensagens"][-1]["texto"], "*Alguma dessas tarefas já foi feita?*", "sem a IA, a pergunta sai do mesmo jeito")
 
     def test_resumo_do_inventaria_com_defeito(self):
         self.ligar("inventario", "InventarIA", [ferr("resumo"), ferr("buscar_itens", COM_COMODO)], {"resumo": "não é JSON", "buscar_itens": "nada"})
@@ -247,17 +249,17 @@ class TestMaisRondas(Base):
         self.casa()
         cron = self.ligar("cronologia", "CronologIA", [ferr("cadastros"), ferr("agenda")], {"cadastros": "Rotinas: Regar as plantas da sala (toda semana).", "agenda": "Dentista dia 3."})
         e = self.j("/api/rondas")[1]["rondas"][0]["etapas"]
-        self.assertEqual([(x["id"], x["grupo"]) for x in e][:6], [("arrumar", "Tarefas"), ("tarefa", "Tarefas"), ("rotina_nova", "Rotinas"), ("rotina_muda", "Rotinas"),
+        self.assertEqual([(x["id"], x["grupo"]) for x in e][:6], [("feita", "Tarefas"), ("arrumar", "Tarefas"), ("rotina_nova", "Rotinas"), ("rotina_muda", "Rotinas"),
                                                                   ("rotina_sai", "Rotinas"), ("item_novo", "Itens")])
         self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.j("/api/ronda", {"acao": "proxima"})
         r = self.j("/api/ronda", {"acao": "proxima"})[1]
         self.assertEqual(r["ronda"]["ativa"]["app"], "CronologIA")
         self.assertIn("Regar as plantas", r["mensagens"][-1]["texto"])
-        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Falta alguma rotina para Sala?*"), "a primeira pergunta vale mesmo sem rotina nenhuma")
+        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Falta alguma rotina?*"), "a primeira pergunta vale mesmo sem rotina nenhuma")
         self.assertEqual(cron.feitos[-1]["nome"], "cadastros")
         fins = [self.j("/api/ronda", {"acao": "proxima"})[1]["mensagens"][-1]["texto"] for _ in range(2)]
-        self.assertEqual(fins, ["*Alguma rotina de Sala precisa mudar?*", "*Alguma rotina de Sala pode sair?*"], "a IA não disse quantas achou: as perguntas ficam")
+        self.assertEqual(fins, ["*Alguma rotina precisa mudar?*", "*Alguma rotina pode sair?*"], "a IA não disse quantas achou: as perguntas ficam")
 
     def test_perguntas_inteligentes(self):
         """O dono: "se não tem rotina da casa, pq perguntar se alguma precisa sair? Não tem nenhuma". Sem nada no app, as
@@ -267,8 +269,11 @@ class TestMaisRondas(Base):
         self.ligar("inventario", "InventarIA", [ferr("resumo"), ferr("buscar_itens", COM_COMODO)],
                    {"resumo": {"comodos": [{"nome": "Sala"}], "opcoes": {"consumiveis": True}}, "buscar_itens": "0 itens."})
         r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})[1]
-        self.assertEqual(r["ronda"]["ativa"]["total"], 10)
-        self.assertTrue(r["mensagens"][-1]["texto"].endswith("*Tem algo para arrumar em Sala?*"), "arrumar vale sempre")
+        # sem tarefas: nada de "alguma já foi feita?"; a pergunta que vale sempre vem direto ali, na mesma mensagem
+        # (o dono: "direto ali e não em outra pergunta, se não quebra o ritmo das perguntas")
+        self.assertEqual((r["ronda"]["ativa"]["etapa"], r["ronda"]["ativa"]["n"], r["ronda"]["ativa"]["total"]), ("Nova", 1, 9))
+        self.assertEqual(r["mensagens"][-1]["texto"], "Pelo que vi:\nNenhuma tarefa.\n\n*Tem algo novo para arrumar?*")
+        self.assertEqual(r["mensagens"][-2]["texto"], "Sala · Tarefas: Nova (1 de 9)")
         self.assertNotIn("TOTAL", r["mensagens"][-1]["texto"])
         vistos = []
         while True:
@@ -276,21 +281,25 @@ class TestMaisRondas(Base):
             if not r["ronda"]["ativa"]:
                 break
             vistos.append((r["ronda"]["ativa"]["grupo"], r["ronda"]["ativa"]["etapa"], r["ronda"]["ativa"]["total"], r["mensagens"][-1]["texto"].split("\n")[-1]))
-        self.assertEqual(vistos, [("Tarefas", "Outra", 10, "*Alguma outra tarefa para Sala?*"),
-                                  ("Rotinas", "Nova", 8, "*Falta alguma rotina para Sala?*"),      # sem rotinas: sem o Mudar e o Tirar
-                                  ("Itens", "Novo", 6, "*Chegou algum item novo em Sala?*"),      # sem itens: sem o Descartado e o Transferido
-                                  ("Consumíveis", "Acabando", 6, "0 itens."),                    # nenhum acabando: só conta, sem perguntar
-                                  ("Consumíveis", "Novo", 6, "*Algum consumível novo em Sala?*")])
-        self.assertEqual(r["mensagens"][-4]["texto"], "Ronda da casa · Sala · Consumíveis: Novo (6 de 6)", "o rótulo com a conta do que ficou")
-        self.assertEqual(S.historico_rondas()[-1]["perguntas"], 6)
+        self.assertEqual(vistos, [("Rotinas", "Nova", 7, "*Falta alguma rotina?*"),            # sem rotinas: sem o Mudar e o Tirar
+                                  ("Itens", "Novo", 5, "*Chegou algum item novo?*"),          # sem itens: sem o Descartado e o Transferido
+                                  ("Consumíveis", "Novo", 4, "*Quer adicionar algum consumível?*")])  # nenhum acabando: direto o adicionar
+        self.assertIn("0 itens.", r["mensagens"][-3]["texto"])
+        self.assertEqual(r["mensagens"][-4]["texto"], "Sala · Consumíveis: Novo (4 de 4)", "o rótulo com a conta do que ficou")
+        self.assertEqual(S.historico_rondas()[-1]["perguntas"], 4)
+        e0 = ["feita", "arrumar", "cons_acabando", "cons_novo", "mercado"]
+        self.assertEqual((rondas.junta_com("casa", e0, 0, 0), rondas.junta_com("casa", e0, 2, 0)), (1, 3))
+        self.assertEqual((rondas.junta_com("casa", e0, 0, 2), rondas.junta_com("casa", e0, 0, None), rondas.junta_com("casa", e0, 1, 0)), (None, None, None))
+        self.assertIsNone(rondas.junta_com("casa", ["cons_acabando", "mercado"], 0, 0), "sem a seguinte no grupo, só conta")
+        self.assertIsNone(rondas.junta_com("casa", ["cons_acabando"], 0, 0))
         self.assertEqual(rondas.total("TOTAL: 3\nHá 3."), (3, "Há 3."))
         self.assertEqual(rondas.total("Há 3.\n**TOTAL: 0**"), (0, "Há 3."))
         self.assertEqual(rondas.total("Há 3."), (None, "Há 3."))
         self.assertEqual(rondas.arrumar("", "casa", "cons_acabando", "Sala", perguntar=False), "Nada por aqui.")
-        e = ["arrumar", "tarefa", "item_novo", "item_saiu", "item_mudou", "mercado"]
+        e = ["feita", "arrumar", "item_novo", "item_saiu", "item_mudou", "mercado"]
         self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, 2), e, "com itens, tudo fica")
         self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 2, None), e, "sem saber, tudo fica")
-        self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 0, 0), e, "outra tarefa vale sempre")
+        self.assertEqual(rondas.sem_o_que_perguntar("casa", e, 0, 0), e, "o algo novo para arrumar vale sempre")
 
     def test_consumiveis_por_comodo(self):
         self.resolvia = self.ligar("resolvia", "ResolvIA", [ferr("tarefas", COM_COMODO)], {"tarefas": "nada"})
