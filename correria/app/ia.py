@@ -77,18 +77,24 @@ def extrair_json(t):
     s = str(t or "").strip()
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s)
     try:
-        v = json.loads(s)
+        v = json.loads(s, strict=False)  # strict=False: a IA às vezes quebra a linha dentro do texto (1.19.1)
         return v if isinstance(v, dict) else {"resposta": s}
     except ValueError:
         pass
     i, j = s.find("{"), s.rfind("}")
     if 0 <= i < j:
         try:
-            v = json.loads(s[i:j + 1])
+            v = json.loads(s[i:j + 1], strict=False)
             if isinstance(v, dict):
                 return v
         except ValueError:
             pass
+    # 1.19.1: um JSON com defeito (faltou fechar as aspas, uma aspa solta no meio): pelo menos a resposta sai limpa, nunca
+    # o JSON cru na conversa; as chamadas de um JSON assim não dá para confiar, ficam de fora
+    m = re.search(r'"resposta"\s*:\s*"(.*)', s, re.S) if s.startswith("{") else None
+    if m:
+        r = re.sub(r'"?\s*,?\s*("chamar"\s*:\s*\[.*?\]\s*)?\}?\s*$', "", m.group(1), flags=re.S)
+        return {"resposta": r.replace("\\n", "\n").replace('\\"', '"').strip()}
     return {"resposta": s}
 
 

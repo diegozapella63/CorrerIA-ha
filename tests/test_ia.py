@@ -115,6 +115,10 @@ class TestAgente(unittest.TestCase):
         self.assertEqual(I.extrair_json('Claro! {"resposta": "x"} tchau'), {"resposta": "x"})
         self.assertEqual(I.extrair_json("só texto"), {"resposta": "só texto"})
         self.assertEqual(I.extrair_json({"a": 1}), {"a": 1})
+        # 1.19.1: a IA quebrou a linha dentro do texto, ou não fechou as aspas: nunca o JSON cru na conversa
+        self.assertEqual(I.extrair_json('{"chamar":[ ],"resposta":"Tem 1 tarefa:\n- Aplicar rejuntes"}'), {"chamar": [], "resposta": "Tem 1 tarefa:\n- Aplicar rejuntes"})
+        self.assertEqual(I.extrair_json('{"chamar":[ ],"resposta":"Temos 8 itens.\n- Álcool\n- Leite}'), {"resposta": "Temos 8 itens.\n- Álcool\n- Leite"})
+        self.assertEqual(I.extrair_json('{"resposta":"Disse \\"oi\\" e\\nfoi "embora" hoje", "chamar": []}'), {"resposta": 'Disse "oi" e\nfoi "embora" hoje'})
         self.assertEqual(I.extrair_json("[1, 2]"), {"resposta": "[1, 2]"})
 
     def test_simulada(self):

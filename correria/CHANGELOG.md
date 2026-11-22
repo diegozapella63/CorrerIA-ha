@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.19.1
+
+- **Rondas**: o cômodo já feito hoje aparece em verde na escolha.
+- Uma resposta da IA que vinha com o código em volta (`{"chamar"…`) agora aparece limpa.
+
 ## 1.19.0
 
 - **Histórico das rondas**: cada ronda concluída fica guardada. Ao escolher o cômodo, cada um mostra há quantos dias foi a última ronda; em **Configurações › Opções › Rondas**, as **Últimas rondas**.

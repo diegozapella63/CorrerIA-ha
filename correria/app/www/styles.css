@@ -586,7 +586,9 @@ body.cheia .bt-icone { width: 40px; height: 40px; }
 .ch-ronda-res { margin: 2px 0 10px; color: var(--muted); font-size: 13.5px; }
 .ch-ronda-onde { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .ch-ronda-onde .btn { min-width: 0; white-space: normal; }
-.ch-ronda-onde .btn.feito { color: var(--muted); }
+/* 1.19.1: o cômodo já feito hoje numa cor diferente (verde, cheio) */
+.ch-ronda-onde .btn.feito { background: color-mix(in srgb, #2e9e5b 22%, var(--card)); border-color: #2e9e5b; color: var(--text); }
+.ch-ronda-onde .btn.feito .ic-s { color: #2e9e5b; }
 .ch-ronda-t { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; min-width: 0; }
 .ch-ronda-t b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-ronda-t span { flex: 1; min-width: 0; color: var(--muted); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
