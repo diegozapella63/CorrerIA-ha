@@ -249,6 +249,10 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 /* 1.10.0: o Sim e o Não de uma mudança, embaixo da mensagem, do mesmo tamanho, lado a lado */
 .ch-sim { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 2px; max-width: 420px; width: 100%; }
 .ch-sim .btn { width: 100%; }
+/* 1.25.0: «Era para outro app?» embaixo da resposta de quem leu o arquivo: um botão por app, dois por linha */
+.ch-outros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 2px; max-width: 420px; }
+.ch-outros > span { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+.ch-outros .btn { width: 100%; min-width: 0; }
 .ch-abrir { margin: 8px 0 2px; width: 100%; max-width: 280px; text-decoration: none; }
 .ch-sug { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .chip { padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--text); font-size: 15px; }

@@ -1572,6 +1572,12 @@ def conversar(corpo, pessoa, chave):
             raise ValueError("O arquivo é grande demais (até 15 MB).")
         eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
+    para_app = None
+    if not anexo and corpo.get("para"):  # 1.25.0: «É para o <app>»: só com o arquivo ainda à mão e um app que recebe o tipo dele
+        guardado = foto_de("tela:" + chave)
+        para_app = next((a for a in APPS.lista() if guardado and a["app"] == corpo.get("para") and a["app"] in FERR.recebem(guardado.get("tipo"))), None)
+        if not para_app:
+            raise ValueError("O arquivo não está mais à mão. Mande de novo, dizendo de que app é.")
     rd = RONDAS_ATIVAS.get(chave)
     if rd:  # 1.18.0: no meio de uma ronda, a IA sabe de que etapa é a resposta (a pessoa só vê o rótulo)
         hist = hist + [{"papel": "eu", "texto": rondas.contexto(rd["id"], rd["etapas"][rd["i"]], rd["onde"])}]
@@ -1597,9 +1603,16 @@ def conversar(corpo, pessoa, chave):
         anexo = None if r is not None else anexo
     elif anexo:
         guardar_pendente("tela:" + chave, None)
+    elif para_app:
+        # 1.25.0: a pessoa tocou em «É para o <app>» embaixo da resposta de quem leu o arquivo: o mesmo arquivo, que ficou à mão,
+        # vai para a IA com as ferramentas, dizendo de que app é (o pedido dela está na mensagem de antes)
+        hist = hist + [{"papel": "eu", "texto": f"(O arquivo que a pessoa mandou há pouco não era para o app que respondeu: é para o {para_app['nome']}. "
+                                                f"Use só as ferramentas do {para_app['nome']} que recebem o arquivo, com o pedido que ela fez na mensagem do arquivo.)"}]
+        r = responder_ia("tela:" + chave, texto, hist, pessoa, "correria", "CorrerIA")
     else:
         r = responder_ia("tela:" + chave, texto, hist, pessoa, "correria", "CorrerIA")
     confirmar = False
+    leu = None  # o arquivo que foi para o app que lê (a `rota`), para oferecer os outros apps
     if r is not None:  # a IA com as ferramentas dos apps
         resposta, app, confirmar = r[0], ({"app": "_ia", "nome": ", ".join(r[1])} if r[1] else None), r[2]
     else:
@@ -1609,6 +1622,7 @@ def conversar(corpo, pessoa, chave):
         else:
             try:
                 resposta = APPS.perguntar(app, texto, hist, pessoa, timeout=300 if anexo else 150, anexo=anexo, canal="correria")
+                leu = anexo
             except apps.ErroApp as e:
                 log("CorrerIA:", e)
                 resposta = f"Não consegui falar com o {app['nome']} agora. {e}"
@@ -1617,6 +1631,13 @@ def conversar(corpo, pessoa, chave):
         resp["confirmar"] = True
     if app:
         resp.update(app=app["nome"], app_id=app["app"])
+    if leu and not rd and FERR.tem():
+        # 1.25.0 (o dono: "se o correria não encontra a info em um app, não seria prudente dar a opção de indicar se o tema é em
+        # outro app?"): o arquivo fica à mão e a resposta leva os outros apps que recebem esse tipo, para um toque mandar para lá
+        outros = [{"app": a["app"], "nome": a["nome"]} for a in APPS.lista() if a["app"] in FERR.recebem(tipo) and a["app"] != app["app"]]
+        if outros:
+            guardar_foto("tela:" + chave, leu)
+            resp["outros"] = outros
     lista += [eu, resp]
     _gravar_tela(chave, lista)
     return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave)}

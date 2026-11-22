@@ -815,6 +815,34 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
         self.assertGreaterEqual(alto, 0)
 
+    def test_era_para_outro_app_embaixo_da_resposta_de_quem_leu(self):
+        """1.25.0: a resposta do app que leu o arquivo leva um botão por outro app que o recebe; o toque manda `para`."""
+        import json as _json
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        msgs = [{"papel": "eu", "texto": "olha isso", "anexo": "Foto 15:00", "em": "2026-11-18T10:00:00"},
+                {"papel": "ia", "texto": "Não encontrei gastos nem recebimentos na foto.", "em": "2026-11-18T10:00:01", "app": "GerencIA", "app_id": "gerencia",
+                 "outros": [{"app": "inventario", "nome": "InventarIA"}, {"app": "resolvia", "nome": "ResolvIA"}]}]
+        pedidos = []
+
+        def conversa(route):
+            if route.request.method == "POST":
+                pedidos.append(route.request.post_data_json)
+                return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs[:1] + [{"papel": "ia", "texto": "Vou cadastrar.", "em": "x", "app": "InventarIA", "app_id": "_ia"}], "conversa": "c1"}))
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs, "pessoa": "Ana", "ola": "", "conversa": "c1", "ronda": {"ativa": None, "feitos": []}}))
+        self.pg.route("**/api/conversa", conversa)
+        self.pg.goto(self.url)
+        self.pg.wait_for_selector(".ch-outros .btn")
+        self.assertEqual(self.pg.locator(".ch-outros > span").inner_text().strip(), "Era para outro app?")
+        self.assertEqual([t.strip() for t in self.pg.locator(".ch-outros .btn").all_inner_texts()], ["InventarIA", "ResolvIA"])
+        self.assertEqual(self.pg.locator(".ch-outros .btn svg").count(), 2, "todo botão com ícone")
+        caixas = self.pg.evaluate("[...document.querySelectorAll('.ch-outros .btn')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+        self.assertEqual(caixas[0], caixas[1], "lado a lado, do mesmo tamanho")
+        self.pg.locator(".ch-outros .btn").first.click()
+        self.pg.wait_for_function("!document.querySelector('.ch-outros')")
+        self.assertEqual(pedidos, [{"texto": "É para o InventarIA.", "para": "inventario"}])
+
     def test_ronda_da_casa(self):
         """1.18.0: o botão Rondas no alto da Conversa abre a escolha (a ronda e os cômodos do InventarIA); o cômodo começa a
         ronda: a etapa entra na conversa e a faixa em cima da caixa tem Voltar e Próxima, do mesmo tamanho; na última,

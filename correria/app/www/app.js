@@ -714,9 +714,12 @@
       const abrirApp = m => m.abrir && /^\/app\/[a-z0-9_]+([/?][^"<>\s]*)?$/.test(m.abrir.href || '')
         ? `<a class="btn out ch-abrir" data-a="abrir-app" href="${esc(m.abrir.href)}" target="_top">${ic('link', 'ic-s')}${esc(m.abrir.texto || 'Abrir')}</a>` : '';
       // 1.10.0: a mudança que espera o sim (a última mensagem): o Sim e o Não para tocar, embaixo
+      // 1.25.0: o app que leu o arquivo pode não ser o do assunto: embaixo da resposta, um toque manda o mesmo arquivo a outro
+      const outrosApps = (m, k) => k === M.length - 1 && (m.outros || []).length && !c.enviando
+        ? `<div class="ch-outros"><span>${ic('link', 'ic-s')}Era para outro app?</span>${m.outros.map(o => `<button class="btn out" data-a="ch-para" data-app="${esc(o.app)}" data-nome="${esc(o.nome)}">${ic('chev', 'ic-s')}${esc(o.nome)}</button>`).join('')}</div>` : '';
       const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
         ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
-      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${abrirApp(m)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${outrosApps(m, k)}${abrirApp(m)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
@@ -1260,7 +1263,7 @@
         <div class="ch-ronda-bts"><button class="btn out" data-a="ronda-voltar"${r.n <= 1 || S.ch.enviando ? ' disabled' : ''}>${ic('back', 'ic-s')}Voltar</button>
           <button class="btn pri" data-a="ronda-proxima"${S.ch.enviando ? ' disabled' : ''}>${ic(ult ? 'check' : 'chev', 'ic-s')}${ult ? 'Concluir' : 'Próxima'}</button></div></div>`;
   }
-  async function enviarConversa(texto) {
+  async function enviarConversa(texto, para) {
     const c = S.ch;
     texto = String(texto == null ? c.texto : texto).trim();
     if ((!texto && !c.anexo) || c.enviando) return;
@@ -1269,7 +1272,7 @@
     c.texto = ''; c.anexo = null; c.enviando = true;
     render();
     try {
-      const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}) });
+      const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}), ...(para ? { para } : {}) });
       c.msgs = r.mensagens || [];
       c.conversa = r.conversa || null;
       if (r.ronda) c.ronda = r.ronda.ativa || null;
@@ -1437,6 +1440,8 @@
     } else if (a === 'ch-sug') {
       Object.assign(S.ch, { rapidas: false, editando: null });
       enviarConversa(el.dataset.v);
+    } else if (a === 'ch-para') {  // 1.25.0: o arquivo era para outro app
+      enviarConversa(`É para o ${el.dataset.nome}.`, el.dataset.app);
     } else if (a === 'ch-resp') {  // 1.10.0: o Sim ou o Não de uma mudança, num toque
       enviarConversa(el.dataset.v);
     } else if (a === 'rondas') {

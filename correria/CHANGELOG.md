@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.25.0
+
+- **Era para outro app?** Quando um app lê a foto ou o PDF que você mandou e a resposta não era o que você queria, embaixo dela aparecem os outros apps que recebem aquele arquivo. Um toque manda o mesmo arquivo para o app certo, sem precisar enviar de novo.
+
 ## 1.24.1
 
 - **Foto com pedido indo para o app errado**: uma foto com um pedido como "adiciona esse nos consumíveis da lavanderia" ia para o GerencIA, que respondia que não achou gastos. Agora só vai para ele a foto cuja legenda fala de conta, fatura ou gasto, ou a foto sem legenda. Qualquer outro pedido vai para o app do assunto.

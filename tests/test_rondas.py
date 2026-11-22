@@ -232,6 +232,23 @@ class TestArquivoNaRonda(Base):
             st, r = self.j("/api/conversa", {"texto": "", "anexo": self.FOTO})
         ia.assert_not_called()
         self.assertEqual(len(g.feitos), 1)
+        # 1.25.0 (o dono: "não seria prudente dar a opção de indicar se o tema é em outro app?"): a resposta de quem leu leva os
+        # outros apps que recebem esse arquivo, e ele fica à mão; um toque manda para lá, com o app dito à IA
+        m = r["mensagens"][-1]
+        self.assertEqual((m["app"], m["outros"]), ("GerencIA", [{"app": "inventario", "nome": "InventarIA"}]))
+        with mock.patch.object(S, "responder_ia", return_value=("Vou cadastrar.", ["InventarIA"], True)) as ia:
+            st, r = self.j("/api/conversa", {"texto": "É para o InventarIA.", "para": "inventario"})
+        self.assertEqual((st, len(g.feitos), r["mensagens"][-1]["app"]), (200, 1, "InventarIA"))
+        self.assertNotIn("outros", r["mensagens"][-1])
+        hist = ia.call_args.args[2]
+        self.assertIn("não era para o app que respondeu: é para o InventarIA. Use só as ferramentas do InventarIA que recebem o arquivo", hist[-1]["texto"])
+        self.assertTrue(S.foto_de("tela:" + next(k for k in S.FOTOS if k.startswith("tela:"))[5:]), "o arquivo continua à mão para a ferramenta")
+        # um app que não recebe o arquivo, ou sem arquivo à mão: diz, sem chamar ninguém
+        S.FOTOS.clear()
+        with mock.patch.object(S, "responder_ia") as ia:
+            st, r = self.j("/api/conversa", {"texto": "É para o InventarIA.", "para": "inventario"})
+        self.assertEqual((st, r["erro"]), (400, "O arquivo não está mais à mão. Mande de novo, dizendo de que app é."))
+        ia.assert_not_called()
         g.feitos.clear()
         self.j("/api/conversa/nova", {})
         with mock.patch.object(S, "responder_ia") as ia:
