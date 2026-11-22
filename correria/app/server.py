@@ -496,12 +496,50 @@ def erro_da_ia(msg, nome):
     return f"{quem}: {msg}" if nome else msg
 
 
+# 1.27.0: a resposta já no formato (o `structure` do ai_task.generate_data, com os seletores do Home Assistant): a IA devolve
+# os campos, em vez de um JSON escrito no meio do texto. Uma IA que não aceitar a estrutura (o Home Assistant responde erro)
+# fica no jeito de antes, só com o FORMATO nas instruções; a escolha vale por IA, até o app reiniciar.
+ESTRUTURA = {
+    "resposta": {"description": "O texto para a pessoa. Vazio quando há ferramentas de leitura em chamar.", "selector": {"text": {"multiline": True}}},
+    "chamar": {"description": "As ferramentas a chamar agora (lista vazia se nenhuma).",
+               "selector": {"object": {"multiple": True, "fields": {
+                   "ferramenta": {"required": True, "selector": {"text": {}}},
+                   "argumentos": {"selector": {"object": {}}},
+                   "resumo": {"selector": {"text": {}}}}}}},
+}
+SEM_ESTRUTURA = set()  # as IAs (entity_id; "" é a padrão) que recusaram a estrutura
+
+
 def _chamar_ia(instrucoes):
     c = ler_config()
     nome = nome_da_ia(c)
     corpo = {"task_name": "CorrerIA", "instructions": instrucoes}
     if c["ia_entidade"]:
         corpo["entity_id"] = c["ia_entidade"]
+    ent = c["ia_entidade"] or ""
+    recusou = ""
+    if ent not in SEM_ESTRUTURA:
+        try:
+            r = ha_post("/services/ai_task/generate_data?return_response", dict(corpo, structure=ESTRUTURA), timeout=150)
+            dados = ((r or {}).get("service_response") or {}).get("data")
+            if isinstance(dados, (dict, str)) and dados:
+                ESTADO["ia"] = {"ok": True, "erro": "", "em": agora_iso(), "nome": nome}
+                return dados
+            raise ValueError("sem dados")
+        except urllib.error.HTTPError as e:
+            try:
+                msg = str(json.loads(e.read() or b"{}").get("message") or "")
+            except (ValueError, AttributeError):
+                msg = ""
+            if uso.resultado(msg) == "cota" or apps.erro_cru(msg):  # sem cota ou fora do ar: não é da estrutura
+                ESTADO["ia"] = {"ok": False, "erro": erro_da_ia(msg, nome), "em": agora_iso(), "nome": nome}
+                raise ia.ErroIA(erro_da_ia(msg, nome)) from None
+            recusou = f"não aceitou a resposta estruturada ({msg[:160] or e.code})"
+        except ValueError:
+            recusou = "não devolveu a resposta estruturada"
+        except (urllib.error.URLError, OSError) as e:
+            ESTADO["ia"] = {"ok": False, "erro": f"Não consegui falar com o Home Assistant ({getattr(e, 'reason', e)}).", "em": agora_iso(), "nome": nome}
+            raise ia.ErroIA(ESTADO["ia"]["erro"]) from None
 
     def falhou(msg):
         ESTADO["ia"] = {"ok": False, "erro": msg, "em": agora_iso(), "nome": nome}
@@ -519,6 +557,9 @@ def _chamar_ia(instrucoes):
     dados = ((r or {}).get("service_response") or {}).get("data")
     if dados is None:
         raise falhou(erro_da_ia("não devolveu resposta.", nome) if nome else "A IA não devolveu resposta.")
+    if recusou:  # sem a estrutura respondeu: o problema era ela; essa IA fica no jeito de antes (um erro passageiro não conta)
+        log(f"IA: {nome or 'a padrão'} {recusou}; sigo sem ela.")
+        SEM_ESTRUTURA.add(ent)
     ESTADO["ia"] = {"ok": True, "erro": "", "em": agora_iso(), "nome": nome}
     return dados
 
@@ -564,7 +605,44 @@ def pesquisar_internet(pesquisa):
     return texto.strip()[:6000]
 
 
-AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN, pesquisar=pesquisar_internet)
+# 1.27.0: as lembranças da casa (Mais › Lembranças): frases que valem em toda conversa da IA; /data/lembrancas.json
+LEMBRANCAS_ARQ = os.path.join(DATA_DIR, "lembrancas.json")
+MAX_LEMBRANCAS, MAX_LEMBRANCA = 60, 240
+TRAVA_LEMBRANCAS = threading.Lock()
+
+
+def lembrancas():
+    v = ler_json(LEMBRANCAS_ARQ).get("lista")
+    return [x for x in v if isinstance(x, dict) and x.get("id") and str(x.get("texto") or "").strip()] if isinstance(v, list) else []
+
+
+def lembrar(texto, pessoa=None):
+    """Guarda uma lembrança (a mesma frase não entra duas vezes). Devolve o texto guardado; ValueError diz o que vale."""
+    t = " ".join(str(texto or "").split())[:MAX_LEMBRANCA]
+    if len(t) < 3:
+        raise ValueError("Escreva o que é para lembrar.")
+    with TRAVA_LEMBRANCAS:
+        lista = lembrancas()
+        if any(x["texto"].lower() == t.lower() for x in lista):
+            return t
+        if len(lista) >= MAX_LEMBRANCAS:
+            raise ValueError(f"Já são {MAX_LEMBRANCAS} lembranças. Apague alguma em Mais › Lembranças.")
+        lista.append({"id": secrets.token_hex(4), "texto": t, "em": agora_iso(), "quem": str((pessoa or {}).get("nome") or "")})
+        gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": lista}, ensure_ascii=False))
+    return t
+
+
+def esquecer(lid):
+    with TRAVA_LEMBRANCAS:
+        gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": [x for x in lembrancas() if x["id"] != lid]}, ensure_ascii=False))
+
+
+AGENTE = ia.Agente(FERR, chamar_ia, log, simulada=DEV and not TOKEN, pesquisar=pesquisar_internet, lembrancas=lambda: [x["texto"] for x in lembrancas()])
+# 1.27.0: o que a IA está fazendo agora em cada conversa da tela («Consultando o InventarIA…»), para a tela mostrar
+PASSOS = {}
+# 1.27.0: o que o último sim fez em cada conversa (por 10 minutos), para o Desfazer
+FEITOS = {}
+DESFAZER_SEG = 10 * 60
 
 
 def pegar_pendente(chave):
@@ -658,12 +736,23 @@ def executar(acoes, pessoa, cliente, chave=None, falhas=None):
     """O "sim": faz cada mudança proposta, pelas ferramentas dos apps. Devolve (texto, nomes dos apps).
     falhas (uma lista, 1.26.0): ganha (ação, o erro inteiro do app) de cada mudança que o app recusou."""
     lista, linhas, nomes = FERR.todas(), [], []
+    feitos = []
+    CANAL.feitos = feitos
     for a in acoes:
+        if a.get("ferramenta") == ia.LEMBRAR["id"]:  # 1.27.0: a lembrança da casa é daqui, não de um app
+            try:
+                linhas.append(f"- Vou lembrar: {lembrar((a.get('argumentos') or {}).get('fato'), pessoa)}")
+            except ValueError as e:
+                linhas.append(f"- Não deu: {e}")
+            nomes += [] if "CorrerIA" in nomes else ["CorrerIA"]
+            continue
         f = FERR.achar(str(a.get("ferramenta") or ""), lista)
         if not f:
             linhas.append(f"- Não deu: {a.get('resumo') or a.get('ferramenta')} (o app não está mais ligado).")
             continue
         recusa = []
+        if chave and chave.startswith("tela:"):
+            PASSOS[chave] = f"Fazendo no {f['app']['nome']}…"
         texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente, anexo=foto_de(chave) if chave and f.get("anexo") else None, recusa=recusa)
         if f.get("anexo") and not erro:
             guardar_foto(chave, None)  # a foto foi para o lugar dela: não vai duas vezes
@@ -673,6 +762,7 @@ def executar(acoes, pessoa, cliente, chave=None, falhas=None):
                 falhas.append((a, texto))
         else:
             linhas.append(f"- {texto.splitlines()[0] if texto else 'feito.'}")
+            feitos.append({"ferramenta": f["id"], "argumentos": a.get("argumentos") or {}, "resumo": a.get("resumo") or f["titulo"], "resultado": str(texto or "")[:600]})
             if f.get("anexo"):
                 CANAL.arquivo = True
         if f["app"]["nome"] not in nomes:
@@ -703,7 +793,8 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
                     foto = foto_de(chave)
                     r = AGENTE.responder(hist + [{"papel": "eu", "texto": nota}], pessoa, canal, cliente,
                                          **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}",
-                                             "anexo": foto, "lido": lido_de(chave)} if foto else {}))
+                                             "anexo": foto, "lido": lido_de(chave)} if foto else {}),
+                                         passo=(lambda t: PASSOS.__setitem__(chave, t)) if chave.startswith("tela:") else None)
                 except ia.ErroIA as e:
                     log("IA:", e)
                     r = None
@@ -726,7 +817,8 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
         foto = foto_de(chave)
         r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente,
                              **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}",
-                                 "anexo": foto, "lido": lido_de(chave)} if foto else {}))
+                                 "anexo": foto, "lido": lido_de(chave)} if foto else {}),
+                                         passo=(lambda t: PASSOS.__setitem__(chave, t)) if chave.startswith("tela:") else None)
     except ia.ErroIA as e:
         log("IA:", e)
         # 1.16.2: fora do ar, sobrecarregada ou sem cota: a mesma IA não responde pelo app; diz logo, numa frase
@@ -1610,6 +1702,13 @@ def apps_da_ultima(lista):
 
 
 def conversar(corpo, pessoa, chave):
+    try:
+        return _conversar(corpo, pessoa, chave)
+    finally:
+        PASSOS.pop("tela:" + chave, None)  # 1.27.0: acabou (ou deu erro): a tela para de mostrar o passo
+
+
+def _conversar(corpo, pessoa, chave):
     """Uma mensagem da conversa da tela: texto e/ou um anexo ({nome, b64} em data URL). Devolve a conversa toda."""
     texto = str(corpo.get("texto") or "").strip()[:2000]
     anexo = corpo.get("anexo") if isinstance(corpo.get("anexo"), dict) and corpo["anexo"].get("b64") else None
@@ -1632,6 +1731,21 @@ def conversar(corpo, pessoa, chave):
             eu["mini"] = mini
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
     CANAL.arquivo = False
+    CANAL.feitos = None
+    PASSOS["tela:" + chave] = "Pensando…"
+    # 1.27.0: o Desfazer embaixo do «Feito!»: o que o último sim fez (até 10 minutos atrás) vai para a IA, que propõe o
+    # contrário (apagar o que criou, pelo id do resultado); a volta também espera o sim, para a pessoa ver o que sai
+    antes = FEITOS.pop("tela:" + chave, None)
+    desfaz = None
+    if corpo.get("desfazer") and not anexo:
+        if not antes or time.time() - antes["em"] > DESFAZER_SEG:
+            PASSOS.pop("tela:" + chave, None)
+            raise ValueError("Não dá mais para desfazer por aqui. Diga o que você quer mudar.")
+        desfaz = ("(Quero desfazer o que o app acabou de fazer com o meu sim:\n"
+                  + "\n".join(f"- {x['ferramenta']}({json.dumps(x['argumentos'], ensure_ascii=False)}) → {x['resultado']}" for x in antes["acoes"])
+                  + "\nProponha as mudanças que desfazem cada uma: apagar o que foi criado (pelo id ou código que o resultado diz; se não diz, "
+                    "ache com uma leitura) e voltar o que foi mudado só se a conversa mostra como era antes. O que não der para desfazer, "
+                    "diga qual é e por quê, sem inventar.)")
     para_app = None
     if not anexo and corpo.get("para"):  # 1.25.0: «É para o <app>»: só com o arquivo ainda à mão e um app que recebe o tipo dele
         guardado = foto_de("tela:" + chave)
@@ -1641,6 +1755,8 @@ def conversar(corpo, pessoa, chave):
     rd = RONDAS_ATIVAS.get(chave)
     if rd:  # 1.18.0: no meio de uma ronda, a IA sabe de que etapa é a resposta (a pessoa só vê o rótulo)
         hist = hist + [{"papel": "eu", "texto": rondas.contexto(rd["id"], rd["etapas"][rd["i"]], rd["onde"])}]
+    if desfaz:
+        hist = hist + [{"papel": "eu", "texto": desfaz}]
     r = None
     so_app = None
     # 1.23.0 (o dono, numa ronda: mandou a foto de um consumível e a resposta veio do GerencIA, "zero sentido"): no meio de uma
@@ -1680,6 +1796,7 @@ def conversar(corpo, pessoa, chave):
         if not app:
             resposta = NAO_LE if (tipo and APPS.lista()) else SEM_APP
         else:
+            PASSOS["tela:" + chave] = f"O {app['nome']} está lendo o arquivo…" if anexo else f"Perguntando ao {app['nome']}…"
             try:
                 resposta = APPS.perguntar(app, texto, hist, pessoa, timeout=300 if anexo else 150, anexo=anexo, canal="correria")
                 leu = anexo
@@ -1691,6 +1808,12 @@ def conversar(corpo, pessoa, chave):
         resp["confirmar"] = True
     if app:
         resp.update(app=app["nome"], app_id=app["app"])
+    PASSOS.pop("tela:" + chave, None)
+    if getattr(CANAL, "feitos", None):  # o sim fez alguma coisa: dá para desfazer por 10 minutos
+        FEITOS["tela:" + chave] = {"em": time.time(), "acoes": CANAL.feitos}
+        resp["desfazer"] = True
+        for k in [k for k, v in FEITOS.items() if time.time() - v["em"] > DESFAZER_SEG]:
+            FEITOS.pop(k, None)
     usado = next((m["anexo"] for m in reversed(lista + [eu]) if m.get("papel") == "eu" and m.get("anexo")), None)
     if usado and (leu or getattr(CANAL, "arquivo", False)):
         resp["arquivo"] = usado  # 1.26.0: a resposta veio da leitura deste arquivo
@@ -2003,6 +2126,10 @@ class Tela(BaseHTTPRequestHandler):
             pessoa, chave = pessoa_da_tela(self.headers)
             return self.enviar(200, {"mensagens": conversa_tela(chave), "pessoa": pessoa["nome"], "ola": ola_da_tela(self.headers),
                                      "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)})
+        if p == "/api/conversa/passo":  # 1.27.0: o que a IA está fazendo agora nesta conversa
+            return self.enviar(200, {"passo": PASSOS.get("tela:" + pessoa_da_tela(self.headers)[1], "")})
+        if p == "/api/lembrancas":  # 1.27.0: o que a casa pediu para a IA lembrar
+            return self.enviar(200, {"lembrancas": lembrancas(), "max": MAX_LEMBRANCAS})
         if p == "/api/rondas":  # 1.18.0: as rondas que dá para fazer agora (os cômodos vêm do InventarIA)
             pessoa, chave = pessoa_da_tela(self.headers)
             return self.enviar(200, dict(rondas_estado(chave, pessoa, listar=True), aviso=pessoas_do_aviso(self.headers.get("X-Remote-User-Id") or "")))
@@ -2056,6 +2183,12 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/conversa":
                 pessoa, chave = pessoa_da_tela(self.headers)
                 return self.enviar(200, dict(conversar(c, pessoa, chave), ronda=rondas_estado(chave)))
+            if p == "/api/lembrancas":  # 1.27.0: {acao: nova, texto} ou {acao: apagar, id}
+                if c.get("acao") == "apagar":
+                    esquecer(str(c.get("id") or ""))
+                else:
+                    lembrar(c.get("texto"), pessoa_da_tela(self.headers)[0])
+                return self.enviar(200, {"lembrancas": lembrancas(), "max": MAX_LEMBRANCAS})
             if p == "/api/ronda/testar":  # 1.21.0: o Testar no meu celular
                 return self.enviar(200, testar_aviso_ronda(self.headers.get("X-Remote-User-Id") or ""))
             if p == "/api/ronda":  # 1.18.0: começar, próxima etapa, voltar ou sair

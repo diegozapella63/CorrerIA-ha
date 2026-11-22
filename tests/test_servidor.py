@@ -2,6 +2,7 @@
 o endereço, a assinatura, https com o certificado), responder pelo app da família e a tela. A Meta e o GerencIA são de
 mentira; pessoas e números inventados (Ana, Beto)."""
 import base64
+import io
 import hashlib
 import hmac
 import json
@@ -52,6 +53,7 @@ def pedir(url, metodo="GET", corpo=None, cab=None, contexto=None):
 
 class Base(unittest.TestCase):
     def setUp(self):
+        S.SEM_ESTRUTURA.clear()  # cada teste começa com a resposta estruturada ligada
         for arq in (S.CONFIG_ARQ, S.CONVERSAS_ARQ, S.MCP_ARQ):
             if os.path.exists(arq):
                 os.remove(arq)
@@ -778,6 +780,94 @@ class TestComFerramentas(Base):
         self.assertEqual(self.mandar("sim")[0][1], "Sim o quê?")
         self.assertEqual(self.app.feitos, [])
 
+    def test_lembrancas_da_casa(self):
+        """1.27.0: Mais › Lembranças: guardar, não repetir, apagar; a IA guarda pelo sim e passa a receber em toda conversa."""
+        self.addCleanup(lambda: os.path.exists(S.LEMBRANCAS_ARQ) and os.remove(S.LEMBRANCAS_ARQ))
+        self.assertEqual(S.lembrar("  Creme é   sempre Higiene ", {"nome": "Ana"}), "Creme é sempre Higiene")
+        S.lembrar("creme é sempre higiene")
+        L = S.lembrancas()
+        self.assertEqual([(x["texto"], x["quem"]) for x in L], [("Creme é sempre Higiene", "Ana")])
+        self.assertEqual(oct(os.stat(S.LEMBRANCAS_ARQ).st_mode & 0o777), "0o600")
+        with self.assertRaisesRegex(ValueError, "Escreva o que é para lembrar"):
+            S.lembrar(" a ")
+        with mock.patch.object(S, "MAX_LEMBRANCAS", 1), self.assertRaisesRegex(ValueError, "Já são 1 lembranças"):
+            S.lembrar("Outra coisa")
+        self.falsa = IAFalsa({"chamar": [{"ferramenta": "correria_lembrar", "argumentos": {"fato": "A feira é no sábado"}, "resumo": "Lembrar que a feira é no sábado"}]})
+        p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log, lembrancas=lambda: [x["texto"] for x in S.lembrancas()]))
+        p.start()
+        self.addCleanup(p.stop)
+        self.assertIn("- Lembrar que a feira é no sábado", self.mandar("lembra que a feira é no sábado")[0][1])
+        self.assertIn("- Creme é sempre Higiene", self.falsa.pedidos[0])
+        self.assertEqual(self.mandar("sim")[0][1], "Feito!\n- Vou lembrar: A feira é no sábado")
+        self.assertEqual(len(S.lembrancas()), 2)
+        S.esquecer(L[0]["id"])
+        self.assertEqual([x["texto"] for x in S.lembrancas()], ["A feira é no sábado"])
+
+    def test_desfazer_e_o_passo_de_agora(self):
+        """1.27.0: o que o sim fez pode ser desfeito por 10 minutos (a IA propõe o contrário, que espera o sim); enquanto a IA
+        trabalha, a tela sabe o passo."""
+        pessoa, chave = {"id": "person.ana", "nome": "Ana"}, "u-ana"
+        self.addCleanup(S.FEITOS.clear)
+        vistos = []
+
+        class Espia(IAFalsa):
+            def __call__(s, instrucoes):
+                vistos.append(S.PASSOS.get("tela:" + chave))
+                return IAFalsa.__call__(s, instrucoes)
+        self.falsa = Espia(LANCAR)
+        p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log))
+        p.start()
+        self.addCleanup(p.stop)
+        r = S.conversar({"texto": "lança a feira"}, pessoa, chave)
+        self.assertEqual((vistos, S.PASSOS.get("tela:" + chave)), (["Pensando…"], None), "o passo some quando a resposta sai")
+        self.assertNotIn("desfazer", r["mensagens"][-1])
+        r = S.conversar({"texto": "sim"}, pessoa, chave)
+        self.assertTrue(r["mensagens"][-1]["desfazer"])
+        self.falsa.fila.append({"chamar": [{"ferramenta": "gerencia_apagar", "argumentos": {"id": "l1"}, "resumo": "Apagar o gasto da Feira"}]})
+        r = S.conversar({"texto": "Desfazer", "desfazer": True}, pessoa, chave)
+        self.assertIn("Vou fazer isto:\n- Apagar o gasto da Feira", r["mensagens"][-1]["texto"])
+        nota = self.falsa.pedidos[-1]
+        self.assertIn('Quero desfazer o que o app acabou de fazer com o meu sim:\n- gerencia_lancar({"descricao": "Feira", "valor": 32.5}) → Lançado: Feira · R$ 32.5. id: l1', nota)
+        self.assertIn("O que não der para desfazer, diga qual é e por quê, sem inventar.", nota)
+        # uma vez só, e só por 10 minutos
+        with self.assertRaisesRegex(ValueError, "Não dá mais para desfazer por aqui"):
+            S.conversar({"texto": "Desfazer", "desfazer": True}, pessoa, chave)
+        self.assertNotIn("tela:" + chave, S.PASSOS)
+        S.FEITOS["tela:" + chave] = {"em": time.time() - S.DESFAZER_SEG - 5, "acoes": []}
+        with self.assertRaisesRegex(ValueError, "Não dá mais para desfazer"):
+            S.conversar({"texto": "Desfazer", "desfazer": True}, pessoa, chave)
+
+    def test_resposta_estruturada_com_reserva(self):
+        """1.27.0: a IA recebe a estrutura da resposta (structure); uma IA que não aceita fica no jeito de antes, sem cair."""
+        self.addCleanup(S.SEM_ESTRUTURA.clear)
+        S.SEM_ESTRUTURA.clear()
+        pedidos = []
+
+        def ha(caminho, corpo, timeout=0):
+            pedidos.append(corpo)
+            if "structure" in corpo and modo["recusa"]:
+                raise urllib.error.HTTPError("u", 400, "x", {}, io.BytesIO(b'{"message": "extra keys not allowed @ data[\'structure\']"}'))
+            return {"service_response": {"data": {"chamar": [], "resposta": "Oi."} if "structure" in corpo else '{"chamar": [], "resposta": "Oi."}'}}
+        modo = {"recusa": False}
+        with mock.patch.object(S, "ha_post", ha):
+            self.assertEqual(S._chamar_ia("x"), {"chamar": [], "resposta": "Oi."})
+            self.assertEqual(pedidos[-1]["structure"]["chamar"]["selector"]["object"]["fields"]["ferramenta"], {"required": True, "selector": {"text": {}}})
+            modo["recusa"] = True
+            self.assertEqual(S._chamar_ia("x"), '{"chamar": [], "resposta": "Oi."}')
+            n = len(pedidos)
+            S._chamar_ia("x")
+            self.assertEqual((len(pedidos), "structure" in pedidos[-1]), (n + 1, False), "essa IA não recebe mais a estrutura")
+        S.SEM_ESTRUTURA.clear()
+        sem_cota = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(b'{"message": "429 RESOURCE_EXHAUSTED quota"}'))
+        with mock.patch.object(S, "ha_post", side_effect=sem_cota), self.assertRaises(S.ia.ErroIA):
+            S._chamar_ia("x")
+        self.assertEqual(S.SEM_ESTRUTURA, set(), "sem cota não é recusa da estrutura")
+        with mock.patch.object(S, "ha_post", side_effect=OSError("fora")), self.assertRaisesRegex(S.ia.ErroIA, "Não consegui falar com o Home Assistant"):
+            S._chamar_ia("x")
+        with mock.patch.object(S, "ha_post", return_value={"service_response": {"data": None}}), self.assertRaises(S.ia.ErroIA):
+            S._chamar_ia("x")
+        self.assertEqual(S.SEM_ESTRUTURA, set(), "um erro que continua sem a estrutura não é culpa dela")
+
     def test_o_app_recusa_no_sim(self):
         """1.26.0 (o dono: "toda hora isso de não achar", com a lista técnica na tela): o que o app recusa depois do sim volta para
         a IA, com o erro inteiro, e ela propõe de novo, corrigido (uma vez só); na tela, o erro é a frase do app, sem ids."""
@@ -955,7 +1045,7 @@ class TestComFerramentas(Base):
         with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
             self.assertEqual(S.chamar_ia("Pergunta"), {"resposta": "ok"})
             m, p, h, c = ha.pedidos[-1]
-            self.assertEqual((p, h["Authorization"], c), ("/api/services/ai_task/generate_data?return_response", "Bearer t", {"task_name": "CorrerIA", "instructions": "Pergunta"}))
+            self.assertEqual((p, h["Authorization"], c), ("/api/services/ai_task/generate_data?return_response", "Bearer t", {"task_name": "CorrerIA", "instructions": "Pergunta", "structure": S.ESTRUTURA}))
             self.assertTrue(S.estado()["ia"]["ok"])
             ha.rotas["/api/services/ai_task/generate_data"] = (400, {"message": "Nenhuma entidade de IA padrão."})
             with self.assertRaisesRegex(S.ia.ErroIA, "Nenhuma entidade"):
@@ -1401,7 +1491,7 @@ class TestCasosRaros(Base):
                 S.salvar_config({"ia_entidade": "light.sala"})
             S.salvar_config({"ia_entidade": "ai_task.ia_azul"})
             S.chamar_ia("Pergunta")
-            self.assertEqual(ha.pedidos[-1][3], {"task_name": "CorrerIA", "instructions": "Pergunta", "entity_id": "ai_task.ia_azul"})
+            self.assertEqual(ha.pedidos[-1][3], {"task_name": "CorrerIA", "instructions": "Pergunta", "entity_id": "ai_task.ia_azul", "structure": S.ESTRUTURA})
             self.assertEqual((S.estado()["ia"]["nome"], S.estado()["ias"]["escolhida"]), ("IA Azul", "ai_task.ia_azul"))
             ha.rotas["/api/services/ai_task/generate_data"] = (500, {"message": "Error generating content: 429 RESOURCE_EXHAUSTED. You exceeded your current quota."})
             with self.assertRaisesRegex(S.ia.ErroIA, r"^IA Azul ficou sem cota \(o limite de uso acabou\)\. Espere a cota voltar ou escolha outra em IA para conversar\.$"):

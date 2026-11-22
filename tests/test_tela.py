@@ -815,6 +815,65 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
         self.assertGreaterEqual(alto, 0)
 
+    def test_lembrancas_desfazer_e_o_passo(self):
+        """1.27.0: Mais › Lembranças (escrever, a lista, apagar); o Desfazer embaixo do Feito; o passo de agora ao lado dos pontos."""
+        import json as _json
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        agora = self.pg.evaluate("new Date().toISOString()")
+        msgs = [{"papel": "eu", "texto": "Sim", "em": agora}, {"papel": "ia", "texto": "Feito!\n- Lançado: Feira", "em": agora, "app": "GerencIA", "desfazer": True}]
+        pedidos, presas = [], []
+
+        def conversa(route):
+            if route.request.method == "POST":
+                pedidos.append(route.request.post_data_json)
+                return presas.append(route)  # a resposta fica presa até o passo aparecer
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs, "pessoa": "Ana", "ola": "", "conversa": "c1", "ronda": {"ativa": None, "feitos": []}}))
+        self.pg.route("**/api/conversa", conversa)
+        self.pg.route("**/api/conversa/passo", lambda r: r.fulfill(status=200, content_type="application/json", body='{"passo": "Consultando o GerencIA…"}'))
+        self.pg.goto(self.url)
+        self.pg.wait_for_selector(".ch-desfazer .btn")
+        self.assertEqual(self.pg.locator(".ch-desfazer .btn").inner_text().strip(), "Desfazer")
+        self.assertEqual(self.pg.locator(".ch-desfazer .btn svg").count(), 1)
+        self.pg.locator(".ch-desfazer .btn").click()
+        self.pg.wait_for_function("document.querySelector('#ch-passo') && document.querySelector('#ch-passo').textContent === 'Consultando o GerencIA…'")
+        presas[0].fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs[:1] + [{"papel": "ia", "texto": "Vou fazer isto:\n- Apagar a Feira", "em": agora, "confirmar": True}], "conversa": "c1"}))
+        self.pg.wait_for_selector(".ch-sim")
+        self.assertEqual(pedidos, [{"texto": "Desfazer", "desfazer": True}])
+        self.assertEqual(self.pg.locator(".ch-desfazer").count(), 0)
+        # um Feito de mais de 10 minutos atrás não tem o Desfazer
+        msgs[1]["em"] = "2026-01-01T10:00:00"
+        self.pg.reload()
+        self.pg.wait_for_selector(".ch-msg.ia")
+        self.assertEqual(self.pg.locator(".ch-desfazer").count(), 0)
+        # Mais › Lembranças
+        lista = [{"id": "a1", "texto": "Creme é sempre Higiene", "em": "2026-11-18T10:00:00", "quem": "Ana"}]
+        posts = []
+
+        def lemb(route):
+            if route.request.method == "POST":
+                c = route.request.post_data_json
+                posts.append(c)
+                if c["acao"] == "nova":
+                    lista.append({"id": "b2", "texto": c["texto"], "em": "2026-11-18T11:00:00", "quem": "Ana"})
+                else:
+                    lista[:] = [x for x in lista if x["id"] != c["id"]]
+            route.fulfill(status=200, content_type="application/json", body=_json.dumps({"lembrancas": lista, "max": 60}))
+        self.pg.route("**/api/lembrancas", lemb)
+        self.pg.evaluate("document.querySelector('[data-a=\"mais\"]').click()")
+        self.pg.locator("[data-a='tela-lembrancas']").click()
+        self.pg.wait_for_selector(".lembrancas li button")
+        self.assertIn("Creme é sempre Higiene", self.pg.locator(".lembrancas li").first.inner_text())
+        self.assertEqual(self.pg.locator("h1 svg, .topo-tela svg").count() > 0, True)
+        self.pg.fill("#lembrar-texto", "A feira é no sábado")
+        self.pg.locator("[data-a='lembrar-nova']").click()
+        self.pg.wait_for_function("document.querySelectorAll('.lembrancas li button').length === 2")
+        self.pg.locator("[data-a='lembrar-apagar']").first.click()
+        self.pg.wait_for_function("document.querySelectorAll('.lembrancas li button').length === 1")
+        self.assertEqual(posts, [{"acao": "nova", "texto": "A feira é no sábado"}, {"acao": "apagar", "id": "a1"}])
+        self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
+
     def test_a_miniatura_da_foto_na_conversa(self):
         """1.26.0: a foto mandada aparece em miniatura na mensagem e embaixo da resposta que veio da leitura dela; a tela faz a
         miniatura (96 px) e manda junto."""
@@ -981,7 +1040,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         # 1.20.0: Mais › Rondas (antes de Configurações e do Sobre): as rondas, o aviso (uma chave) e as últimas rondas
         self.pg.click('[data-a="mais"]')
-        self.assertEqual(self.pg.locator(".mais-menu .linha b").all_inner_texts(), ["Rondas", "Configurações", "Sobre"])
+        self.assertEqual(self.pg.locator(".mais-menu .linha b").all_inner_texts(), ["Rondas", "Lembranças", "Configurações", "Sobre"])
         self.pg.click('[data-a="tela-rondas"]')
         self.pg.wait_for_selector("#ronda-casa")
         self.assertEqual(self.texto("h1"), "Rondas")

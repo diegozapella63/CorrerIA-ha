@@ -237,6 +237,18 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-bolha ul { margin: 4px 0 0; padding-left: 20px; }
 .ch-anexo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
 .ch-anexo + p { margin-top: 6px; }
+/* 1.27.0: o passo de agora ao lado dos pontos, o Desfazer embaixo do Feito e a lista das Lembranças */
+.ch-pensando { align-items: center; }
+.ch-pensando em { font-style: normal; color: var(--muted); font-size: 14px; margin-left: 4px; }
+.ch-pensando em:empty { display: none; }
+.ch-desfazer { margin: 8px 0 2px; max-width: 420px; }
+.ch-desfazer .btn { width: 100%; }
+@media (min-width: 1000px) { .ch-desfazer .btn { width: 250px; } }
+.lembrancas { list-style: none; margin: 0; padding: 0; }
+.lembrancas li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--linha, color-mix(in srgb, currentColor 14%, transparent)); }
+.lembrancas li:last-child { border-bottom: 0; }
+.lembrancas li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lembrancas small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 /* 1.26.0: a miniatura da foto, na mensagem de quem mandou e embaixo da resposta que veio da leitura dela */
 .ch-mini { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; flex: none; }
 .ch-leu { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 4px; color: var(--muted); font-size: 13px; }

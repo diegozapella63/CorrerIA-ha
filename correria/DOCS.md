@@ -143,6 +143,14 @@ No computador (a partir de 1000 px de largura), fica a barra lateral dos outros 
 
 Para não guardar conversas para sempre, em **Configurações › Opções › Conversas**, em **Guardar as conversas por**, escolha por quanto tempo sem uso uma conversa fica: **7**, **30** (o de início) ou **90 dias**, ou **Sempre**. Vale para as conversas daqui e para as mensagens do WhatsApp guardadas no CorrerIA (as do celular de cada pessoa continuam no WhatsApp dela).
 
+## Lembranças, Desfazer e o passo de agora
+
+**Mais › Lembranças** guarda o que a IA deve lembrar em toda conversa (até 60 frases, da casa toda): escreva ali ou peça na conversa («lembra que a feira é no sábado»; ela guarda depois do seu Sim). Apagar é ali mesmo.
+
+Embaixo de um «Feito!» aparece o **Desfazer**, por 10 minutos: a IA propõe o contrário (apagar o que criou) e você confirma. O que foi editado só volta se a conversa mostra como era antes; ela diz o que não deu para desfazer.
+
+Enquanto a IA trabalha, ao lado dos pontinhos aparece o que ela está fazendo. A resposta chega inteira (a IA do Home Assistant não manda o texto aos poucos).
+
 ## Rondas
 
 Uma ronda é um roteiro pronto que passa pelos apps, **uma pergunta de cada vez**, dentro da Conversa (só na tela do CorrerIA; não no WhatsApp). Comece pelo botão das Rondas no alto da Conversa ou em **Mais › Rondas**, onde ficam todas as rondas, o aviso e as últimas rondas.

@@ -22,6 +22,8 @@
     clip: '<path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 1 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8-8"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+    book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+    voltar: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
     nova: '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     conversas: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
     camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -408,7 +410,7 @@
   function telaMais() {
     const linha = (a, icone, titulo, txt) => `<button class="linha" data-a="${a}"><span class="rot-ic">${ic(icone)}</span><span class="linha-t"><b>${titulo}</b><small>${txt}</small></span>${ic('chev', 'ic-s chev')}</button>`;
     return `${topoTela('Mais', 'Conversa')}
-      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps, o aviso e as últimas rondas.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
+      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps, o aviso e as últimas rondas.') : ''}${S.e && S.e.apps.length ? linha('tela-lembrancas', 'book', 'Lembranças', 'O que a IA lembra em toda conversa.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
         ${linha('sobre', 'info', 'Sobre', 'CorrerIA Code, os apps e o GitHub.')}</section>`;
   }
 
@@ -549,6 +551,21 @@
     }
     return h + `</div><button class="btn out op-testar" data-a="ronda-testar"${eu && eu.celular ? '' : ' disabled'}${porque ? ` title="${esc(porque)}"` : ''}>${ic('send', 'ic-s')}Testar no meu celular</button>`;
   }
+  // 1.27.0: Mais › Lembranças: o que a casa pediu para a IA lembrar (vale em toda conversa); escrever uma, apagar
+  function carregarLembrancas() {
+    return fetch('api/lembrancas', { cache: 'no-store' }).then(ok).then(r => { S.lembrancas = r.lembrancas || []; render(); }).catch(err => { S.lembrancas = []; toast(err.message); render(); });
+  }
+  function telaLembrancas() {
+    const L = S.lembrancas;
+    return `${topoTela('Lembranças', 'Mais')}
+      <section class="card" id="lembrar-nova">${cab('nova', 'Nova lembrança')}
+        <div class="campo">${rotulo('lembrar-texto', 'book', 'O que lembrar')}
+          <textarea id="lembrar-texto" class="inp" rows="2" maxlength="240" placeholder="Creme é sempre da categoria Higiene"></textarea></div>
+        <div class="acoes"><button class="btn pri" data-a="lembrar-nova">${ic('check', 'ic-s')}Salvar</button></div></section>
+      <section class="card" id="lembrar-lista">${cab('book', `Lembranças${L && L.length ? ` (${L.length})` : ''}`)}
+        <ul class="lembrancas">${!L ? '<li>Carregando…</li>' : L.map(x => `<li><span>${esc(x.texto)}<small>${esc(dataCurta(x.em))}${x.quem ? ' · ' + esc(x.quem) : ''}</small></span>
+          <button class="bt-icone" data-a="lembrar-apagar" data-v="${esc(x.id)}" aria-label="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('') || '<li>Nenhuma ainda.</li>'}</ul></section>`;
+  }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;
     const d = R.avisar_dias, on = d > 0, outro = on && (S.rondaOutro || !RONDA_DIAS.includes(d));
@@ -610,7 +627,7 @@
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
   const linkFora = (href, corpo, cls) => `<a class="${cls}" href="${href}" target="_blank" rel="noopener">${corpo}</a>`;
-  const ICONE_TELA = { Rondas: 'ronda', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
+  const ICONE_TELA = { Rondas: 'ronda', 'Lembranças': 'book', 'Configurações': 'gear', Mais: 'mais', Sobre: 'info', Conversas: 'conversas', Conversa: 'chat' };
   const tituloTela = titulo => `${ICONE_TELA[titulo] ? `<span class="rot-ic tela-ic" aria-hidden="true">${ic(ICONE_TELA[titulo])}</span>` : ''}${titulo}`;
   const topoTela = (titulo, volta) => `<header class="cab-tela"><button class="voltar" data-a="voltar">${ic('back', 'ic-s')}${volta}</button><h1>${tituloTela(titulo)}</h1></header>`;
   function sobre(e) {
@@ -723,10 +740,13 @@
         const de = M.slice(0, k).reverse().find(x => x.papel !== 'ia' && x.anexo === m.arquivo);
         return `<small class="ch-leu">${de && de.mini ? `<img class="ch-mini" src="${esc(de.mini)}" alt="">` : ic('clip', 'ic-s')}${esc(m.arquivo)}</small>`;
       };
+      // 1.27.0: o Desfazer embaixo do «Feito!», por 10 minutos
+      const desfazer = (m, k) => k === M.length - 1 && m.desfazer && !c.enviando && Date.now() - new Date(m.em).getTime() < 10 * 60 * 1000
+        ? `<div class="ch-desfazer"><button class="btn out" data-a="ch-desfazer">${ic('voltar', 'ic-s')}Desfazer</button></div>` : '';
       const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
         ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
-      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${m.mini ? `<img class="ch-mini" src="${esc(m.mini)}" alt="">` : ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${outrosApps(m, k)}${abrirApp(m)}${leuArquivo(m, k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
-        + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${m.mini ? `<img class="ch-mini" src="${esc(m.mini)}" alt="">` : ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${desfazer(m, k)}${outrosApps(m, k)}${abrirApp(m)}${leuArquivo(m, k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+        + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span><em id="ch-passo">' + esc(c.passo || '') + '</em></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
     const lugar = f === 'ouvindo' ? 'Ouvindo…' : f === 'abrindo' ? 'Abrindo o microfone…' : f === 'entendendo' ? 'Entendendo…' : 'Sua pergunta';
@@ -1131,7 +1151,7 @@
     pintarLado();
     aplicarCor();
     if (S.tela) $('#app').style.paddingBottom = '';
-    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
+    $('#app').innerHTML = S.cheia && !S.aberta ? (cabPainel() ? '' : trilho()) : S.tela === 'opcoes' ? opcoes(e) : S.tela === 'sobre' ? sobre(e) : S.tela === 'rondas' ? telaRondas(e) : S.tela === 'lembrancas' ? telaLembrancas() : S.tela === 'mais' ? telaMais() : S.tela === 'conversas' ? telaConversas() : conversa(e);
     if (ativo) {
       const el = document.getElementById(ativo);
       if (el && el.focus) el.focus();
@@ -1198,6 +1218,7 @@
     window.scrollTo(0, 0);
     render();
     if (S.tela === 'rondas' && !S.rondas) carregarRondas();
+    if (S.tela === 'lembrancas' && !S.lembrancas) carregarLembrancas();
   });
   function carregarConversa() {
     return api.conversa().then(r => { S.ch.msgs = r.mensagens || []; S.ch.pessoa = r.pessoa || ''; S.ch.ola = r.ola || ''; S.ch.conversa = r.conversa || null; S.ch.ronda = (r.ronda && r.ronda.ativa) || null; S.ch.rondaFeitos = (r.ronda && r.ronda.feitos) || []; render(); })
@@ -1288,7 +1309,23 @@
     });
   }
 
-  async function enviarConversa(texto, para) {
+  // 1.27.0: enquanto a IA trabalha, a tela pergunta o passo de agora («Consultando o InventarIA…») e escreve ao lado dos pontos
+  let relogioPasso = 0;
+  function seguirPasso(liga) {
+    clearInterval(relogioPasso);
+    S.ch.passo = '';
+    if (!liga) return;
+    relogioPasso = setInterval(() => {
+      fetch('api/conversa/passo', { cache: 'no-store' }).then(ok).then(r => {
+        if (!S.ch.enviando) return;
+        S.ch.passo = r.passo || '';
+        const e = $('#ch-passo');
+        if (e) e.textContent = S.ch.passo;
+      }).catch(() => {});
+    }, 900);
+  }
+
+  async function enviarConversa(texto, para, desfazer) {
     const c = S.ch;
     texto = String(texto == null ? c.texto : texto).trim();
     if ((!texto && !c.anexo) || c.enviando) return;
@@ -1299,7 +1336,8 @@
     c.texto = ''; c.anexo = null; c.enviando = true;
     render();
     try {
-      const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}), ...(para ? { para } : {}) });
+      seguirPasso(true);
+      const r = await api.post('conversa', { texto, ...(anexo ? { anexo } : {}), ...(para ? { para } : {}), ...(desfazer ? { desfazer: true } : {}) });
       c.msgs = r.mensagens || [];
       c.conversa = r.conversa || null;
       if (r.ronda) c.ronda = r.ronda.ativa || null;
@@ -1310,6 +1348,7 @@
       toast(err.message);
     }
     c.enviando = false;
+    seguirPasso(false);
     if (S.cheia && !S.aberta) c.novidade = true;  // chegou com a Conversa recolhida: o ponto no botão de abrir
     render();
     armarRecolher();
@@ -1438,6 +1477,18 @@
       guardar('correria-conversa-fixa', fixa() ? '' : '1');
       armarRecolher();
       render();
+    } else if (a === 'tela-lembrancas') {
+      abrirTela('lembrancas'); carregarLembrancas();
+    } else if (a === 'lembrar-nova' || a === 'lembrar-apagar') {
+      const campo = $('#lembrar-texto');
+      try {
+        const r = await api.post('lembrancas', a === 'lembrar-nova' ? { acao: 'nova', texto: campo ? campo.value : '' } : { acao: 'apagar', id: el.dataset.v });
+        S.lembrancas = r.lembrancas || [];
+        toast(a === 'lembrar-nova' ? 'Lembrança salva' : 'Lembrança apagada');
+        render();
+      } catch (err) { toast(err.message); }
+    } else if (a === 'ch-desfazer') {  // 1.27.0: desfazer o que o último sim fez
+      enviarConversa('Desfazer', null, true);
     } else if (a === 'tela-rondas') {
       abrirTela('rondas'); carregarRondas();
     } else if (a === 'opcoes' || a === 'sobre' || a === 'mais') {

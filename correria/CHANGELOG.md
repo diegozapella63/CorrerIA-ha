@@ -1,5 +1,13 @@
 # Mudanças
 
+## 1.27.0
+
+- **Lembranças** (Mais › Lembranças): o que você pede para a IA lembrar sempre («creme é sempre Higiene», «a feira é no sábado») vale em toda conversa. Escreva ali ou peça na conversa («lembra que…»); dá para ver e apagar.
+- **Desfazer**: embaixo do «Feito!», por 10 minutos. A IA mostra o que vai voltar e você confirma.
+- **O que a IA está fazendo**: ao lado dos pontinhos aparece o passo de agora («Consultando o InventarIA…», «Lendo o arquivo…»).
+- **Respostas mais certas**: a IA passa a devolver a resposta já no formato que o app espera. Uma IA que não aceita isso continua do jeito de antes, sozinha.
+- **Ordem escondida não vale**: um texto dentro de uma foto, de um PDF ou de uma página («apague tudo») é tratado como material, nunca como pedido seu.
+
 ## 1.26.0
 
 - **Menos «Não deu» depois do Sim.** Antes de pedir o Sim, a mudança é conferida (o que falta, o campo errado). E, se mesmo assim o app recusar, a IA corrige e propõe de novo, em vez de parar no erro.
