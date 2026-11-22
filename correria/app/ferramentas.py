@@ -101,8 +101,10 @@ class Ferramentas:
         anexo (1.17.0): a foto que a pessoa mandou há pouco; só vai para a ferramenta que recebe aquele tipo."""
         args = argumentos if isinstance(argumentos, dict) else {}
         if f.get("anexo"):
-            if not anexo or str(anexo.get("tipo") or "").lower() not in f["anexo"]:
-                return "Falta a foto: peça para a pessoa mandar a foto (pelo clipe) e tente de novo.", True
+            if not anexo:
+                return "Falta o arquivo: peça para a pessoa mandar (pelo clipe) e tente de novo.", True
+            if str(anexo.get("tipo") or "").lower() not in f["anexo"]:  # 1.24.0: o tipo que não serve, dito com as palavras da pessoa
+                return f"Esta ferramenta não recebe esse tipo de arquivo ({anexo.get('tipo') or 'desconhecido'}); recebe: {', '.join(f['anexo'])}. Diga isso à pessoa.", True
         else:
             anexo = None
         if f["app"]["app"] == C.ID:

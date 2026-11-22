@@ -641,9 +641,9 @@ class TestComFerramentas(Base):
         ultima = r["mensagens"][-1]
         self.assertIn("Pôr a foto em Arrumar o piso", ultima["texto"])
         self.assertTrue(ultima.get("confirmar"), "espera o sim")
-        self.assertIn("A pessoa mandou uma foto há pouco (piso.jpg). Você não vê a foto.", self.falsa.pedidos[0])
+        self.assertIn("A pessoa mandou um arquivo há pouco (piso.jpg, foto JPG). Você não vê o arquivo e não pode adivinhar o que há nele.", self.falsa.pedidos[0])
         self.assertIn("resolvia_anexar_foto | grava | ResolvIA: Guarda a foto numa tarefa.", self.falsa.pedidos[0])
-        self.assertIn("recebe a foto que a pessoa mandou", self.falsa.pedidos[0])
+        self.assertIn("recebe o arquivo que a pessoa mandou (foto JPG; não vai nos argumentos", self.falsa.pedidos[0])
         self.assertEqual(rv.feitos, [], "nada antes do sim")
         r = S.conversar({"texto": "sim"}, pessoa, chave)
         self.assertIn("Foto guardada em Arrumar o piso (Casa): agora tem 1 foto.", r["mensagens"][-1]["texto"])
@@ -655,13 +655,49 @@ class TestComFerramentas(Base):
         S.conversar({"texto": "põe a foto na tarefa do piso"}, pessoa, chave)
         n = len(rv.feitos)
         r = S.conversar({"texto": "sim"}, pessoa, chave)
-        self.assertIn("Não deu: Falta a foto", r["mensagens"][-1]["texto"])
+        self.assertIn("Não deu: Falta o arquivo", r["mensagens"][-1]["texto"])
         self.assertEqual(len(rv.feitos), n)
-        self.assertNotIn("A pessoa mandou uma foto", self.falsa.pedidos[-1])
+        self.assertNotIn("A pessoa mandou um arquivo", self.falsa.pedidos[-1])
         # as ferramentas que recebem foto não aparecem para as IAs conectadas (por lá não há como mandar a foto)
         nomes = [t["name"] for t in S.mcp.Servidor(S.FERR, "9.9.9", "base").tratar({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, {})["result"]["tools"]]
         self.assertNotIn("resolvia_anexar_foto", nomes)
         self.assertIn("resolvia_tarefas", nomes)
+
+    def test_a_ferramenta_de_ler_recebe_o_arquivo_na_hora_e_ele_continua_a_mao(self):
+        """1.24.0: uma ferramenta de LEITURA que recebe o arquivo (<app>_ler_arquivo: a IA do app lê a foto ou o PDF): roda na
+        hora, com o arquivo, e ele fica à mão para a gravação seguinte. O tipo que a ferramenta não recebe é dito."""
+        app = AppFalso("CronologIA", ferramentas=[
+            {"nome": "ler_arquivo", "titulo": "Ler foto ou PDF", "descricao": "Lê o arquivo.", "entrada": {"type": "object", "properties": {}}, "grava": False,
+             "anexo": ["image/jpeg", "application/pdf"]}])
+        self.addCleanup(app.fechar)
+        vistos = []
+
+        def rota(h, c):
+            if h.command == "GET":
+                return 200, {"instrucoes": "", "ferramentas": app.rotas_lista}
+            vistos.append(c)
+            return 200, {"texto": "No arquivo há 1 compromisso:\n- Festa da Lia · 2026-12-05 15:00"}
+        app.rotas_lista = [{"nome": "ler_arquivo", "titulo": "Ler foto ou PDF", "descricao": "Lê o arquivo.", "entrada": {"type": "object", "properties": {}}, "grava": False,
+                            "anexo": ["image/jpeg", "application/pdf"]}]
+        app.rotas["/api/integracao/ferramentas"] = rota
+        app.publicar(S.SHARE_DIR, "cronologia")
+        self.addCleanup(S.FOTOS.clear)
+        pessoa, chave = {"id": "person.ana", "nome": "Ana"}, "u-ana"
+        self.ia({"chamar": [{"ferramenta": "cronologia_ler_arquivo", "argumentos": {}}]}, {"resposta": "Achei a Festa da Lia, dia 5 às 15h. Ponho na agenda?"})
+        pdf = "data:application/pdf;base64,JVBERi0="
+        r = S.conversar({"texto": "põe esse convite na agenda", "anexo": {"nome": "convite.pdf", "b64": pdf}}, pessoa, chave)
+        self.assertEqual(r["mensagens"][-1]["texto"], "Achei a Festa da Lia, dia 5 às 15h. Ponho na agenda?")
+        self.assertEqual(vistos[0]["anexo"], {"tipo": "application/pdf", "nome": "convite.pdf", "b64": pdf}, "a leitura recebe o arquivo, fora dos argumentos")
+        self.assertIn("A pessoa mandou um arquivo há pouco (convite.pdf, PDF).", self.falsa.pedidos[0])
+        self.assertIn("recebe o arquivo que a pessoa mandou (foto JPG, PDF;", self.falsa.pedidos[0])
+        self.assertIn("Festa da Lia · 2026-12-05 15:00", self.falsa.pedidos[1], "o que o app leu volta para a IA")
+        self.assertTrue(S.foto_de("tela:" + chave), "depois de lido, o arquivo continua à mão")
+        # um tipo que a ferramenta não recebe: não chega ao app e a IA fica sabendo
+        S.guardar_foto("tela:" + chave, {"tipo": "image/heic", "nome": "f.heic", "b64": "data:image/heic;base64,AAAA"})
+        f = next(x for x in S.FERR.todas() if x["id"] == "cronologia_ler_arquivo")
+        self.assertEqual(S.FERR.usar(f, {}, pessoa, "CorrerIA", anexo=S.foto_de("tela:" + chave)),
+                         ("Esta ferramenta não recebe esse tipo de arquivo (image/heic); recebe: image/jpeg, application/pdf. Diga isso à pessoa.", True))
+        self.assertEqual(len(vistos), 1)
 
     def test_foto_de_conta_continua_indo_para_quem_le(self):
         self.resolvia()

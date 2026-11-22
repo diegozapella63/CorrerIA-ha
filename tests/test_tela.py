@@ -235,7 +235,7 @@ class Tela(unittest.TestCase):
         self.opcoes("apps")
         self.assertEqual(self.texto("#apps .app-l b"), "GerencIA")
         self.assertEqual(self.texto("#apps h2"), "Apps")
-        self.assertEqual(self.texto("#apps .app-l .le"), "Responde; também lê fotos e PDF.")
+        self.assertEqual(self.texto("#apps .app-l .le"), "Responde; recebe fotos e PDF.")
         # 1.15.0: o ligado primeiro; os outros cinco da família depois, com a integração desligada e como ligar
         linhas = self.pg.evaluate("[...document.querySelectorAll('#apps .app-l')].map(l => [l.querySelector('b').textContent, l.classList.contains('off'), l.querySelector('.le').textContent])")
         self.assertEqual([x[:2] for x in linhas], [["GerencIA", False], ["CronologIA", True], ["EconomIA", True], ["InventarIA", True], ["MemorIA", True], ["ResolvIA", True]])

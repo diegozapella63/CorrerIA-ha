@@ -200,8 +200,9 @@ def contexto_anexo(e, tipo):
     """1.23.0: a pessoa mandou um arquivo no meio da ronda: o que a IA precisa saber para não inventar (ela não vê o arquivo)."""
     que = "um PDF" if tipo == "application/pdf" else "uma foto"
     return (f"(A pessoa mandou {que} junto com esta mensagem, no meio da ronda. Você não vê o arquivo. Ele é desta etapa, do "
-            f"{e['nome_app']}: se ela pede para cadastrar, adicionar ou guardar, use a ferramenta do {e['nome_app']} que recebe "
-            "o arquivo, sem pedir o nome do que está nele (o app lê). Não use a ferramenta de outro app e não descreva o arquivo.)")
+            f"{e['nome_app']}: use só as ferramentas do {e['nome_app']} que recebem o arquivo. Para saber o que há nele, a de ler o "
+            "arquivo; para cadastrar ou guardar, a que cadastra ou guarda, sem pedir o nome do que está nele (o app lê). Não use a "
+            "ferramenta de outro app e não descreva o arquivo sem tê-lo lido.)")
 
 
 def sem_anexo(e, tipo):

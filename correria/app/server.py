@@ -666,7 +666,7 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
     try:
         foto = foto_de(chave)
         r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente,
-                             **({"foto": str(foto.get("nome") or "foto")} if foto else {}))
+                             **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}", "anexo": foto} if foto else {}))
     except ia.ErroIA as e:
         log("IA:", e)
         # 1.16.2: fora do ar, sobrecarregada ou sem cota: a mesma IA não responde pelo app; diz logo, numa frase

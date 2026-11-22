@@ -59,6 +59,9 @@ def cortado(res):
             "couberam; para ver o resto, chame de novo com um filtro ou um limite menor)")
 
 
+TIPO_NOME = {"image/jpeg": "foto JPG", "image/png": "imagem PNG", "image/webp": "imagem WebP", "application/pdf": "PDF"}
+
+
 def catalogo(lista):
     linhas = []
     for f in lista:
@@ -66,7 +69,7 @@ def catalogo(lista):
         obrig = f["entrada"].get("required") or []
         linhas.append(f"{f['id']} | {'grava' if f['grava'] else 'lê'} | {f['app']['nome']}: {f['descricao']} | entrada: {ent}"
                       + (f" | obrigatórios: {', '.join(obrig)}" if obrig else "")
-                      + (" | recebe a foto que a pessoa mandou (não vai nos argumentos: o CorrerIA manda junto)" if f.get("anexo") else ""))
+                      + (f" | recebe o arquivo que a pessoa mandou ({', '.join(TIPO_NOME.get(t, t) for t in f['anexo'])}; não vai nos argumentos: o CorrerIA manda junto)" if f.get("anexo") else ""))
     return "\n".join(linhas)
 
 
@@ -103,7 +106,7 @@ class Agente:
         self.ferr, self.chamar_ia, self.log, self.simulada = ferramentas, chamar_ia, log, simulada
         self.pesquisar = pesquisar  # 1.6.0: pesquisar(texto) -> o que achou (levanta ErroIA); None: sem pesquisa
 
-    def usar(self, f, args, pessoa, cliente):
+    def usar(self, f, args, pessoa, cliente, anexo=None):
         if f is PESQUISA:
             q = str(args.get("pesquisa") or "").strip()[:500]
             if not q:
@@ -112,7 +115,7 @@ class Agente:
                 return self.pesquisar(q), False
             except ErroIA as e:
                 return f"A pesquisa na internet não deu certo: {e}", True
-        return self.ferr.usar(f, args, pessoa, cliente)
+        return self.ferr.usar(f, args, pessoa, cliente, **({"anexo": anexo} if f.get("anexo") and anexo else {}))
 
     def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False, foto=""):
         nome = (pessoa or {}).get("nome") or "alguém da casa"
@@ -127,11 +130,15 @@ class Agente:
             partes.append("Para o que não está nos apps e muda com o tempo (preços, lojas, níveis e benefícios de bancos e cartões, "
                           "novidades, notícias, horários), chame internet_pesquisar e responda pelo que ela achar. Não responda de "
                           "memória: o que você lembra pode estar velho.")
-        if foto:  # 1.17.0: a foto que chegou há pouco, para a ferramenta que recebe foto (uma tarefa)
-            partes.append(f"A pessoa mandou uma foto há pouco ({foto}). Você não vê a foto. Se ela pedir para guardar a foto em algo (numa "
-                          "tarefa), ache o id com uma ferramenta de leitura e chame a ferramenta que recebe a foto. Se ela pedir para "
-                          "cadastrar ou adicionar o que está na foto (um item, um consumível), chame a ferramenta de cadastrar que recebe a "
-                          "foto, sem pedir o nome: o app lê a foto. Se não disse o que fazer com ela, pergunte.")
+        if foto:  # 1.17.0: o arquivo que chegou há pouco, para a ferramenta que o recebe. 1.24.0: foto, imagem ou PDF, e também para ler
+            partes.append(f"A pessoa mandou um arquivo há pouco ({foto}). Você não vê o arquivo e não pode adivinhar o que há nele. "
+                          "Só as ferramentas marcadas «recebe o arquivo» o recebem, e só as do tipo dele. Para saber o que há nele (uma "
+                          "lista, um convite, uma receita, um bilhete, um encarte), chame a ferramenta de ler o arquivo do app do assunto "
+                          "(<app>_ler_arquivo) e, com o que ela devolver, proponha as mudanças pelas ferramentas de gravar desse app. Para "
+                          "guardar a foto numa tarefa ou num item, ache o id com uma ferramenta de leitura e chame a que guarda a foto. Para "
+                          "cadastrar no inventário o que está na foto, chame a de cadastrar pela foto, sem pedir o nome: o app lê. Se a "
+                          "pessoa não disse o que fazer com o arquivo nem de que app é, pergunte. Nunca descreva o arquivo sem tê-lo lido "
+                          "por uma ferramenta.")
         conversa = [("IA: " + sem_o_pedido_do_sim(m.get("texto")) if m.get("papel") == "ia" else "Pessoa: " + str(m.get("texto") or "").strip()[:2000])
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))
@@ -143,8 +150,9 @@ class Agente:
         partes.append(FORMATO)
         return "\n\n".join(partes)
 
-    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None, foto=""):
-        """historico termina com a mensagem da pessoa. Devolve {resposta, pendente: [ações] ou [], apps: [nomes]}."""
+    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None, foto="", anexo=None):
+        """historico termina com a mensagem da pessoa. Devolve {resposta, pendente: [ações] ou [], apps: [nomes]}.
+        anexo (1.24.0): o arquivo que a pessoa mandou há pouco; vai para as ferramentas de leitura que o recebem (<app>_ler_arquivo)."""
         agora = agora or datetime.now()
         lista = self.ferr.todas()
         if self.pesquisar and canal != "whatsapp":
@@ -181,7 +189,7 @@ class Agente:
             if (ler or desconhecidas) and not ultima:
                 for f, c in ler:
                     args = c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {}
-                    res, erro = self.usar(f, args, pessoa, cliente)
+                    res, erro = self.usar(f, args, pessoa, cliente, anexo=anexo)
                     if f["app"]["nome"] not in usados:
                         usados.append(f["app"]["nome"])
                     resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → {'ERRO: ' if erro else ''}{cortado(res)}")

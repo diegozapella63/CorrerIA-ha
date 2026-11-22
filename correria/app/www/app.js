@@ -285,12 +285,12 @@
 
   // o que cada app faz pelo CorrerIA: ler e mudar (as ferramentas) e, além de texto, fotos e PDF (pelo correria.json dele)
   function oQueFaz(a) {
-    const t = a.anexos || [], foto = t.some(x => x.startsWith('image/')), pdf = t.includes('application/pdf');
+    // 1.24.0: o que o app recebe: o que ele lê com a IA dele (anexos) e o que as ferramentas dele recebem (guarda)
+    const t = [...(a.anexos || []), ...(a.guarda || [])], foto = t.some(x => x.startsWith('image/')), pdf = t.includes('application/pdf');
     const le = foto && pdf ? 'fotos e PDF' : foto ? 'fotos' : pdf ? 'PDF' : '';
     if (a.erro) return '';
     const f = a.ferramentas ? (a.gravam ? 'Lê e muda' : 'Lê') : a.conversa ? 'Responde' : '';
-    const g = (a.guarda || []).some(x => x.startsWith('image/')) ? ' Guarda fotos.' : '';  // 1.17.0: a foto para uma tarefa
-    return (f && le ? `${f}; também lê ${le}.` : f ? f + '.' : le ? `Lê ${le}.` : '') + g;
+    return f && le ? `${f}; recebe ${le}.` : f ? f + '.' : le ? `Recebe ${le}.` : '';
   }
   function cardApps(e) {
     const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};

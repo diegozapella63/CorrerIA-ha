@@ -1,5 +1,17 @@
 # Mudanças
 
+## 1.24.0
+
+- **Fotos e PDFs em todos os apps que leem**: mande uma foto ou um PDF na conversa (ou no meio de uma ronda) e peça o que quer. O app do assunto lê o arquivo com a IA dele e o CorrerIA mostra o que achou, para você escolher o que criar:
+  - **ResolvIA**: as tarefas de uma lista, de um bilhete ou de um PDF; e guardar a foto numa tarefa.
+  - **CronologIA**: os compromissos de um convite, de um bilhete ou de um PDF.
+  - **MemorIA**: o texto de uma página ou de um PDF, para guardar num bloco.
+  - **EconomIA**: os itens de uma lista de compras numa foto.
+  - **InventarIA**: cadastrar pela foto, guardar a foto num item e dizer o que há numa foto.
+  - **GerencIA**: faturas, contas e comprovantes, como antes.
+- Precisa das versões novas: ResolvIA 2.87.0, CronologIA 1.110.0, MemorIA 1.44.0, EconomIA 1.50.0 e InventarIA 1.93.0, com o **Usar IA** ligado em cada um.
+- Em **Integrações**, cada app diz o que recebe ("recebe fotos e PDF").
+
 ## 1.23.0
 
 - **Fotos e PDFs no meio de uma ronda**: o arquivo agora é da etapa em que você está. Uma foto na etapa dos itens ou dos consumíveis vai para o InventarIA, que lê a foto e cadastra (precisa do InventarIA 1.92.0). Se o app da etapa não recebe aquele arquivo, a resposta diz isso, em vez de mandar a foto para outro app.
