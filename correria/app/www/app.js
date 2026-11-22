@@ -717,9 +717,15 @@
       // 1.25.0: o app que leu o arquivo pode não ser o do assunto: embaixo da resposta, um toque manda o mesmo arquivo a outro
       const outrosApps = (m, k) => k === M.length - 1 && (m.outros || []).length && !c.enviando
         ? `<div class="ch-outros"><span>${ic('link', 'ic-s')}Era para outro app?</span>${m.outros.map(o => `<button class="btn out" data-a="ch-para" data-app="${esc(o.app)}" data-nome="${esc(o.nome)}">${ic('chev', 'ic-s')}${esc(o.nome)}</button>`).join('')}</div>` : '';
+      // 1.26.0: a resposta que veio da leitura de um arquivo diz qual (a miniatura, quando a tela a fez)
+      const leuArquivo = (m, k) => {
+        if (!m.arquivo) return '';
+        const de = M.slice(0, k).reverse().find(x => x.papel !== 'ia' && x.anexo === m.arquivo);
+        return `<small class="ch-leu">${de && de.mini ? `<img class="ch-mini" src="${esc(de.mini)}" alt="">` : ic('clip', 'ic-s')}${esc(m.arquivo)}</small>`;
+      };
       const sim = k => k === M.length - 1 && M[k].confirmar && !c.enviando
         ? `<div class="ch-sim"><button class="btn out" data-a="ch-resp" data-v="Não">${ic('x', 'ic-s')}Não</button><button class="btn pri" data-a="ch-resp" data-v="Sim">${ic('check', 'ic-s')}Sim</button></div>` : '';
-      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${outrosApps(m, k)}${abrirApp(m)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
+      corpo = M.map((m, k) => `<div class="ch-msg ${m.papel === 'ia' ? 'ia' : 'eu'}${m.ronda ? ' ronda' : ''}"><div class="ch-bolha">${m.anexo ? `<span class="ch-anexo">${m.mini ? `<img class="ch-mini" src="${esc(m.mini)}" alt="">` : ic('clip', 'ic-s')}${esc(m.anexo)}</span>` : ''}${m.texto ? (m.papel === 'ia' ? formatar(m.texto) : `<p>${esc(m.texto)}</p>`) : ''}</div>${sim(k)}${outrosApps(m, k)}${abrirApp(m)}${leuArquivo(m, k)}${m.app ? `<small class="ch-app">${esc(m.app)}</small>` : ''}</div>`).join('')
         + (c.enviando ? '<div class="ch-msg ia"><div class="ch-bolha ch-pensando" aria-label="Pensando"><span></span><span></span><span></span></div></div>' : '');
     }
     const le = e.apps.some(a => (a.anexos || []).length || (a.guarda || []).length), f = c.fala, ouvindo = f === 'ouvindo' || f === 'abrindo';
@@ -1263,12 +1269,33 @@
         <div class="ch-ronda-bts"><button class="btn out" data-a="ronda-voltar"${r.n <= 1 || S.ch.enviando ? ' disabled' : ''}>${ic('back', 'ic-s')}Voltar</button>
           <button class="btn pri" data-a="ronda-proxima"${S.ch.enviando ? ' disabled' : ''}>${ic(ult ? 'check' : 'chev', 'ic-s')}${ult ? 'Concluir' : 'Próxima'}</button></div></div>`;
   }
+  // 1.26.0: a miniatura da foto (96 px, JPEG), para a conversa mostrar qual foto foi; um PDF ou uma foto que não abre: nenhuma
+  function miniatura(b64) {
+    return new Promise(ok2 => {
+      if (!/^data:image\//.test(String(b64 || ''))) return ok2('');
+      const im = new Image();
+      im.onload = () => {
+        try {
+          const l = 96, e = Math.min(1, l / Math.max(im.naturalWidth, im.naturalHeight));
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(im.naturalWidth * e)); cv.height = Math.max(1, Math.round(im.naturalHeight * e));
+          cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+          ok2(cv.toDataURL('image/jpeg', 0.7));
+        } catch (err) { ok2(''); }
+      };
+      im.onerror = () => ok2('');
+      im.src = b64;
+    });
+  }
+
   async function enviarConversa(texto, para) {
     const c = S.ch;
     texto = String(texto == null ? c.texto : texto).trim();
     if ((!texto && !c.anexo) || c.enviando) return;
     const anexo = c.anexo;
-    c.msgs = (c.msgs || []).concat([{ papel: 'eu', texto, anexo: anexo ? anexo.nome : '' }]);
+    c.enviando = true;
+    if (anexo && !anexo.mini) anexo.mini = await miniatura(anexo.b64);
+    c.msgs = (c.msgs || []).concat([{ papel: 'eu', texto, anexo: anexo ? anexo.nome : '', mini: anexo ? anexo.mini : '' }]);
     c.texto = ''; c.anexo = null; c.enviando = true;
     render();
     try {

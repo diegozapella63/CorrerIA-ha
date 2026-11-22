@@ -815,6 +815,45 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertLessEqual(sim, pe, "o Sim e o Não acima do pé")
         self.assertGreaterEqual(alto, 0)
 
+    def test_a_miniatura_da_foto_na_conversa(self):
+        """1.26.0: a foto mandada aparece em miniatura na mensagem e embaixo da resposta que veio da leitura dela; a tela faz a
+        miniatura (96 px) e manda junto."""
+        import json as _json
+        self.publicar_app()
+        self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
+        self.addCleanup(self.pg.close)
+        mini = self.pg.evaluate("(() => { const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8); return c.toDataURL('image/jpeg'); })()")
+        msgs = [{"papel": "eu", "texto": "olha", "anexo": "Foto 15:00", "mini": mini, "em": "2026-11-18T10:00:00"},
+                {"papel": "ia", "texto": "Há 2 cremes.", "em": "2026-11-18T10:00:01", "app": "InventarIA", "app_id": "_ia", "arquivo": "Foto 15:00"},
+                {"papel": "eu", "texto": "", "anexo": "conta.pdf", "em": "2026-11-18T10:01:00"},
+                {"papel": "ia", "texto": "É uma conta.", "em": "2026-11-18T10:01:01", "arquivo": "conta.pdf"}]
+        pedidos = []
+
+        def conversa(route):
+            if route.request.method == "POST":
+                pedidos.append(route.request.post_data_json)
+                return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs, "conversa": "c1"}))
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"mensagens": msgs, "pessoa": "Ana", "ola": "", "conversa": "c1", "ronda": {"ativa": None, "feitos": []}}))
+        self.pg.route("**/api/conversa", conversa)
+        self.pg.goto(self.url)
+        self.pg.wait_for_selector(".ch-leu")
+        self.assertEqual(self.pg.locator(".ch-msg.eu .ch-anexo img.ch-mini").count(), 1, "a foto com a miniatura; o PDF com o clipe")
+        self.assertEqual([t.strip() for t in self.pg.locator(".ch-leu").all_inner_texts()], ["Foto 15:00", "conta.pdf"])
+        self.assertEqual((self.pg.locator(".ch-leu img.ch-mini").count(), self.pg.locator(".ch-leu svg").count()), (1, 1))
+        self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('img.ch-mini')].every(i => i.complete && i.naturalWidth > 0 && i.getBoundingClientRect().width <= 40)"))
+        # ao mandar uma foto, a tela faz a miniatura e manda junto
+        grande = self.pg.evaluate("(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 200; c.getContext('2d').fillRect(0, 0, 400, 200); return c.toDataURL('image/jpeg'); })()")
+        self.pg.set_input_files("input[type=file]", {"name": "f.jpg", "mimeType": "image/jpeg", "buffer": __import__("base64").b64decode(grande.split(",")[1])})
+        self.pg.wait_for_selector("[data-a='ch-enviar']:not([disabled])")
+        self.pg.locator("[data-a='ch-enviar']").click()
+        for _ in range(50):
+            if pedidos:
+                break
+            self.pg.wait_for_timeout(100)
+        m = pedidos[0]["anexo"]["mini"]
+        self.assertTrue(m.startswith("data:image/jpeg;base64,") and len(m) < 16000)
+        self.assertEqual(self.pg.evaluate("src => new Promise(ok => { const i = new Image(); i.onload = () => ok([i.naturalWidth, i.naturalHeight]); i.src = src; })", m), [96, 48])
+
     def test_era_para_outro_app_embaixo_da_resposta_de_quem_leu(self):
         """1.25.0: a resposta do app que leu o arquivo leva um botão por outro app que o recebe; o toque manda `para`."""
         import json as _json

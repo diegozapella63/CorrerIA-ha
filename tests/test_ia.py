@@ -123,10 +123,59 @@ class TestAgente(unittest.TestCase):
             r = ag.responder(self.hist("olha"), ANA, "correria", "CorrerIA", AGORA, foto="Foto, foto JPG", anexo={"tipo": "image/jpeg", "nome": "f", "b64": "x"})
         self.assertEqual(r["resposta"], "Na foto há 2 consumíveis: Loção e Creme.")
 
+    def test_a_mudanca_e_conferida_antes_do_sim(self):
+        """1.26.0: os argumentos de uma mudança são conferidos com a entrada da ferramenta antes de pedir o sim: o que falta, o
+        campo que não existe e o tipo voltam para a IA corrigir; a mudança certa é a que espera o sim."""
+        ruim = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": "trinta", "categoria": "x"}, "resumo": "Lançar Feira"}]}
+        boa = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 30}, "resumo": "Lançar R$ 30,00 de Feira"}]}
+        ag = self.agente(ruim, boa)
+        r = ag.responder(self.hist("lança a feira"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual([p["argumentos"] for p in r["pendente"]], [{"descricao": "Feira", "valor": 30}])
+        self.assertIn("ERRO: não foi proposta, os argumentos não servem: valor tem de ser number; categoria não existe nesta ferramenta (os campos: descricao, valor)", self.ia.pedidos[1])
+        # insistindo no erro, depois de duas voltas a mudança segue e é o app quem diz
+        r = self.agente(ruim, ruim, ruim).responder(self.hist("lança"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(len(r["pendente"]), 1)
+        esq = {"type": "object", "required": ["itens"], "additionalProperties": False,
+               "properties": {"itens": {"type": "array", "items": {"type": "object", "required": ["nome"], "properties": {"nome": {"type": "string"}, "dias": {"type": "integer"}}}},
+                              "modo": {"type": "string", "enum": ["a", "b"]}, "liga": {"type": "boolean"}, "livre": {"type": ["string", "number"]}}}
+        self.assertEqual(I.validar(esq, {"itens": [{"nome": "Arroz", "dias": 30}], "modo": "a", "liga": False, "livre": 3}), [])
+        self.assertEqual(I.validar(esq, {"itens": [{"dias": True}, "x"], "modo": "c"}),
+                         ["falta itens[1].nome", "itens[1].dias tem de ser integer", "itens[2].: mande um objeto", "modo: «c» não vale; vale: a, b"])
+        self.assertEqual(I.validar(esq, {}), ["falta itens"])
+        self.assertEqual(I.validar(esq, "x"), ["os argumentos: mande um objeto"])
+        self.assertEqual(I.validar({"type": "object"}, {"a": 1}), [], "sem campos declarados, nada a conferir")
+
+    def test_o_arquivo_e_lido_uma_vez_por_conversa(self):
+        """1.26.0 (o dono: cada «analisei de novo» vinha com outra lista): a leitura do arquivo fica guardada; a mesma leitura
+        não chama o app de novo e as respostas seguintes falam dela."""
+        from unittest import mock
+        base = next(f for f in self.ferr.todas() if not f["grava"])
+        leitora = dict(base, id="gerencia_ler_arquivo", nome="ler_arquivo", anexo=["image/jpeg"])
+        foto, lido = {"tipo": "image/jpeg", "nome": "f", "b64": "x"}, {}
+        ler = {"chamar": [{"ferramenta": "gerencia_ler_arquivo", "argumentos": {"dica": "os cremes"}}]}
+        with mock.patch.object(self.ferr, "todas", return_value=self.ferr.todas() + [leitora]):
+            ag = self.agente(ler, {"resposta": "Na foto há 2 cremes."})
+            with mock.patch.object(ag, "usar", return_value=("Na foto há 2 consumíveis: Loção, Creme", False)) as usar:
+                r = ag.responder(self.hist("olha"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto, lido=lido)
+            self.assertEqual((r["arquivo"], usar.call_count, lido), (True, 1, {"gerencia_ler_arquivo({})": "Na foto há 2 consumíveis: Loção, Creme"}))
+            # na mensagem seguinte: a leitura vai nas instruções, a mesma chamada não vai ao app e falar da foto vale
+            ag = self.agente(dict(ler, chamar=[{"ferramenta": "gerencia_ler_arquivo", "argumentos": {"dica": "de novo"}}]), {"resposta": "Na foto há a Loção e o Creme."})
+            with mock.patch.object(ag, "usar") as usar:
+                r = ag.responder(self.hist("tem mais coisa?"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto, lido=lido)
+            usar.assert_not_called()
+            self.assertEqual(r["resposta"], "Na foto há a Loção e o Creme.")
+            self.assertIn("O arquivo já foi lido nesta conversa.", self.ia.pedidos[0])
+            self.assertIn("gerencia_ler_arquivo({}) → Na foto há 2 consumíveis: Loção, Creme", self.ia.pedidos[0])
+            # outra leitura (outros argumentos) vai ao app
+            ag = self.agente({"chamar": [{"ferramenta": "gerencia_ler_arquivo", "argumentos": {"consumiveis": True}}]}, {"resposta": "Certo."})
+            with mock.patch.object(ag, "usar", return_value=("Só consumíveis", False)) as usar:
+                ag.responder(self.hist("só os consumíveis"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto, lido=lido)
+            self.assertEqual((usar.call_count, len(lido)), (1, 2))
+
     def test_sem_resumo_monta_um(self):
-        ag = self.agente({"chamar": [{"ferramenta": "gerencia_apagar", "argumentos": {"id": "l1"}}, {"ferramenta": "gerencia_lancar", "argumentos": {"valor": 1}}]})
+        ag = self.agente({"chamar": [{"ferramenta": "gerencia_apagar", "argumentos": {"id": "l1"}}, {"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Pão", "valor": 1}}]})
         r = ag.responder(self.hist("apaga e lança"), ANA, "whatsapp", "WhatsApp", AGORA)
-        self.assertEqual([p["resumo"] for p in r["pendente"]], ["Apagar: id: l1", "Lançar gasto: valor: 1"])
+        self.assertEqual([p["resumo"] for p in r["pendente"]], ["Apagar: id: l1", "Lançar gasto: descricao: Pão, valor: 1"])
         self.assertIn("Vou fazer isto tudo:", r["resposta"])
 
     def test_ferramenta_que_nao_existe_e_erro_do_app(self):
@@ -166,7 +215,7 @@ class TestAgente(unittest.TestCase):
         self.assertEqual(p2.count("→ Hoje no GerencIA"), 4)
         self.assertIn('gerencia_resumo({"n": 4}) → não chamada agora: no máximo 4 por vez.', p2)
         self.assertIn('gerencia_resumo({"n": 5}) → não chamada agora', p2)
-        gravar = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"valor": i}, "resumo": f"Lançar {i}"} for i in range(10)]}
+        gravar = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "X", "valor": i}, "resumo": f"Lançar {i}"} for i in range(10)]}
         r = self.agente(gravar).responder(self.hist("lança tudo"), ANA, agora=AGORA)
         self.assertEqual(len(r["pendente"]), 8)
         self.assertIn("- Lançar 7\n(Mais 2 ficam para depois: peça de novo depois do sim.)", r["resposta"])

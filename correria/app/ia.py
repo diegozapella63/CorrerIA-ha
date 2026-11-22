@@ -117,7 +117,7 @@ class Agente:
                 return f"A pesquisa na internet não deu certo: {e}", True
         return self.ferr.usar(f, args, pessoa, cliente, **({"anexo": anexo} if f.get("anexo") and anexo else {}))
 
-    def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False, foto=""):
+    def instrucoes(self, lista, historico, pessoa, canal, resultados, agora, ultima=False, foto="", lido=None):
         nome = (pessoa or {}).get("nome") or "alguém da casa"
         partes = [BASE.format(onde="pelo WhatsApp" if canal == "whatsapp" else "na tela do app CorrerIA", nome=nome, agora=_agora_txt(agora),
                               assunto=ASSUNTO_WHATSAPP if canal == "whatsapp" else ASSUNTO_TELA)]
@@ -139,6 +139,10 @@ class Agente:
                           "cadastrar no inventário o que está na foto, chame a de cadastrar pela foto, sem pedir o nome: o app lê. Se a "
                           "pessoa não disse o que fazer com o arquivo nem de que app é, pergunte. Nunca descreva o arquivo sem tê-lo lido "
                           "por uma ferramenta.")
+        if foto and lido:  # 1.26.0: a leitura guardada: é dela que a IA fala, sem ler de novo
+            partes.append("O arquivo já foi lido nesta conversa. Fale dele só pelo que está aqui, sem chamar de novo a mesma leitura "
+                          "(chame outra só se a pessoa pedir uma leitura diferente, como só os consumíveis):\n"
+                          + "\n\n".join(f"{k} → {cortado(v)}" for k, v in lido.items()))
         conversa = [("IA: " + sem_o_pedido_do_sim(m.get("texto")) if m.get("papel") == "ia" else "Pessoa: " + str(m.get("texto") or "").strip()[:2000])
                     for m in historico if str(m.get("texto") or "").strip()]
         partes.append("A conversa (a última mensagem é a que você responde agora):\n" + "\n".join(conversa))
@@ -150,7 +154,7 @@ class Agente:
         partes.append(FORMATO)
         return "\n\n".join(partes)
 
-    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None, foto="", anexo=None):
+    def responder(self, historico, pessoa, canal="whatsapp", cliente="WhatsApp", agora=None, foto="", anexo=None, lido=None):
         """historico termina com a mensagem da pessoa. Devolve {resposta, pendente: [ações] ou [], apps: [nomes]}.
         anexo (1.24.0): o arquivo que a pessoa mandou há pouco; vai para as ferramentas de leitura que o recebem (<app>_ler_arquivo)."""
         agora = agora or datetime.now()
@@ -158,13 +162,18 @@ class Agente:
         if self.pesquisar and canal != "whatsapp":
             lista = lista + [PESQUISA]
         resultados, usados = [], []
-        leu_arquivo = False  # uma ferramenta leu, nesta resposta, o arquivo que a pessoa mandou
+        # 1.26.0: lido ({chamada: o que o app devolveu}) é a leitura do arquivo guardada na conversa: o arquivo é lido uma vez
+        # e as respostas seguintes falam dessa mesma leitura (o dono: cada "analisei de novo" vinha com outra lista)
+        lido = lido if isinstance(lido, dict) else {}
+        leu_arquivo = bool(lido)  # o arquivo que a pessoa mandou foi lido por uma ferramenta (agora ou antes, nesta conversa)
+        usou_arquivo = False
+        recusadas = 0
         for rodada in range(RODADAS):
             ultima = rodada == RODADAS - 1
             if self.simulada:
                 bruto = simulado(historico[-1]["texto"] if historico else "", lista, resultados)
             else:
-                bruto = self.chamar_ia(self.instrucoes(lista, historico, pessoa, canal, resultados, agora, ultima, foto=foto))
+                bruto = self.chamar_ia(self.instrucoes(lista, historico, pessoa, canal, resultados, agora, ultima, foto=foto, lido=lido))
             r = extrair_json(bruto)
             texto = str(r.get("resposta") or r.get("texto") or "").strip()[:4000]
             chamadas = [c for c in (r.get("chamar") or []) if isinstance(c, dict)] if isinstance(r.get("chamar"), list) else []
@@ -173,6 +182,15 @@ class Agente:
                 f = self.ferr.achar(str(c.get("ferramenta") or c.get("nome") or ""), lista)
                 (achadas if f else desconhecidas).append((f, c))
             gravar = [(f, c) for f, c in achadas if f["grava"]]
+            # 1.26.0: a mudança é conferida antes de pedir o sim (os campos que a ferramenta pede, os tipos, as opções): o que
+            # está errado volta para a IA corrigir, em vez de virar um «Não deu» depois do sim
+            ruins = [(f, c, p) for f, c in gravar for p in [validar(f.get("entrada"), c.get("argumentos"))] if p]
+            if ruins and not ultima and recusadas < 2 and not self.simulada:
+                recusadas += 1
+                for f, c, p in ruins:
+                    resultados.append(f"{f['id']}({json.dumps(c.get('argumentos'), ensure_ascii=False)}) → ERRO: não foi proposta, os argumentos não "
+                                      f"servem: {'; '.join(p)}. Corrija e chame de novo (junto com as outras mudanças desta resposta).")
+                continue
             if gravar:
                 pend = [{"ferramenta": f["id"], "argumentos": c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {},
                          "resumo": str(c.get("resumo") or "").strip()[:200] or f"{f['titulo']}: {F.resumo_args(c.get('argumentos'))}", "app": f["app"]["nome"]}
@@ -186,14 +204,22 @@ class Agente:
                 frase = (texto + "\n\n") if texto else ""
                 # 1.10.0: o Sim e o Não vêm em botões, na tela e no WhatsApp (escrever sim também vale)
                 return {"resposta": f"{frase}Vou fazer {'isto' if len(pend) == 1 else 'isto tudo'}:\n{linhas}\n\nToque em *Sim* para confirmar.",
-                        "pendente": pend, "apps": sorted({p["app"] for p in pend} | set(usados))}
+                        "pendente": pend, "apps": sorted({p["app"] for p in pend} | set(usados)),
+                        **({"arquivo": True} if usou_arquivo or any(f.get("anexo") for f, _ in gravar) else {})}
             todas_ler = [(f, c) for f, c in achadas if not f["grava"]]
             ler = todas_ler[:MAX_CHAMADAS]
             if (ler or desconhecidas) and not ultima:
                 for f, c in ler:
                     args = c.get("argumentos") if isinstance(c.get("argumentos"), dict) else {}
-                    res, erro = self.usar(f, args, pessoa, cliente, anexo=anexo)
-                    leu_arquivo = leu_arquivo or bool(f.get("anexo") and anexo and not erro)
+                    marca = chave_leitura(f, args) if f.get("anexo") and anexo else None
+                    if marca and marca in lido:  # já lido nesta conversa: a mesma leitura, sem chamar o app de novo
+                        res, erro = lido[marca], False
+                    else:
+                        res, erro = self.usar(f, args, pessoa, cliente, anexo=anexo)
+                        if marca and not erro:
+                            lido[marca] = res
+                    leu_arquivo = leu_arquivo or bool(marca and not erro)
+                    usou_arquivo = usou_arquivo or bool(marca and not erro)
                     if f["app"]["nome"] not in usados:
                         usados.append(f["app"]["nome"])
                     resultados.append(f"{f['id']}({json.dumps(args, ensure_ascii=False)}) → {'ERRO: ' if erro else ''}{cortado(res)}")
@@ -232,7 +258,7 @@ class Agente:
                     continue
                 return {"resposta": "Não consegui ler a foto agora. Pode mandar de novo?", "pendente": [], "apps": usados}
             if texto:
-                return {"resposta": texto, "pendente": [], "apps": usados}
+                return {"resposta": texto, "pendente": [], "apps": usados, **({"arquivo": True} if usou_arquivo else {})}
             if ultima:
                 break
         return {"resposta": "Não consegui responder agora. Pode perguntar de outro jeito?", "pendente": [], "apps": usados}
@@ -240,6 +266,49 @@ class Agente:
 
 # 1.22.1: o pedido do sim é do app, nunca da IA. No histórico que vai para a IA, o bloco que o app escreveu vira uma nota
 # (para ela não imitar); uma resposta só de texto que pede o sim é um engano dela (FALSO_SIM_RE).
+def chave_leitura(f, args):
+    """A mesma leitura do mesmo arquivo: a ferramenta e os argumentos, sem a dica (que muda a cada mensagem)."""
+    a = {k: v for k, v in (args or {}).items() if k != "dica" and v not in (None, "", False)}
+    return f"{f['id']}({json.dumps(a, ensure_ascii=False, sort_keys=True)})"
+
+
+TIPOS = {"string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list, "object": dict}
+
+
+def validar(esquema, args, onde=""):
+    """1.26.0: confere os argumentos de uma mudança com a entrada que a ferramenta declara (JSON Schema): o que falta, o campo
+    que não existe, o tipo e as opções. Devolve os problemas, em frases que a IA entende ([]: nada a dizer). O que só o app
+    sabe (se a categoria existe, se o cômodo é aquele) continua com ele."""
+    if not isinstance(esquema, dict) or not isinstance(esquema.get("properties"), dict):
+        return []
+    if not isinstance(args, dict):
+        return [f"{onde or 'os argumentos'}: mande um objeto"]
+    props, falhas = esquema["properties"], []
+    for k in esquema.get("required") or []:
+        if args.get(k) in (None, "", [], {}):
+            falhas.append(f"falta {onde}{k}" + (f" ({props[k]['description'][:120]})" if isinstance(props.get(k), dict) and props[k].get("description") else ""))
+    for k, v in args.items():
+        p = props.get(k)
+        if p is None:
+            if esquema.get("additionalProperties") is False:
+                falhas.append(f"{onde}{k} não existe nesta ferramenta (os campos: {', '.join(props)})")
+            continue
+        if not isinstance(p, dict) or v is None:
+            continue
+        t = TIPOS.get(p.get("type")) if isinstance(p.get("type"), str) else None
+        if t and (not isinstance(v, t) or (isinstance(v, bool) and p["type"] in ("integer", "number"))):
+            falhas.append(f"{onde}{k} tem de ser {p['type']}")
+            continue
+        if isinstance(p.get("enum"), list) and v not in p["enum"]:
+            falhas.append(f"{onde}{k}: «{v}» não vale; vale: {', '.join(map(str, p['enum']))}")
+        if p.get("type") == "object":
+            falhas += validar(p, v, f"{onde}{k}.")
+        if p.get("type") == "array" and isinstance(p.get("items"), dict) and p["items"].get("type") == "object":
+            for n, x in enumerate(v[:30], 1):
+                falhas += validar(p["items"], x, f"{onde}{k}[{n}].")
+    return falhas[:8]
+
+
 # 1.25.1: a IA dizendo que já fez (nada é feito antes do sim) e a IA dizendo que olhou a foto (ela não vê o arquivo)
 JA_FIZ_RE = re.compile(r"\b(?:cadastrei|adicionei|criei|registrei|salvei|gravei|atualizei|alterei|apaguei|"
                        r"removi|movi|marquei|lancei|anotei|guardei|inclu[ií]|editei)\b", re.I)

@@ -196,8 +196,31 @@ CONSUMIVEIS = ("Nesta etapa tudo o que eu citar ou mandar em foto é consumível
                "não repita o que já está nos consumíveis.")
 
 
+# 1.26.0: o mesmo para os outros grupos: o que a etapa é, o que mandar e o que nunca perguntar
+REGRAS = {
+    "Tarefas": "Nesta etapa tudo é tarefa do ResolvIA{do_onde}: ao criar uma, ligue-a ao cômodo{onde_q} (se a ferramenta tiver esse campo) e não "
+               "pergunte prazo, pontos nem repetição que eu não disse; se houver mais de uma lista e eu não disse qual, escolha a que mais "
+               "combina e diga qual foi. Para concluir ou mudar uma tarefa, use o id que a leitura das tarefas dá, nunca um id inventado.",
+    "Rotinas": "Nesta etapa tudo é rotina da casa ou manutenção do CronologIA{do_onde}: ao criar ou mudar, mande o cômodo{onde_q} (se a "
+               "ferramenta tiver esse campo); se eu não disse de quanto em quanto tempo, pergunte só isso. Para mudar ou tirar, use o id que a "
+               "leitura dos cadastros dá.",
+    "Itens": "Nesta etapa tudo é item da casa{do_onde} (não é consumível nem bem): cadastre no cômodo{onde_q}; sem valor dito, cadastre sem "
+             "valor, sem perguntar. Uma foto é lida com o cômodo{onde_q}, sem consumiveis. Para mover ou apagar, use o código ou o id que a busca dá.",
+    "Compras": "Nesta etapa tudo vai para a lista de compras do EconomIA: para pôr um produto basta o nome; não pergunte preço, marca nem loja.",
+}
+
+
 def de_consumiveis(e):
-    return bool(e) and (e.get("grupo") == "Consumíveis" or "consum" in e.get("id", ""))
+    """Uma etapa em que se cadastram ou conferem consumíveis no InventarIA (a de pôr na lista de compras, não)."""
+    return bool(e) and e.get("app") == "inventario" and e.get("id") in ("cons_acabando", "cons_novo", "consumivel")
+
+
+def regras(rid, e, onde):
+    """O contexto fixo da etapa, para a IA não perguntar o que a etapa já responde."""
+    if de_consumiveis(e):
+        return " " + CONSUMIVEIS.format(usado=f", com usado_em «{onde}»" if onde else "")
+    r = REGRAS.get(e.get("grupo")) if rid == "casa" else None
+    return " " + r.format(do_onde=f" do cômodo «{onde}»" if onde else "", onde_q=f" «{onde}»" if onde else "") if r else ""
 
 
 def contexto(rid, eid, onde):
@@ -205,7 +228,7 @@ def contexto(rid, eid, onde):
     e = etapa_de(rid, eid)
     return (f"(Estou na {RONDAS[rid]['nome']}{f', cômodo «{onde}»' if onde else ''}, etapa {e['titulo']}: a minha próxima mensagem responde a «{e['pergunta'].format(onde=onde)}». "
             f"As mudanças desta etapa são no {e['nome_app']}; responda só a isso, sem fazer outra pergunta; se eu disser que não há nada, diga só para eu tocar em Próxima."
-            + (" " + CONSUMIVEIS.format(usado=f", com usado_em «{onde}»" if onde else "") if de_consumiveis(e) else "")
+            + regras(rid, e, onde)
             + (" " + e["depois"] if e.get("depois") else "") + ")")
 
 

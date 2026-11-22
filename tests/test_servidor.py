@@ -637,8 +637,11 @@ class TestComFerramentas(Base):
         anexar = {"chamar": [{"ferramenta": "resolvia_anexar_foto", "argumentos": {"id": "todo.casa:u1"}, "resumo": "Pôr a foto em Arrumar o piso"}]}
         self.ia(anexar)
         foto = "data:image/jpeg;base64,/9j/LWZvdG8="
-        r = S.conversar({"texto": "põe essa foto na tarefa de arrumar o piso", "anexo": {"nome": "piso.jpg", "b64": foto}}, pessoa, chave)
+        mini = "data:image/jpeg;base64,/9j/bWluaQ=="
+        r = S.conversar({"texto": "põe essa foto na tarefa de arrumar o piso", "anexo": {"nome": "piso.jpg", "b64": foto, "mini": mini}}, pessoa, chave)
         ultima = r["mensagens"][-1]
+        # 1.26.0: a miniatura que a tela fez fica na mensagem, e a resposta que usa o arquivo diz qual
+        self.assertEqual((r["mensagens"][-2]["mini"], ultima["arquivo"]), (mini, "piso.jpg"))
         self.assertIn("Pôr a foto em Arrumar o piso", ultima["texto"])
         self.assertTrue(ultima.get("confirmar"), "espera o sim")
         self.assertIn("A pessoa mandou um arquivo há pouco (piso.jpg, foto JPG). Você não vê o arquivo e não pode adivinhar o que há nele.", self.falsa.pedidos[0])
@@ -647,6 +650,13 @@ class TestComFerramentas(Base):
         self.assertEqual(rv.feitos, [], "nada antes do sim")
         r = S.conversar({"texto": "sim"}, pessoa, chave)
         self.assertIn("Foto guardada em Arrumar o piso (Casa): agora tem 1 foto.", r["mensagens"][-1]["texto"])
+        self.assertEqual(r["mensagens"][-1]["arquivo"], "piso.jpg")
+        self.assertNotIn("mini", rv.feitos[-1]["anexo"], "a miniatura não vai para o app")
+        for ruim in ("data:image/png;base64,AAAA", "javascript:alert(1)", "data:image/jpeg;base64," + "A" * 20000):
+            self.ia({"resposta": "Certo."})
+            m = S.conversar({"texto": "tarefa nova com foto", "anexo": {"nome": "x.jpg", "b64": foto, "mini": ruim}}, pessoa, chave)["mensagens"][-2]
+            self.assertNotIn("mini", m)
+        S.FOTOS.clear()
         f = rv.feitos[-1]
         self.assertEqual((f["nome"], f["argumentos"], f["anexo"]), ("anexar_foto", {"id": "todo.casa:u1"}, {"tipo": "image/jpeg", "nome": "piso.jpg", "b64": foto}))
         self.assertIsNone(S.foto_de("tela:" + chave), "a foto foi para o lugar dela: não vai duas vezes")
@@ -655,7 +665,7 @@ class TestComFerramentas(Base):
         S.conversar({"texto": "põe a foto na tarefa do piso"}, pessoa, chave)
         n = len(rv.feitos)
         r = S.conversar({"texto": "sim"}, pessoa, chave)
-        self.assertIn("Não deu: Falta o arquivo", r["mensagens"][-1]["texto"])
+        self.assertIn("Não deu: Pôr a foto em Arrumar o piso. Falta o arquivo", r["mensagens"][-1]["texto"])
         self.assertEqual(len(rv.feitos), n)
         self.assertNotIn("A pessoa mandou um arquivo", self.falsa.pedidos[-1])
         # as ferramentas que recebem foto não aparecem para as IAs conectadas (por lá não há como mandar a foto)
@@ -769,10 +779,36 @@ class TestComFerramentas(Base):
         self.assertEqual(self.app.feitos, [])
 
     def test_o_app_recusa_no_sim(self):
-        self.ia({"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira"}, "resumo": "Lançar Feira"}]})
+        """1.26.0 (o dono: "toda hora isso de não achar", com a lista técnica na tela): o que o app recusa depois do sim volta para
+        a IA, com o erro inteiro, e ela propõe de novo, corrigido (uma vez só); na tela, o erro é a frase do app, sem ids."""
+        ruim = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": -3}, "resumo": "Lançar Feira"}]}
+        boa = {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 3}, "resumo": "Lançar R$ 3,00 de Feira"}], "resposta": "Corrigi."}
+        self.ia(ruim, boa)
         self.mandar("lança feira")
-        self.assertEqual(self.mandar("ok")[0][1], "- Não deu: Falta o valor.")
+        t = self.mandar("ok")[0][1]
+        self.assertEqual(t, "- Não deu: Lançar Feira. Categoria não encontrada: Feiras.\n\nCorrigi o que não deu. Vou fazer isto:\n- Lançar R$ 3,00 de Feira\n\nToque em *Sim* para confirmar.")
+        self.assertNotIn("c-mercado", t)
+        nota = self.falsa.pedidos[-1]
+        self.assertIn('gerencia_lancar({"descricao": "Feira", "valor": -3}) → Categoria não encontrada: Feiras. As categorias: Mercado (c-mercado), Casa (c-casa).', nota)
+        self.assertIn("Corrija os argumentos pelo que o erro diz e chame de novo só as que não deram", nota)
         self.assertEqual(self.registro()[-2][0], "erro")
+        self.assertIn("Lançado: Feira · R$ 3", self.mandar("sim")[0][1])
+        # a corrigida que também não dá não volta para a IA de novo; sem conserto da IA, fica só a frase do app
+        self.ia(ruim, ruim)
+        self.mandar("lança feira")
+        self.mandar("sim")
+        n = len(self.falsa.pedidos)
+        self.assertEqual(self.mandar("sim")[0][1], "- Não deu: Lançar Feira. Categoria não encontrada: Feiras.")
+        self.assertEqual(len(self.falsa.pedidos), n)
+        self.ia(ruim, {"resposta": "Qual é a categoria da feira?"})
+        self.mandar("lança feira")
+        self.assertEqual(self.mandar("sim")[0][1], "- Não deu: Lançar Feira. Categoria não encontrada: Feiras.\n\nQual é a categoria da feira?")
+        self.ia(ruim, S.ia.ErroIA("fora"))
+        self.mandar("lança feira")
+        self.assertEqual(self.mandar("sim")[0][1], "- Não deu: Lançar Feira. Categoria não encontrada: Feiras.")
+        for cru, limpo in (("Item 1: Categoria não encontrada: Consumíveis. As categorias dos consumíveis: Limpeza (c-limpeza), Outros (c-outros).", "Item 1: Categoria não encontrada: Consumíveis."),
+                           ("Não achei a tarefa (todo.casa:u9) nessa lista.\nVeja as tarefas.", "Não achei a tarefa nessa lista."), ("", "o app não aceitou."), ("Curto", "Curto")):
+            self.assertEqual(S.erro_para_gente(cru), limpo)
 
     def test_ia_fora_do_ar(self):
         self.ia(S.ia.ErroIA("Nenhuma entidade de IA."))

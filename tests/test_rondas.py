@@ -557,6 +557,13 @@ class TestMaisRondas(Base):
         self.assertIn("no cômodo «Consumíveis», com usado_em «Banheiro», com duracao_dias", c)
         e = rondas.etapa_de("casa", "cons_novo")
         self.assertIn("ao ler, mande consumiveis: true", rondas.contexto_anexo(e, "image/jpeg"))
+        # 1.26.0: cada grupo da Ronda da casa tem o seu contexto fixo; a etapa de pôr consumível na lista de compras não é de cadastrar
+        self.assertIn("tudo é tarefa do ResolvIA do cômodo «Sala»: ao criar uma, ligue-a ao cômodo «Sala»", rondas.contexto("casa", "arrumar", "Sala"))
+        self.assertIn("tudo é rotina da casa ou manutenção do CronologIA do cômodo «Sala»", rondas.contexto("casa", "rotina_nova", "Sala"))
+        self.assertIn("tudo é item da casa do cômodo «Sala» (não é consumível nem bem): cadastre no cômodo «Sala»; sem valor dito, cadastre sem valor", rondas.contexto("casa", "item_novo", "Sala"))
+        self.assertIn("para pôr um produto basta o nome; não pergunte preço, marca nem loja", rondas.contexto("casa", "mercado", "Sala"))
+        self.assertNotIn("nunca peça valor", rondas.contexto("compras", "acabando", ""))
+        self.assertIn("nunca peça valor", rondas.contexto("chegada", "consumivel", ""))
         outro = next(x for x in rondas.RONDAS["casa"]["etapas"] if not rondas.de_consumiveis(x))
         self.assertNotIn("consumiveis: true", rondas.contexto_anexo(outro, "image/jpeg"))
         self.assertNotIn("nunca peça valor", rondas.contexto("casa", outro["id"], "Banheiro"))

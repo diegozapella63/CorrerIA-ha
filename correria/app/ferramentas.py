@@ -96,7 +96,7 @@ class Ferramentas:
     def achar(self, fid, lista=None):
         return next((f for f in (lista if lista is not None else self.todas()) if f["id"] == fid), None)
 
-    def usar(self, f, argumentos, pessoa, cliente, anexo=None):
+    def usar(self, f, argumentos, pessoa, cliente, anexo=None, recusa=None):
         """Chama a ferramenta; devolve (texto, erro). erro: o app recusou (argumento inválido) ou não respondeu.
         anexo (1.17.0): a foto que a pessoa mandou há pouco; só vai para a ferramenta que recebe aquele tipo."""
         args = argumentos if isinstance(argumentos, dict) else {}
@@ -120,6 +120,8 @@ class Ferramentas:
                 return self.apps.perguntar(f["app"], str(args.get("pergunta") or "").strip()[:2000] or "Oi", [], pessoa or {}, canal="correria"), False
             return self.apps.usar(f["app"], f["nome"], args, pessoa, cliente, **({"anexo": anexo} if anexo else {})), False
         except A.ErroFerramenta as e:
+            if recusa is not None:  # 1.26.0: o app recusou os argumentos (dá para corrigir e tentar de novo)
+                recusa.append(True)
             return str(e), True
         except A.ErroApp as e:
             return str(e), True

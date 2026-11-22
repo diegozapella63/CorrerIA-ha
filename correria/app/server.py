@@ -593,6 +593,7 @@ def guardar_pendente(chave, acoes):
 # foto numa tarefa do ResolvIA. Não fica em disco nem nas conversas guardadas.
 FOTOS = {}
 FOTO_SEG = 30 * 60
+MINI_RE = re.compile(r"^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$")
 
 
 def guardar_foto(chave, anexo):
@@ -604,7 +605,23 @@ def guardar_foto(chave, anexo):
     else:
         while len(FOTOS) >= 20 and chave not in FOTOS:
             FOTOS.pop(min(FOTOS, key=lambda k: FOTOS[k]["em"]))
-        FOTOS[chave] = {"em": agora, "anexo": anexo}
+        FOTOS[chave] = {"em": agora, "anexo": anexo, "lido": {}}
+
+
+def lido_de(chave):
+    """1.26.0: o que as ferramentas já leram do arquivo desta conversa ({chamada: texto}); vai embora com o arquivo."""
+    v = FOTOS.get(chave)
+    return v.setdefault("lido", {}) if v and time.time() - v["em"] <= FOTO_SEG else {}
+
+
+# 1.26.0 (o dono: "Não deu: Item 1: Categoria não encontrada: Consumíveis. As categorias dos consumíveis: Limpeza (c-limpeza)…"):
+# o erro de um app, na tela, é a primeira frase dele, sem os ids nem a lista técnica (essa parte é para a IA)
+def erro_para_gente(texto):
+    t = " ".join(str(texto or "").split())
+    t = re.sub(r"\s*\((?:[a-z]+[-_.:])+[a-z0-9_.:|-]*\)", "", t)  # (c-limpeza), (todo.lista:abc)
+    m = re.match(r"(.{12,}?[.!?])(?:\s|$)", t)
+    t = (m.group(1) if m else t)[:220].strip()
+    return t or "o app não aceitou."
 
 
 def foto_de(chave):
@@ -637,18 +654,27 @@ def foto_para_ferramenta(texto, tipo, ultimo=None, recentes=()):
     return bool(set(recentes) & donos) and leitor["app"] not in set(recentes)
 
 
-def executar(acoes, pessoa, cliente, chave=None):
-    """O "sim": faz cada mudança proposta, pelas ferramentas dos apps. Devolve (texto, nomes dos apps)."""
+def executar(acoes, pessoa, cliente, chave=None, falhas=None):
+    """O "sim": faz cada mudança proposta, pelas ferramentas dos apps. Devolve (texto, nomes dos apps).
+    falhas (uma lista, 1.26.0): ganha (ação, o erro inteiro do app) de cada mudança que o app recusou."""
     lista, linhas, nomes = FERR.todas(), [], []
     for a in acoes:
         f = FERR.achar(str(a.get("ferramenta") or ""), lista)
         if not f:
             linhas.append(f"- Não deu: {a.get('resumo') or a.get('ferramenta')} (o app não está mais ligado).")
             continue
-        texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente, anexo=foto_de(chave) if chave and f.get("anexo") else None)
+        recusa = []
+        texto, erro = FERR.usar(f, a.get("argumentos") or {}, pessoa, cliente, anexo=foto_de(chave) if chave and f.get("anexo") else None, recusa=recusa)
         if f.get("anexo") and not erro:
             guardar_foto(chave, None)  # a foto foi para o lugar dela: não vai duas vezes
-        linhas.append(f"- {'Não deu: ' if erro else ''}{texto.splitlines()[0] if texto else 'feito.'}")
+        if erro:
+            linhas.append(f"- Não deu: {a.get('resumo') or f['titulo']}. {erro_para_gente(texto)}")
+            if falhas is not None and recusa:
+                falhas.append((a, texto))
+        else:
+            linhas.append(f"- {texto.splitlines()[0] if texto else 'feito.'}")
+            if f.get("anexo"):
+                CANAL.arquivo = True
         if f["app"]["nome"] not in nomes:
             nomes.append(f["app"]["nome"])
         if erro:
@@ -663,7 +689,34 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
     pend = pegar_pendente(chave)
     if pend:
         if SIM_RE.match(texto):
-            return (*executar(pend, pessoa, cliente, chave), False)
+            falhas = []
+            feito, nomes = executar(pend, pessoa, cliente, chave, falhas)
+            # 1.26.0 (o dono: "toda hora isso de não achar"): o que o app recusou volta para a IA, com o erro inteiro, para ela
+            # corrigir e propor de novo (uma vez só por mudança); sem conserto, fica o «Não deu» com a frase do app
+            de_novo = [(a, e) for a, e in falhas if not a.get("corrigida")]
+            if de_novo and FERR.tem():
+                nota = ("(Eu disse sim. O app respondeu:\n" + feito + "\nO erro inteiro de cada mudança que não deu:\n"
+                        + "\n".join(f"- {a.get('ferramenta')}({json.dumps(a.get('argumentos') or {}, ensure_ascii=False)}) → {e}" for a, e in de_novo)
+                        + "\nCorrija os argumentos pelo que o erro diz e chame de novo só as que não deram; se faltar um dado que só eu sei, "
+                          "pergunte uma coisa só. Não repita as que já foram feitas.)")
+                try:
+                    foto = foto_de(chave)
+                    r = AGENTE.responder(hist + [{"papel": "eu", "texto": nota}], pessoa, canal, cliente,
+                                         **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}",
+                                             "anexo": foto, "lido": lido_de(chave)} if foto else {}))
+                except ia.ErroIA as e:
+                    log("IA:", e)
+                    r = None
+                if r and r["pendente"]:
+                    for p in r["pendente"]:
+                        p["corrigida"] = True
+                    guardar_pendente(chave, r["pendente"])
+                    bloco = ia.BLOCO_SIM_RE.search(r["resposta"])
+                    return (feito + "\n\nCorrigi o que não deu. " + (bloco.group(0) if bloco else r["resposta"]),
+                            sorted(set(nomes) | set(r["apps"])), True)
+                if r and r["resposta"] and not r["resposta"].startswith("Não consegui"):
+                    return feito + "\n\n" + r["resposta"], nomes, False
+            return feito, nomes, False
         if NAO_RE.match(texto):
             return "Tudo bem, não mudei nada.", [], False
     if not FERR.tem():
@@ -672,7 +725,8 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
     try:
         foto = foto_de(chave)
         r = AGENTE.responder(hist + [{"papel": "eu", "texto": texto}], pessoa, canal, cliente,
-                             **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}", "anexo": foto} if foto else {}))
+                             **({"foto": f"{foto.get('nome') or 'arquivo'}, {ia.TIPO_NOME.get(foto.get('tipo'), foto.get('tipo') or 'arquivo')}",
+                                 "anexo": foto, "lido": lido_de(chave)} if foto else {}))
     except ia.ErroIA as e:
         log("IA:", e)
         # 1.16.2: fora do ar, sobrecarregada ou sem cota: a mesma IA não responde pelo app; diz logo, numa frase
@@ -684,6 +738,8 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
         return f"A IA do Home Assistant não respondeu agora ({str(e).rstrip('.')}). Tente de novo daqui a pouco.", [], False
     if r["pendente"]:
         guardar_pendente(chave, r["pendente"])
+    if r.get("arquivo"):
+        CANAL.arquivo = True  # 1.26.0: a resposta usou o arquivo da conversa: a tela mostra qual
     return r["resposta"], r["apps"], bool(r["pendente"])
 
 
@@ -1571,7 +1627,11 @@ def conversar(corpo, pessoa, chave):
         if len(b64) * 3 // 4 > MAX_ANEXO:
             raise ValueError("O arquivo é grande demais (até 15 MB).")
         eu["anexo"] = str(anexo.get("nome") or ("PDF" if tipo == "application/pdf" else "Foto"))[:120]
+        mini = str(anexo.get("mini") or "")  # 1.26.0: a miniatura que a tela fez (uns 96 px), para ver qual foto foi
+        if MINI_RE.match(mini) and len(mini) <= 16000:
+            eu["mini"] = mini
         anexo = {"tipo": tipo, "nome": str(anexo.get("nome") or "")[:120], "b64": b64}
+    CANAL.arquivo = False
     para_app = None
     if not anexo and corpo.get("para"):  # 1.25.0: «É para o <app>»: só com o arquivo ainda à mão e um app que recebe o tipo dele
         guardado = foto_de("tela:" + chave)
@@ -1631,6 +1691,9 @@ def conversar(corpo, pessoa, chave):
         resp["confirmar"] = True
     if app:
         resp.update(app=app["nome"], app_id=app["app"])
+    usado = next((m["anexo"] for m in reversed(lista + [eu]) if m.get("papel") == "eu" and m.get("anexo")), None)
+    if usado and (leu or getattr(CANAL, "arquivo", False)):
+        resp["arquivo"] = usado  # 1.26.0: a resposta veio da leitura deste arquivo
     if leu and not rd and FERR.tem():
         # 1.25.0 (o dono: "se o correria não encontra a info em um app, não seria prudente dar a opção de indicar se o tema é em
         # outro app?"): o arquivo fica à mão e a resposta leva os outros apps que recebem esse tipo, para um toque mandar para lá

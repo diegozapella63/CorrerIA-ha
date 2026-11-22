@@ -1,5 +1,13 @@
 # Mudanças
 
+## 1.26.0
+
+- **Menos «Não deu» depois do Sim.** Antes de pedir o Sim, a mudança é conferida (o que falta, o campo errado). E, se mesmo assim o app recusar, a IA corrige e propõe de novo, em vez de parar no erro.
+- **Erros em português de gente**: a frase do app, sem a lista técnica nem os códigos.
+- **A foto é lida uma vez.** As respostas seguintes falam da mesma leitura, em vez de cada «analisei de novo» trazer outra lista.
+- **A foto aparece na conversa**: a miniatura na sua mensagem e embaixo da resposta que veio da leitura dela.
+- **Rondas**: em cada etapa da Ronda da casa (Tarefas, Rotinas, Itens, Consumíveis, Compras) a IA sabe o que é dali e não pergunta o que a etapa já responde (o cômodo, se é item ou consumível, o valor, o preço).
+
 ## 1.25.1
 
 - Na etapa dos **Consumíveis** de uma ronda, tudo o que você cita ou manda em foto é consumível: a IA não pergunta mais se é bem ou consumível nem pede valor, e a foto é lida só pelos consumíveis (os cremes, não o gabinete e a toalha). Precisa do InventarIA 1.94.0.

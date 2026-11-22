@@ -152,6 +152,8 @@ class AppFalso(ServidorFalso):
             if c["nome"] == "lancar":
                 if not c["argumentos"].get("valor"):
                     return 400, {"erro": "Falta o valor."}
+                if c["argumentos"]["valor"] < 0:  # passa na entrada declarada e o app recusa
+                    return 400, {"erro": "Categoria não encontrada: Feiras. As categorias: Mercado (c-mercado), Casa (c-casa)."}
                 return 200, {"texto": f"Lançado: {c['argumentos'].get('descricao')} · R$ {c['argumentos']['valor']}. id: l1\nmais uma linha"}
             if c["nome"] == "apagar":
                 return 200, {"texto": "Apagado."}

@@ -237,6 +237,10 @@ body[data-tela="conversa"] #app { padding-bottom: calc(150px + env(safe-area-ins
 .ch-bolha ul { margin: 4px 0 0; padding-left: 20px; }
 .ch-anexo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
 .ch-anexo + p { margin-top: 6px; }
+/* 1.26.0: a miniatura da foto, na mensagem de quem mandou e embaixo da resposta que veio da leitura dela */
+.ch-mini { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; flex: none; }
+.ch-leu { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 4px; color: var(--muted); font-size: 13px; }
+.ch-leu .ch-mini { width: 28px; height: 28px; border-radius: 6px; }
 .ch-app { color: var(--muted); font-size: 12px; padding: 0 6px; }
 .ch-pensando { display: flex; gap: 5px; padding: 14px 16px; }
 .ch-pensando span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: ch-ponto 1.2s infinite ease-in-out; }
