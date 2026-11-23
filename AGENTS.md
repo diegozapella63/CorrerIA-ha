@@ -135,6 +135,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.31.1: `ia.NAO_DEU` (`SEM_MUDANCA`, `SEM_FOTO`, `SEM_RESPOSTA`: o que o Agente responde quando a IA não chega a uma resposta); no `ronda_passo`, uma resposta dessas vira texto vazio: a etapa sai só com a pergunta e o Abrir no app, e nenhuma pergunta do grupo é tirada (sem o TOTAL).
 
+1.31.2: a vez de gravar a Memória da IA entre os apps (`memoria_ia.py: `_vez``: uma pasta `memoria_ia.json.trava` ao lado do arquivo, criada num passo só; espera até 3 s, tira a que ficou de um app que caiu, há mais de 10 s, e sem a vez grava assim mesmo; o arquivo temporário leva um sufixo ao acaso). Antes, dois apps gravando no mesmo instante liam a mesma lista e um apagava a frase do outro (num teste com 40 gravações simultâneas, uma se perdia). Um caminho que não é uma pasta não prende o app (espera só o prazo).
+
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.

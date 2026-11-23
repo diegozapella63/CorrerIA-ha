@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.31.2
+
+- **Memória da IA**: dois apps gravando uma frase no mesmo instante não apagam mais a frase um do outro (cada um espera a sua vez).
+
 ## 1.31.1
 
 - Numa ronda, quando a IA não consegue ler o app, a etapa mostra só a pergunta dela (e o Abrir no app), sem o «Não consegui responder agora. Pode perguntar de outro jeito?».
