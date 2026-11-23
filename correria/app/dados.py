@@ -12,10 +12,12 @@ import time
 import zipfile
 
 # o que entra, nesta ordem; o que não existe ainda fica de fora
+# (o lembrancas.json é de um backup de antes da 1.31.0: ao voltar, o servidor leva as frases para a memória de todos os apps)
 ARQUIVOS = ("config.json", "conversas.json", "mcp.json", "rondas.json", "rondas_minhas.json", "lembrancas.json", "uso_ia.json")
-# o que o Começar do zero apaga: as conversas, as rondas (o histórico e as criadas ou mudadas), a Memória da IA e o Uso da IA.
-# Ficam as configurações (o WhatsApp, o endereço, os números, a aparência) e as IAs conectadas.
-DO_ZERO = ("conversas.json", "rondas.json", "rondas_minhas.json", "lembrancas.json", "uso_ia.json")
+# o que o Começar do zero apaga: as conversas, as rondas (o histórico e as criadas ou mudadas) e o Uso da IA.
+# Ficam as configurações (o WhatsApp, o endereço, os números, a aparência) e as IAs conectadas. A Memória da IA não é
+# daqui (1.31.0: é de todos os apps, na pasta share): não entra no arquivo nem é apagada.
+DO_ZERO = ("conversas.json", "rondas.json", "rondas_minhas.json", "uso_ia.json")
 MANIFESTO = "correria.json"
 MAX_ZIP = 30 * 1024 * 1024       # o arquivo que chega
 MAX_ARQUIVO = 25 * 1024 * 1024   # cada arquivo dentro dele, aberto

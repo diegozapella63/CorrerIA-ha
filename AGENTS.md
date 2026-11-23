@@ -18,7 +18,7 @@ No `config.yaml`, `url` aponta para o repositório e o `panel_admin` fica no pad
 ## Estrutura
 
 ```
-correria/config.yaml        versão e opções do app (porta pública 8443, /ssl só para leitura; /share para gravar só share/correria/lembrancas.json e os backups em share/correria/backups)
+correria/config.yaml        versão e opções do app (porta pública 8443, /ssl só para leitura; /share para gravar a Memória da IA, share/familia/memoria_ia.json, e os backups em share/correria/backups)
 correria/CHANGELOG.md       o que mudou em cada versão (o HA mostra ao atualizar)
 correria/DOCS.md            manual do usuário (aba Documentação no HA): a Meta, o Duck DNS, o roteador, o Claude e o Gemini
 correria/app/server.py      os dois servidores (só biblioteca padrão): a tela (8099, pelo painel) e a porta pública (8443, https:
@@ -169,6 +169,8 @@ Aqui (o CorrerIA não tem barra de baixo): os três pontos no alto da Conversa a
 **Teclado no celular** (1.17.2): no fim do `app.js`, o `tecladoCalmo` (o mesmo código do `teclado.js` dos outros apps): com o foco num campo de texto, ou quando o teclado muda a altura da tela, as páginas em volta do app (a do Home Assistant) voltam para o começo; a página do próprio app não é tocada.
 
 1.17.3: na Conversa, no celular (`noCelular()`: `(hover: none) and (pointer: coarse)`, o dedo como jeito principal), o Enter é uma linha nova e o botão envia (`enterkeyhint="enter"`); com teclado de verdade, o Enter envia. Vale em todos os apps da família. Antes valia `(any-hover: hover), (any-pointer: fine)`, que um celular com caneta também atende.
+
+1.31.0 (o dono: "e se eu não usar o CorrerIA e só decidir usar o InventarIA e o ResolvIA?"; "memória compartilhada"; "deixa claro na observação das opções que a memória é compartilhada"): a **Memória da IA** é uma só, da casa, de todos os apps, em `share/familia/memoria_ia.json` (`{versao: 1, gravado_em, lista: [{id, texto, em, app, quem?}]}`, até 60 frases de 240 letras, 600; `MEMORIA_IA_ARQ` troca o arquivo nos testes), e não depende mais da opção CorrerIA nem do arquivo do CorrerIA (o `share/correria/lembrancas.json` acabou). Aqui: `correria/app/memoria_ia.py` (igual nos quatro apps em Python; nos em Node, `lib/memoria-ia.js`); no server.py, `MEMORIA_ARQ`, `lembrancas()`, `lembrar()` e `esquecer()` pelo módulo (as rotas `/api/lembrancas` e a ferramenta `correria_lembrar` continuam), e `migrar_lembrancas()` (ao iniciar e depois de importar: leva o `/data/lembrancas.json` de antes para a memória de todos e apaga esse arquivo e o `share/correria/lembrancas.json`); o `publicar_lembrancas` saiu; no `dados.py`, o `DO_ZERO` não tem mais o `lembrancas.json`. Testes: `tests/test_memoria_ia.py`, `test_lembrancas_da_casa` e o `tests/test_dados.py`. O texto do cartão é o mesmo em todos os apps: «Uma memória só, da casa, compartilhada por todos os apps: o que você escreve aqui a IA lembra em toda conversa, em qualquer um deles.» A memória não entra no Exportar nem no Começar do zero de um app.
 
 ## Conversa com o dono
 

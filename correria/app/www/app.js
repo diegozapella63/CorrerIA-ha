@@ -439,7 +439,7 @@
     if (!S.dados && !S.dadosPedidos) { S.dadosPedidos = true; carregarDados(); }
     const d = S.dados || { backups: [], versoes: [] }, imp = S.importar;
     return `<section class="card" id="exportar">${cab('baixar', 'Exportar')}
-        <p class="lead">Um arquivo com tudo: as configurações, o token, a chave secreta e as conversas. Guarde como uma senha.</p>
+        <p class="lead">Um arquivo com tudo o que é do CorrerIA: as configurações, o token, a chave secreta e as conversas. Guarde como uma senha.</p>
         <div class="dados-acoes"><a class="btn pri" href="api/dados/exportar" download>${ic('baixar', 'ic-s')}Baixar</a></div></section>
       <section class="card" id="backup">${cab('arquivo', 'Backup na pasta share')}
         <p class="lead">Em <code>share/correria/backups</code>, os 10 últimos.</p>
@@ -452,9 +452,9 @@
         <input type="file" id="dados-arquivo" accept=".zip,application/zip" hidden></section>
       ${d.versoes.length ? `<section class="card" id="versoes">${cab('clock', `Versões anteriores (${d.versoes.length})`)}${listaZips('versao', d.versoes)}</section>` : ''}
       <section class="card" id="onde">${cab('database', 'Onde ficam os dados')}
-        <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código), <code>rondas.json</code>, <code>lembrancas.json</code> (a Memória da IA) e <code>uso_ia.json</code> (o Uso da IA).</p></section>
+        <p class="lead">Na pasta <code>/data</code> do app, que entra no backup do Home Assistant: <code>config.json</code> (o WhatsApp, o endereço e o número de cada pessoa), <code>conversas.json</code> (as conversas e as últimas mensagens), <code>mcp.json</code> (as IAs conectadas, com os tokens só em código), <code>rondas.json</code> e <code>uso_ia.json</code> (o Uso da IA). A Memória da IA é de todos os apps e fica na pasta share (<code>share/familia/memoria_ia.json</code>).</p></section>
       <section class="card" id="zerar">${cab('trash', 'Começar do zero')}
-        <p class="lead">Apaga as conversas, as rondas feitas e as que você criou, a Memória da IA e o Uso da IA. As configurações e as IAs conectadas ficam.</p>
+        <p class="lead">Apaga as conversas, as rondas feitas e as que você criou e o Uso da IA. As configurações, as IAs conectadas e a Memória da IA (que é de todos os apps) ficam.</p>
         ${S.confirma === 'zerar' ? confirma('dados-zerar', 'Apagar tudo isso agora?', 'trash', 'Apagar')
           : `<div class="dados-acoes"><button class="btn out" data-a="dados-pedir" data-v="zerar">${ic('trash', 'ic-s')}Começar do zero</button></div>`}</section>`;
   }
@@ -599,11 +599,11 @@
     if (!S.lembrancas && !S.lembPedidas) { S.lembPedidas = true; carregarLembrancas(); }
     const L = S.lembrancas;
     return `<section class="card" id="memoria-ia">${cab('book', 'Memória da IA')}
-        <p class="lead">O que a IA lembra em toda conversa, em todos os apps.</p>
+        <p class="lead">Uma memória só, da casa, compartilhada por todos os apps: o que você escreve aqui a IA lembra em toda conversa, em qualquer um deles.</p>
         <div class="campo">${rotulo('lembrar-texto', 'nova', 'O que lembrar')}
           <textarea id="lembrar-texto" class="inp" rows="1" maxlength="240" placeholder="Creme é sempre da categoria Higiene"></textarea></div>
         <div class="acoes"><button class="btn pri" data-a="lembrar-nova">${ic('check', 'ic-s')}Salvar</button></div>
-        <ul class="lembrancas">${!L ? '<li>Carregando…</li>' : L.map(x => `<li><span>${esc(x.texto)}<small>${esc(dataCurta(x.em))}${x.quem ? ' · ' + esc(x.quem) : ''}</small></span>
+        <ul class="lembrancas">${!L ? '<li>Carregando…</li>' : L.map(x => `<li><span>${esc(x.texto)}<small>${esc([dataCurta(x.em), x.app, x.quem].filter(Boolean).join(' · '))}</small></span>
           <button class="bt-icone" data-a="lembrar-apagar" data-v="${esc(x.id)}" aria-label="Apagar">${ic('trash', 'ic-s')}</button></li>`).join('') || '<li>Nada ainda.</li>'}</ul></section>`;
   }
   /* ---------- 1.30.0: criar e mudar rondas (Mais › Rondas › Editar ou Nova ronda). No modo simples: o nome, se é por cômodo,

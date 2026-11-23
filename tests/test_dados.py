@@ -47,7 +47,7 @@ class TestZip(unittest.TestCase):
         D.aplicar(outra, arquivos, lambda c, t: (gravados.append(os.path.basename(c)), S.gravar_arquivo(c, t)))
         self.assertEqual((gravados, sorted(os.listdir(outra))), (["config.json", "conversas.json", "lembrancas.json"], ["config.json", "conversas.json", "lembrancas.json"]))
         D.zerar(outra)
-        self.assertEqual(os.listdir(outra), ["config.json"], "o Começar do zero deixa as configurações")
+        self.assertEqual(sorted(os.listdir(outra)), ["config.json", "lembrancas.json"], "o Começar do zero deixa as configurações (e as lembranças de antes, que o servidor leva para a memória de todos)")
 
     def test_o_que_nao_e_um_backup_e_recusado(self):
         def zipar(**arqs):
@@ -102,18 +102,24 @@ class TestPelaTela(Base):
         for pasta in (S.BACKUPS_DIR, S.VERSOES_DIR):
             shutil.rmtree(pasta, True)
             self.addCleanup(shutil.rmtree, pasta, True)
-        self.addCleanup(lambda: [os.remove(a) for a in (S.LEMBRANCAS_ARQ, S.LEMBRANCAS_SHARE, S.RONDAS_ARQ) if os.path.exists(a)])
+        self.addCleanup(lambda: [os.remove(a) for a in (S.RONDAS_ARQ, S.MINHAS_ARQ) if os.path.exists(a)])
+        self.addCleanup(S.montar_rondas)
+        S.memoria_ia._GUARDADO.clear()
+        self.addCleanup(S.memoria_ia._GUARDADO.clear)
 
     def test_exportar_backup_importar_restaurar_e_zerar(self):
         S.salvar_config({"numero_id": "123456", "token": "token-inventado-1234", "segredo": "chave-inventada-5678"})
-        S.lembrar("Creme é sempre Higiene")
+        S.lembrar("Creme é sempre Higiene")   # a Memória da IA é de todos os apps (na pasta share): não entra no arquivo daqui
+        ronda = {"nome": "Garagem", "etapas": [{"de": "casa.item_novo"}]}
+        S.editar_rondas({"acao": "salvar", "ronda": ronda})
         # exportar: o .zip para baixar, com tudo
         st, cab, corpo = self.get_cru("/api/dados/exportar")
         self.assertEqual((st, cab["Content-Type"]), (200, "application/zip"))
         self.assertRegex(cab["Content-Disposition"], r'^attachment; filename="correria-\d{4}-\d\d-\d\d-\d{6}\.zip"$')
         arquivos, man = D.ler_zip(corpo)
         self.assertEqual((man["versao"], json.loads(arquivos["config.json"])["token"]), (S.VERSAO, "token-inventado-1234"))
-        self.assertIn("Creme é sempre Higiene", arquivos["lembrancas.json"])
+        self.assertNotIn("lembrancas.json", arquivos)
+        self.assertIn("Garagem", arquivos["rondas_minhas.json"])
         # backup na pasta share
         self.assertEqual(self.j("/api/dados")[1], {"backups": [], "versoes": []})
         st, r = self.j("/api/dados/backup", {})
@@ -121,28 +127,37 @@ class TestPelaTela(Base):
         self.assertTrue(os.path.exists(os.path.join(S.BACKUPS_DIR, r["backups"][0]["nome"])))
         backup = r["backups"][0]["nome"]
         # muda os dados; restaurar volta e guarda uma versão do que havia
-        S.lembrar("A feira é no sábado")
+        S.editar_rondas({"acao": "salvar", "ronda": {"nome": "Oficina", "etapas": [{"de": "casa.item_novo"}]}})
         S.FOTOS["tela:x"] = {"em": 0, "anexo": {}}
+        minhas = lambda: sorted(r["nome"] for r in S.ler_minhas()["rondas"].values())
         st, r = self.j("/api/dados/restaurar", {"origem": "backup", "nome": backup})
         self.assertEqual((st, len(r["versoes"]), r["versoes"][0]["motivo"]), (200, 1, "antes de restaurar"))
-        self.assertEqual([x["texto"] for x in S.lembrancas()], ["Creme é sempre Higiene"])
-        self.assertEqual(json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))["lembrancas"], ["Creme é sempre Higiene"], "a pasta share acompanha")
+        self.assertEqual(minhas(), ["Garagem"])
+        self.assertEqual(sorted(r["nome"] for r in S.rondas.RONDAS.values() if r.get("minha")), ["Garagem"], "as rondas valem na hora")
         self.assertEqual(S.FOTOS, {}, "o que estava na memória não vale mais")
         st, r = self.j("/api/dados/restaurar", {"origem": "versao", "nome": r["versoes"][0]["nome"]})
-        self.assertEqual((st, len(S.lembrancas())), (200, 2), "a versão anterior volta ao que havia antes de restaurar")
+        self.assertEqual((st, minhas()), (200, ["Garagem", "Oficina"]), "a versão anterior volta ao que havia antes de restaurar")
         self.assertEqual(self.j("/api/dados/restaurar", {"origem": "backup", "nome": "../../config.json"}), (400, {"erro": "Não achei esse backup."}))
         # importar o arquivo exportado
         st, r = self.j("/api/dados/importar", {"zip": "data:application/zip;base64," + base64.b64encode(corpo).decode()})
-        self.assertEqual((st, r["versoes"][0]["motivo"], len(S.lembrancas())), (200, "antes de importar", 1))
+        self.assertEqual((st, r["versoes"][0]["motivo"], minhas()), (200, "antes de importar", ["Garagem"]))
         self.assertEqual(S.ler_config()["token"], "token-inventado-1234")
         self.assertEqual(self.j("/api/dados/importar", {"zip": "isto não é base64!"})[1]["erro"], "Não consegui abrir esse arquivo. É o .zip de um backup do CorrerIA?")
         self.assertEqual(self.j("/api/dados/importar", {"zip": base64.b64encode(b"nada").decode()})[0], 400)
+        # um backup de antes da 1.31.0 traz as lembranças em /data: ao importar, vão para a memória de todos os apps
+        velho = io.BytesIO()
+        with zipfile.ZipFile(velho, "w") as z:
+            z.writestr("correria.json", json.dumps({"app": "correria", "versao": "1.29.0"}))
+            z.writestr("config.json", arquivos["config.json"])
+            z.writestr("lembrancas.json", json.dumps({"lista": [{"id": "v", "texto": "O lixo sai na terça"}]}))
+        st, r = self.j("/api/dados/importar", {"zip": base64.b64encode(velho.getvalue()).decode()})
+        self.assertEqual((st, [x["texto"] for x in S.lembrancas()], os.path.exists(S.LEMBRANCAS_ARQ)), (200, ["Creme é sempre Higiene", "O lixo sai na terça"], False))
         # começar do zero: só confirmando; as configurações ficam
         self.assertEqual(self.j("/api/dados/zerar", {}), (400, {"erro": "Confirme para começar do zero."}))
         st, r = self.j("/api/dados/zerar", {"confirmar": True})
-        self.assertEqual((st, r["versoes"][0]["motivo"], S.lembrancas()), (200, "antes de começar do zero", []))
+        self.assertEqual((st, r["versoes"][0]["motivo"], minhas()), (200, "antes de começar do zero", []))
+        self.assertEqual([x["texto"] for x in S.lembrancas()], ["Creme é sempre Higiene", "O lixo sai na terça"], "a Memória da IA é de todos os apps: fica")
         self.assertEqual((S.ler_config()["token"], len(r["versoes"])), ("token-inventado-1234", 3), "ficam as 3 últimas versões")
-        self.assertEqual(json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))["lembrancas"], [])
         self.assertEqual(self.j("/api/dados/outra", {})[0], 404)
         with mock.patch.object(D, "guardar", side_effect=OSError(30, "Read-only file system")):
             self.assertEqual(self.j("/api/dados/backup", {}), (400, {"erro": "Não consegui gravar na pasta share (Read-only file system)."}))

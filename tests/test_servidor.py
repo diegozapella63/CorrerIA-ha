@@ -781,36 +781,50 @@ class TestComFerramentas(Base):
         self.assertEqual(self.app.feitos, [])
 
     def test_lembrancas_da_casa(self):
-        """1.27.0: Mais › Lembranças: guardar, não repetir, apagar; a IA guarda pelo sim e passa a receber em toda conversa."""
-        self.addCleanup(lambda: [os.remove(a) for a in (S.LEMBRANCAS_ARQ, S.LEMBRANCAS_SHARE) if os.path.exists(a)])
+        """1.27.0: a IA guarda pelo sim e passa a receber em toda conversa. 1.31.0: a memória é uma só, de todos os apps, na
+        pasta share (memoria_ia.py); o CorrerIA lê e escreve nela, e leva para lá o que guardava em /data."""
+        M = S.memoria_ia
+        M._GUARDADO.clear()
+        self.addCleanup(M._GUARDADO.clear)
+        self.addCleanup(lambda: [os.remove(a) for a in (S.LEMBRANCAS_ARQ, S.LEMBRANCAS_SHARE, S.MEMORIA_ARQ) if os.path.exists(a)])
+        if os.path.exists(S.MEMORIA_ARQ):
+            os.remove(S.MEMORIA_ARQ)
+        self.assertTrue(S.MEMORIA_ARQ.endswith(os.path.join("share", "familia", "memoria_ia.json")))
         self.assertEqual(S.lembrar("  Creme é   sempre Higiene ", {"nome": "Ana"}), "Creme é sempre Higiene")
         S.lembrar("creme é sempre higiene")
         L = S.lembrancas()
-        self.assertEqual([(x["texto"], x["quem"]) for x in L], [("Creme é sempre Higiene", "Ana")])
-        self.assertEqual(oct(os.stat(S.LEMBRANCAS_ARQ).st_mode & 0o777), "0o600")
+        self.assertEqual([(x["texto"], x["quem"], x["app"]) for x in L], [("Creme é sempre Higiene", "Ana", "CorrerIA")])
+        self.assertEqual(oct(os.stat(S.MEMORIA_ARQ).st_mode & 0o777), "0o600")
         with self.assertRaisesRegex(ValueError, "Escreva o que é para lembrar"):
             S.lembrar(" a ")
-        with mock.patch.object(S, "MAX_LEMBRANCAS", 1), self.assertRaisesRegex(ValueError, "Já são 1 lembranças"):
-            S.lembrar("Outra coisa")
+        # outro app escreveu no mesmo arquivo: aparece aqui
+        M.lembrar("O café é sempre o da marca azul", "EconomIA", arquivo=S.MEMORIA_ARQ)
+        self.assertEqual([x["app"] for x in S.lembrancas()], ["CorrerIA", "EconomIA"])
         self.falsa = IAFalsa({"chamar": [{"ferramenta": "correria_lembrar", "argumentos": {"fato": "A feira é no sábado"}, "resumo": "Lembrar que a feira é no sábado"}]})
         p = mock.patch.object(S, "AGENTE", S.ia.Agente(S.FERR, self.falsa, S.log, lembrancas=lambda: [x["texto"] for x in S.lembrancas()]))
         p.start()
         self.addCleanup(p.stop)
         self.assertIn("- Lembrar que a feira é no sábado", self.mandar("lembra que a feira é no sábado")[0][1])
-        self.assertIn("- Creme é sempre Higiene", self.falsa.pedidos[0])
+        self.assertIn("- Creme é sempre Higiene\n- O café é sempre o da marca azul", self.falsa.pedidos[0])
         self.assertEqual(self.mandar("sim")[0][1], "Feito!\n- Vou lembrar: A feira é no sábado")
-        self.assertEqual(len(S.lembrancas()), 2)
-        # 1.28.0: as frases vão para a pasta share (para a IA de cada app) e para as instruções do conector MCP
-        pub = json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))
-        self.assertEqual((pub["app"], pub["lembrancas"]), ("correria", ["Creme é sempre Higiene", "A feira é no sábado"]))
-        self.assertNotIn("Ana", json.dumps(pub), "só as frases, sem quem escreveu")
-        self.assertEqual(oct(os.stat(S.LEMBRANCAS_SHARE).st_mode & 0o777), "0o600")
-        self.assertIn("O que a casa pediu para lembrar (vale em toda conversa):\n- Creme é sempre Higiene\n- A feira é no sábado", S.MCP.instrucoes())
+        self.assertEqual(len(S.lembrancas()), 3)
+        self.assertIn("O que a casa pediu para lembrar (vale em toda conversa):\n- Creme é sempre Higiene\n- O café é sempre o da marca azul\n- A feira é no sábado", S.MCP.instrucoes())
         S.esquecer(L[0]["id"])
-        self.assertEqual([x["texto"] for x in S.lembrancas()], ["A feira é no sábado"])
-        self.assertEqual(json.load(open(S.LEMBRANCAS_SHARE, encoding="utf-8"))["lembrancas"], ["A feira é no sábado"])
-        with mock.patch.object(S, "gravar_arquivo", side_effect=OSError("só leitura")):
-            S.publicar_lembrancas()  # a pasta share só para leitura (um app de antes): avisa no log e segue
+        self.assertEqual([x["texto"] for x in S.lembrancas()], ["O café é sempre o da marca azul", "A feira é no sábado"])
+        # quem vem de uma versão em que a memória era só do CorrerIA: as frases vão para a de todos e os arquivos de antes saem
+        S.gravar_arquivo(S.LEMBRANCAS_ARQ, json.dumps({"lista": [{"id": "v1", "texto": "A feira é no sábado", "em": "2026-11-20T10:00:00-0300", "quem": "Ana"},
+                                                               {"id": "v2", "texto": "O lixo sai na terça", "em": "2026-11-21T10:00:00-0300", "quem": "Beto"}]}))
+        S.gravar_arquivo(S.LEMBRANCAS_SHARE, "{}")
+        S.migrar_lembrancas()
+        self.assertEqual([(x["texto"], x.get("quem", "")) for x in S.lembrancas()],
+                         [("O café é sempre o da marca azul", ""), ("A feira é no sábado", "Ana"), ("O lixo sai na terça", "Beto")], "a repetida não entra duas vezes")
+        self.assertFalse(os.path.exists(S.LEMBRANCAS_ARQ) or os.path.exists(S.LEMBRANCAS_SHARE))
+        S.migrar_lembrancas()  # sem nada de antes: nada a fazer
+        # a pasta share sem gravar: fica onde está, para tentar de novo
+        S.gravar_arquivo(S.LEMBRANCAS_ARQ, json.dumps({"lista": [{"id": "v3", "texto": "Outra coisa"}]}))
+        with mock.patch.object(M, "_gravar", side_effect=M.ErroMemoria("Não consegui gravar a memória na pasta share (só leitura).")):
+            S.migrar_lembrancas()
+        self.assertTrue(os.path.exists(S.LEMBRANCAS_ARQ))
 
     def test_desfazer_e_o_passo_de_agora(self):
         """1.27.0: o que o sim fez pode ser desfeito por 10 minutos (a IA propõe o contrário, que espera o sim); enquanto a IA

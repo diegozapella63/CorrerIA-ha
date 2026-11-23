@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.31.0
+
+- A **Memória da IA** deixou de ser do CorrerIA: agora é uma memória só, da casa, compartilhada por todos os apps, e cada app tem o cartão dela (Configurações › Integrações). Funciona em quem usa só um ou dois apps, sem o CorrerIA. O que estava guardado aqui foi levado para ela.
+- O cartão diz isso, e cada frase mostra em qual app foi escrita.
+- Por ser de todos, a memória não entra mais no Exportar, no Backup nem no Começar do zero do CorrerIA: apague as frases pelo cartão.
+
 ## 1.30.0
 
 - **Criar e mudar rondas** (Mais › Rondas): cada ronda ganhou o **Editar**, e há a **Nova ronda**. Você escolhe o nome, se ela é por cômodo, quais etapas entram (das prontas, de cada app), a ordem e a pergunta de cada uma. Uma ronda daqui que você mudou tem o **Voltar ao original**; uma sua, o **Apagar**.

@@ -34,6 +34,7 @@ import dados as copias  # com outro nome: aqui «dados» é nome de variável em
 import fala
 import ferramentas
 import ia
+import memoria_ia
 import mcp
 import oauth
 import avisos
@@ -607,51 +608,43 @@ def pesquisar_internet(pesquisa):
 
 
 # 1.27.0: as lembranças da casa (Mais › Lembranças): frases que valem em toda conversa da IA; /data/lembrancas.json
-LEMBRANCAS_ARQ = os.path.join(DATA_DIR, "lembrancas.json")
-MAX_LEMBRANCAS, MAX_LEMBRANCA = 60, 240
-TRAVA_LEMBRANCAS = threading.Lock()
+# 1.31.0 (o dono: "e se eu não usar o CorrerIA e só decidir usar o InventarIA e o ResolvIA?"; "memória compartilhada"): a memória
+# não é mais do CorrerIA. É uma só, da casa, na pasta share (share/familia/memoria_ia.json, memoria_ia.py, igual nos apps em
+# Python): todo app tem o cartão Memória da IA, lê e escreve ali e a põe nas instruções da IA dele. O CorrerIA é mais um.
+LEMBRANCAS_ARQ = os.path.join(DATA_DIR, "lembrancas.json")                 # a de antes (1.27.0 a 1.30.0): vai para a de todos e sai
+LEMBRANCAS_SHARE = os.path.join(SHARE_DIR, "correria", "lembrancas.json")  # o que a 1.28.0 publicava para os outros apps: sai
+MEMORIA_ARQ = os.environ.get("MEMORIA_IA_ARQ") or os.path.join(SHARE_DIR, "familia", "memoria_ia.json")
+MAX_LEMBRANCAS = memoria_ia.MAX_FRASES
 
 
 def lembrancas():
-    v = ler_json(LEMBRANCAS_ARQ).get("lista")
-    return [x for x in v if isinstance(x, dict) and x.get("id") and str(x.get("texto") or "").strip()] if isinstance(v, list) else []
-
-
-# 1.28.0 (o dono: "tenho chat em todos os apps, então as lembranças deveriam ser compartilhadas em TODOS os apps"): as frases
-# vão para share/correria/lembrancas.json, que a IA de cada app lê (com a opção CorrerIA ligada nele). É o único arquivo que o
-# CorrerIA grava na pasta share; só as frases, sem quem escreveu.
-LEMBRANCAS_SHARE = os.path.join(SHARE_DIR, "correria", "lembrancas.json")
-
-
-def publicar_lembrancas():
-    try:
-        gravar_arquivo(LEMBRANCAS_SHARE, json.dumps({"app": "correria", "nome": "CorrerIA", "versao": VERSAO, "gravado_em": agora_iso(),
-                                                     "lembrancas": [x["texto"] for x in lembrancas()]}, ensure_ascii=False))
-    except OSError as e:
-        log("Lembranças: não consegui gravar na pasta share:", e)
+    return memoria_ia.ler(MEMORIA_ARQ)
 
 
 def lembrar(texto, pessoa=None):
-    """Guarda uma lembrança (a mesma frase não entra duas vezes). Devolve o texto guardado; ValueError diz o que vale."""
-    t = " ".join(str(texto or "").split())[:MAX_LEMBRANCA]
-    if len(t) < 3:
-        raise ValueError("Escreva o que é para lembrar.")
-    with TRAVA_LEMBRANCAS:
-        lista = lembrancas()
-        if any(x["texto"].lower() == t.lower() for x in lista):
-            return t
-        if len(lista) >= MAX_LEMBRANCAS:
-            raise ValueError(f"Já são {MAX_LEMBRANCAS} lembranças. Apague alguma em Configurações › Integrações › Memória da IA.")
-        lista.append({"id": secrets.token_hex(4), "texto": t, "em": agora_iso(), "quem": str((pessoa or {}).get("nome") or "")})
-        gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": lista}, ensure_ascii=False))
-    publicar_lembrancas()
-    return t
+    """Guarda uma frase na memória da casa (a mesma não entra duas vezes). Devolve o texto guardado; ValueError diz o que vale."""
+    memoria_ia.lembrar(texto, "CorrerIA", str((pessoa or {}).get("nome") or ""), MEMORIA_ARQ)
+    return " ".join(str(texto or "").split())[:memoria_ia.MAX_LETRAS]
 
 
 def esquecer(lid):
-    with TRAVA_LEMBRANCAS:
-        gravar_arquivo(LEMBRANCAS_ARQ, json.dumps({"lista": [x for x in lembrancas() if x["id"] != lid]}, ensure_ascii=False))
-    publicar_lembrancas()
+    memoria_ia.esquecer(lid, MEMORIA_ARQ)
+
+
+def migrar_lembrancas():
+    """As lembranças que o CorrerIA guardava em /data vão para a memória de todos, uma vez; os arquivos de antes saem."""
+    v = ler_json(LEMBRANCAS_ARQ).get("lista")
+    if isinstance(v, list) and v:
+        try:
+            n = memoria_ia.juntar(v, "CorrerIA", MEMORIA_ARQ)
+            log(f"Memória da IA: {n} {'frase foi' if n == 1 else 'frases foram'} para a memória compartilhada.")
+        except memoria_ia.ErroMemoria as e:
+            return log("Memória da IA:", e)   # fica onde está; tenta de novo no próximo início
+    for arq in (LEMBRANCAS_ARQ, LEMBRANCAS_SHARE):
+        try:
+            os.remove(arq)
+        except OSError:
+            pass
 
 
 # 1.29.0 (o dono: "não tem o backup no correria, igual nos outros apps… nem exportar, importar, começar do zero"; "pode colocar
@@ -682,7 +675,7 @@ def _dados_trocados():
     for d in (RONDAS_ATIVAS, FOTOS, FEITOS, PASSOS):
         d.clear()
     SEM_ESTRUTURA.clear()
-    publicar_lembrancas()
+    migrar_lembrancas()  # um backup de antes da 1.31.0 traz as lembranças em /data
     montar_rondas()
 
 
@@ -2465,7 +2458,7 @@ def main():
     hook = ServidorWebhook(("0.0.0.0", PORTA_WEBHOOK), Webhook)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
     ligar_tunel(c["tunel"])
-    publicar_lembrancas()  # 1.28.0: quem atualizou de uma versão sem o arquivo na pasta share
+    migrar_lembrancas()  # 1.31.0: a memória é de todos os apps, na pasta share
     threading.Thread(target=laco_sensores, daemon=True).start()
     cc = certificado()
     log(f"CorrerIA {VERSAO}: tela na porta {PORTA}; webhook e MCP na porta {PORTA_WEBHOOK} ({'https, ' + os.path.basename(cc[0]) if cc else 'http, sem certificado em ' + SSL_DIR})")

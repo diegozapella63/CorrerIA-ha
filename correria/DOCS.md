@@ -147,15 +147,15 @@ Para não guardar conversas para sempre, em **Configurações › Opções › C
 
 Em **Configurações › Dados**:
 
-- **Exportar** baixa um arquivo .zip com tudo o que o CorrerIA guarda: as configurações, o token da Meta, a chave secreta, as IAs conectadas, as conversas, as rondas, a Memória da IA e o Uso da IA. Quem tem esse arquivo tem a sua conta do WhatsApp Business: guarde como uma senha.
+- **Exportar** baixa um arquivo .zip com tudo o que o CorrerIA guarda: as configurações, o token da Meta, a chave secreta, as IAs conectadas, as conversas, as rondas e o Uso da IA (a Memória da IA não vai: é de todos os apps e fica na pasta share). Quem tem esse arquivo tem a sua conta do WhatsApp Business: guarde como uma senha.
 - **Backup na pasta share** grava o mesmo arquivo em `share/correria/backups` (os 10 últimos) e mostra a lista, com **Restaurar**.
 - **Importar** troca tudo o que há agora pelo arquivo escolhido.
 - **Versões anteriores**: antes de importar, restaurar ou começar do zero, o app guarda como estava (as 3 últimas), para voltar atrás.
-- **Começar do zero** apaga as conversas, as rondas (as feitas e as que você criou), a Memória da IA e o Uso da IA. As configurações (o WhatsApp, os números, a aparência) e as IAs conectadas ficam.
+- **Começar do zero** apaga as conversas, as rondas (as feitas e as que você criou) e o Uso da IA. A Memória da IA fica: é de todos os apps (apague as frases pelo cartão). As configurações (o WhatsApp, os números, a aparência) e as IAs conectadas ficam.
 
 ## Memória da IA, Desfazer e o passo de agora
 
-**Configurações › Integrações › Memória da IA** guarda o que a IA deve lembrar em toda conversa (até 60 frases, da casa toda): escreva ali ou peça na conversa («lembra que a feira é no sábado»; ela guarda depois do seu Sim). Apagar é ali mesmo. Vale em todos os apps: a Conversa e a leitura de fotos de cada um leem as mesmas frases, desde que a opção CorrerIA esteja ligada no app (as frases ficam em `share/correria/lembrancas.json`).
+**Configurações › Integrações › Memória da IA** guarda o que a IA deve lembrar em toda conversa (até 60 frases, da casa toda): escreva ali ou peça na conversa («lembra que a feira é no sábado»; ela guarda depois do seu Sim). Apagar é ali mesmo. É **uma memória só, da casa, compartilhada por todos os apps**: cada app tem o mesmo cartão, o que se escreve num vale em todos (cada frase mostra o app), e ela funciona também em quem não usa o CorrerIA. Fica na pasta share do Home Assistant (`share/familia/memoria_ia.json`), fora dos apps.
 
 Embaixo de um «Feito!» aparece o **Desfazer**, por 10 minutos: a IA propõe o contrário (apagar o que criou) e você confirma. O que foi editado só volta se a conversa mostra como era antes; ela diz o que não deu para desfazer.
 
