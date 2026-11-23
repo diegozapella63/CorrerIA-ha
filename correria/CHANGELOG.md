@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.31.3
+
+- O **Voltar do celular** fecha o que está aberto por cima da Conversa (a escolha da ronda, as perguntas prontas, o menu do clipe, uma confirmação), em vez de sair do app.
+
 ## 1.31.2
 
 - **Memória da IA**: dois apps gravando uma frase no mesmo instante não apagam mais a frase um do outro (cada um espera a sua vez).

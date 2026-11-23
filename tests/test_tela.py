@@ -1127,6 +1127,20 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.locator(".ch-ronda-op:first-child > b svg").count(), 1, "o ícone antes do título")
         self.assertEqual(self.texto(".ch-ronda-op:first-child .ch-ronda-res"), "Tarefas › Itens · 5 perguntas", "só as etapas dos apps ligados")
         self.assertEqual(self.pg.locator(".ch-ronda-op:first-child .ch-ronda-onde .btn").all_inner_texts(), ["Sala de jantar", "Cozinha"])
+        # 1.31.3: o Voltar do celular fecha a escolha (ela ocupa uma entrada do histórico), em vez de sair do app; fechada
+        # pelo botão, a entrada sai junto, e o Voltar seguinte não cai nela
+        self.assertTrue(self.pg.evaluate("!!(history.state && history.state.painel)"), "a escolha aberta tem a entrada dela")
+        endereco = self.pg.url
+        self.pg.go_back()
+        self.pg.wait_for_function("() => !document.querySelector('.ch-ronda-onde')")
+        self.assertEqual(self.pg.url, endereco, "o Voltar fechou a escolha e ficou no app")
+        self.assertFalse(self.pg.evaluate("!!(history.state && history.state.painel)"))
+        self.pg.click('[data-a="rondas"]')
+        self.pg.wait_for_selector(".ch-ronda-onde .btn")
+        self.pg.click('[data-a="rondas"]')
+        self.pg.wait_for_function("() => !document.querySelector('.ch-ronda-onde') && !(history.state && history.state.painel)")
+        self.pg.click('[data-a="rondas"]')
+        self.pg.wait_for_selector(".ch-ronda-onde .btn")
         self.pg.click(".ch-ronda-onde .btn >> text=Sala de jantar")
         self.pg.wait_for_selector(".ch-msg.ia >> text=Alguma dessas tarefas já foi feita?")
         self.assertEqual(self.texto(".ch-msg.eu.ronda .ch-bolha"), "Sala de jantar · Tarefas: Concluir (1 de 5)", "o cômodo uma vez só, sem o nome da ronda")

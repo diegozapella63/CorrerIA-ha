@@ -137,6 +137,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.31.2: a vez de gravar a Memória da IA entre os apps (`memoria_ia.py: `_vez``: uma pasta `memoria_ia.json.trava` ao lado do arquivo, criada num passo só; espera até 3 s, tira a que ficou de um app que caiu, há mais de 10 s, e sem a vez grava assim mesmo; o arquivo temporário leva um sufixo ao acaso). Antes, dois apps gravando no mesmo instante liam a mesma lista e um apagava a frase do outro (num teste com 40 gravações simultâneas, uma se perdia). Um caminho que não é uma pasta não prende o app (espera só o prazo).
 
+1.31.3 (o dono: "algumas telas o voltar volta e outras ele sai do app... o voltar não deveria voltar para a última ação?"): **o Voltar do celular fecha o que abriu por último**. O que abre por cima da tela sem ser uma tela (a escolha da ronda `S.ch.rondas`, as perguntas prontas `rapidas`/`editando`, o menu do clipe `menu`, uma confirmação `S.confirma`) ocupa uma entrada do histórico enquanto está aberto (`{painel: 1}`): `temPainel()`, `acertarHistorico()` a cada `render` (abriu, entra a entrada; fechou pelo botão, ela sai com `history.back()` depois do toque, guardado pelo `VOLTANDO`: se o mesmo toque abre a câmera ou uma tela, a entrada de cima fica e a do painel sai quando se voltar a ela) e o `popstate` chama o `fecharPaineis()`. Coisa nova que abre e fecha na tela entra no `temPainel` e no `fecharPaineis`. Teste: `test_ronda_da_casa`.
+
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.

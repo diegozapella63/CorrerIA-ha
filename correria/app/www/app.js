@@ -1244,6 +1244,7 @@
     const ativo = document.activeElement && document.activeElement.id;
     const sel = ativo && 'selectionStart' in document.activeElement ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
     document.body.dataset.tela = S.tela || 'conversa';
+    acertarHistorico();
     document.body.classList.toggle('lado', lateral());
     pintarLado();
     aplicarCor();
@@ -1299,16 +1300,43 @@
   function abrirTela(t) {
     if (S.tela === t) return;
     pararFala();
-    history.pushState({ tela: t, ...(S.cheia ? { cheia: 1 } : {}) }, '');
     S.tela = t;
+    // o que a tela nova já abre por cima (a escolha da ronda, vindo do Começar) vai na mesma entrada: um Voltar só
+    history.pushState({ tela: t, ...(S.cheia ? { cheia: 1 } : {}), ...(temPainel() ? { painel: 1 } : {}) }, '');
     window.scrollTo(0, 0);
     render();
+  }
+  /* 1.31.3 (o dono: "algumas telas o voltar volta e outras ele sai do app... o voltar não deveria voltar para a última
+     ação?"): tudo que abre por cima da tela (a escolha da ronda, as perguntas prontas, o menu do clipe, uma confirmação)
+     ocupa uma entrada do histórico enquanto está aberto; o Voltar do celular fecha isso, em vez de sair do app. A cada
+     render o histórico é acertado com o que está aberto: abriu, entra a entrada; fechou pelo botão, ela sai. */
+  let VOLTANDO = false;
+  const temPainel = () => !!((!S.tela && (S.ch.rondas || S.ch.rapidas || S.ch.editando || S.ch.menu)) || S.confirma);
+  function fecharPaineis() {
+    Object.assign(S.ch, { rondas: null, rapidas: false, editando: null, menu: false });
+    S.confirma = ''; S.importar = null;
+  }
+  function acertarHistorico() {
+    const st = history.state || {};
+    if (temPainel() && !st.painel) history.pushState({ ...st, painel: 1 }, '');
+    else if (!temPainel() && st.painel && !VOLTANDO) {
+      // fechou pelo botão: a entrada sai, mas só depois deste toque, porque ele pode abrir outra coisa com a entrada dela
+      // (a câmera, uma tela): aí a de cima fica, e esta sai quando se voltar a ela
+      VOLTANDO = true;
+      setTimeout(() => {
+        if (!temPainel() && history.state && history.state.painel) history.back();
+        else VOLTANDO = false;
+      }, 0);
+    }
   }
   function voltar() {
     if (S.tela && history.state && history.state.tela) history.back();
     else { S.tela = ''; render(); }
   }
   window.addEventListener('popstate', () => {
+    const meu = VOLTANDO;  // o Voltar que o próprio app pediu (a entrada de um painel já fechado) não fecha o que abriu depois
+    VOLTANDO = false;
+    if (!meu && !(history.state && history.state.painel) && temPainel()) fecharPaineis();  // o Voltar do celular fecha o que estava aberto por cima
     if (CAM && !(history.state && history.state.cam)) { fecharCamera(true); return; }  // o Voltar do celular fecha a câmera
     if (S.cheia && !(history.state && history.state.cheia)) { cheia(false, true); return; }  // e sai da Tela cheia
     S.tela = (history.state && history.state.tela) || '';
@@ -1536,9 +1564,9 @@
       } catch (e) { /* outra origem em volta: o link abre sozinho */ }
     } else if (a === 'ronda-comecar') {  // da tela Rondas: vai para a Conversa e começa (ou abre a escolha do cômodo)
       const id = el.dataset.v, escolher = !!el.dataset.escolher, r = (S.rondas || []).find(x => x.id === id);
+      if (escolher) S.ch.rondas = { aberto: true, lista: (S.rondas || []).filter(x => x.id === id), livre: '' };
       abrirTela('');
-      if (escolher) { S.ch.rondas = { aberto: true, lista: (S.rondas || []).filter(x => x.id === id), livre: '' }; render(); }
-      else { rondaPasso({ acao: 'iniciar', ronda: id, onde: '', rotulo: r ? r.nome : 'Ronda' }); }
+      if (!escolher) { rondaPasso({ acao: 'iniciar', ronda: id, onde: '', rotulo: r ? r.nome : 'Ronda' }); }
     } else if (a === 'apagar-dias') {  // 1.7.0
       const n = Number(el.dataset.v);
       await acao('config', { apagar_dias: n }, n ? `As conversas sem uso por ${n} dias saem sozinhas` : 'As conversas ficam guardadas');
@@ -1908,7 +1936,7 @@
     }
   }
 
-  if (history.state && history.state.tela) history.replaceState(null, '');  // recarregou: começa na conversa
+  if (history.state && (history.state.tela || history.state.painel)) history.replaceState(null, '');  // recarregou: começa na conversa
   carregar().then(carregarConversa);
   // as mensagens novas aparecem sozinhas (sem atrapalhar quem está digitando); com o conector ligado, a cada
   // 4 segundos, para o pedido de conexão aparecer logo
