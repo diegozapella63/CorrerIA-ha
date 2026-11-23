@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.31.1
+
+- Numa ronda, quando a IA não consegue ler o app, a etapa mostra só a pergunta dela (e o Abrir no app), sem o «Não consegui responder agora. Pode perguntar de outro jeito?».
+
 ## 1.31.0
 
 - A **Memória da IA** deixou de ser do CorrerIA: agora é uma memória só, da casa, compartilhada por todos os apps, e cada app tem o cartão dela (Configurações › Integrações). Funciona em quem usa só um ou dois apps, sem o CorrerIA. O que estava guardado aqui foi levado para ela.

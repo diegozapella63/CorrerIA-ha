@@ -253,6 +253,23 @@ class TestLinksEMais(Base):
         self.assertNotIn("abrir", r["mensagens"][-1])
 
 
+    def test_a_ia_que_nao_respondeu_nao_aparece_na_etapa(self):
+        """1.31.1: numa etapa, o «Não consegui responder agora. Pode perguntar de outro jeito?» não faz sentido (quem pergunta
+        é a ronda): fica só a pergunta da etapa, com o Abrir no app, e nenhuma pergunta do grupo sai."""
+        self.casa()
+        com_painel("resolvia", "/app/x_resolvia")
+        for falha in S.ia.NAO_DEU:
+            S.RONDAS_ATIVAS.clear()
+            with mock.patch.object(S, "responder_ia", return_value=(falha, ["CorrerIA"], False)):
+                st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+            self.assertEqual(st, 200)
+            m = r["mensagens"][-1]
+            self.assertRegex(m["texto"], r"^\*[^*\n]+\?\*$", "só a pergunta da etapa")
+            self.assertNotIn("Não consegui", m["texto"])
+            self.assertEqual(m["app"], "ResolvIA")
+            self.assertIn("abrir", m)
+
+
 class TestArquivoNaRonda(Base):
     """1.23.0 (o dono: mandou a foto de um consumível no meio da ronda e respondeu o GerencIA, "zero sentido"): no meio de uma
     ronda o arquivo é da etapa: a ferramenta do app da etapa que o recebe, ou a resposta de que ali não dá. Nunca outro app."""

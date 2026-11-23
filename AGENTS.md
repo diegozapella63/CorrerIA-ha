@@ -133,6 +133,8 @@ outros apps do grupo e publique todos. Um arquivo que passa a ser igual entra em
 
 1.22.3: o `href` do ResolvIA e do CronologIA leva o lugar no resto do endereço e no `?aba=` (`/app/<slug>/buscar/comodo/<nome>?aba=buscar&comodo=`, `/app/<slug>/mais/rotinas?aba=rotinas`).
 
+1.31.1: `ia.NAO_DEU` (`SEM_MUDANCA`, `SEM_FOTO`, `SEM_RESPOSTA`: o que o Agente responde quando a IA não chega a uma resposta); no `ronda_passo`, uma resposta dessas vira texto vazio: a etapa sai só com a pergunta e o Abrir no app, e nenhuma pergunta do grupo é tirada (sem o TOTAL).
+
 ## Como o dono gosta (interface)
 
 - Tudo em português do Brasil, sem palavras em inglês na tela.

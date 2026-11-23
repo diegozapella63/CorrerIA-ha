@@ -2177,6 +2177,10 @@ def ronda_passo(corpo, pessoa, chave):
     else:
         resp = responder_ia("tela:" + chave, ped, hist, pessoa, "correria", "CorrerIA")
         texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
+        if str(texto or "").strip() in ia.NAO_DEU:
+            # 1.31.1 (o dono mandou o print: «Não consegui responder agora. Pode perguntar de outro jeito?» em cima da
+            # pergunta da etapa): a IA não conseguiu ler o app; a etapa é um guia e segue só com a pergunta (e o Abrir no app)
+            texto, nomes, confirmar = "", [etapa["nome_app"]], False
         achou, texto = rondas.total(texto)  # 1.21.0: sem nada ali, as perguntas que não fazem sentido saem
         r["etapas"] = rondas.sem_o_que_perguntar(r["id"], r["etapas"], r["i"], achou)
         junta = rondas.junta_com(r["id"], r["etapas"], r["i"], achou)

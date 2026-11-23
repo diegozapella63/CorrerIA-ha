@@ -115,6 +115,14 @@ def extrair_json(t):
     return {"resposta": s}
 
 
+# o que o Agente responde quando a IA não chega a uma resposta (depois das rodadas e das voltas das guardas). Numa etapa de
+# ronda o servidor tira (1.31.1): a etapa segue só com a pergunta dela
+SEM_MUDANCA = "Não consegui preparar essa mudança agora. Pode pedir de novo?"
+SEM_FOTO = "Não consegui ler a foto agora. Pode mandar de novo?"
+SEM_RESPOSTA = "Não consegui responder agora. Pode perguntar de outro jeito?"
+NAO_DEU = (SEM_MUDANCA, SEM_FOTO, SEM_RESPOSTA)
+
+
 class Agente:
     def __init__(self, ferramentas, chamar_ia, log, simulada=False, pesquisar=None, lembrancas=None):
         self.ferr, self.chamar_ia, self.log, self.simulada = ferramentas, chamar_ia, log, simulada
@@ -281,7 +289,7 @@ class Agente:
                                       "preparado. Para mudar algo, devolva a ferramenta que grava em «chamar», com os argumentos e o resumo: o app "
                                       "mostra a mudança e os botões Sim e Não. Nunca escreva «Vou fazer isto», «Toque em Sim» nem «Pode confirmar?».")
                     continue
-                return {"resposta": "Não consegui preparar essa mudança agora. Pode pedir de novo?", "pendente": [], "apps": usados}
+                return {"resposta": SEM_MUDANCA, "pendente": [], "apps": usados}
             if texto and JA_FIZ_RE.search(texto):
                 # 1.25.1 (o dono: "a mensagem é equivocada, diz que adicionou, mas não adicionou nada"): quem faz é o app, depois
                 # do sim; uma resposta só de texto dizendo que cadastrou é um engano da IA
@@ -290,7 +298,7 @@ class Agente:
                                       "ferramenta que grava foi chamada: nada mudou. Para fazer, devolva a ferramenta em «chamar». Se a "
                                       "mudança já aparece como feita na conversa, diga «já está cadastrado», sem «cadastrei».")
                     continue
-                return {"resposta": "Não consegui preparar essa mudança agora. Pode pedir de novo?", "pendente": [], "apps": usados}
+                return {"resposta": SEM_MUDANCA, "pendente": [], "apps": usados}
             if texto and not leu_arquivo and VI_A_FOTO_RE.search(texto):
                 # 1.25.1 (o dono: "alucinações": «Analisando a foto novamente, identifiquei…», cada vez com outra lista): a IA
                 # não vê o arquivo; só fala dele depois de uma ferramenta que o lê, nesta mesma resposta
@@ -299,12 +307,12 @@ class Agente:
                                       + ("Chame a ferramenta que lê o arquivo (a do app do assunto) e fale só do que ela devolver."
                                          if foto else "O arquivo não está mais à mão: peça à pessoa para mandar a foto de novo, sem dizer o que há nela."))
                     continue
-                return {"resposta": "Não consegui ler a foto agora. Pode mandar de novo?", "pendente": [], "apps": usados}
+                return {"resposta": SEM_FOTO, "pendente": [], "apps": usados}
             if texto:
                 return {"resposta": texto, "pendente": [], "apps": usados, **({"arquivo": True} if usou_arquivo else {})}
             if ultima:
                 break
-        return {"resposta": "Não consegui responder agora. Pode perguntar de outro jeito?", "pendente": [], "apps": usados}
+        return {"resposta": SEM_RESPOSTA, "pendente": [], "apps": usados}
 
 
 # 1.22.1: o pedido do sim é do app, nunca da IA. No histórico que vai para a IA, o bloco que o app escreveu vira uma nota
