@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.31.4
+
+- **Conversa**: abre sempre no chat. As perguntas prontas ou o **Editar perguntas** que ficaram abertos fecham ao sair.
+- **Editar ronda**: os campos **Nome** e **Pergunta** crescem com o texto, sem a barra de rolagem dentro deles (o da Memória da IA também).
+- **Adicionar etapa**: o ícone fica ao lado do nome de cada app, e todas as etapas começam na mesma linha da esquerda.
+
 ## 1.31.3
 
 - O **Voltar do celular** fecha o que está aberto por cima da Conversa (a escolha da ronda, as perguntas prontas, o menu do clipe, uma confirmação), em vez de sair do app.

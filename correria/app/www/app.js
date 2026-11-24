@@ -1300,6 +1300,8 @@
   function abrirTela(t) {
     if (S.tela === t) return;
     pararFala();
+    // 1.31.4: a Conversa abre sempre no chat: o que ficou aberto nela (perguntas prontas, Editar perguntas, o menu do clipe) fecha ao sair
+    if (t) Object.assign(S.ch, { rondas: null, rapidas: false, editando: null, menu: false });
     S.tela = t;
     // o que a tela nova já abre por cima (a escolha da ronda, vindo do Começar) vai na mesma entrada: um Voltar só
     history.pushState({ tela: t, ...(S.cheia ? { cheia: 1 } : {}), ...(temPainel() ? { painel: 1 } : {}) }, '');

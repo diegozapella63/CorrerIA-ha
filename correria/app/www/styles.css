@@ -250,6 +250,7 @@ ul.rd-etapas > li:last-child { border-bottom: 0; }
 .rd-etapa .campo:last-child { margin-bottom: 0; }
 .rd-app { margin-bottom: 18px; }
 .rd-app:last-child { margin-bottom: 0; }
+#rd-catalogo .btn.rd-pronta { justify-content: flex-start; text-align: left; }  /* 1.31.4: todas começam na mesma linha da esquerda (uma regra dos botões do cartão centralizava) */
 .btn.rd-pronta { width: 100%; justify-content: flex-start; text-align: left; height: auto; min-height: 50px; padding: 8px 14px; margin-top: 8px; }
 .btn.rd-pronta span { min-width: 0; overflow-wrap: anywhere; }
 .btn.rd-pronta small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
@@ -276,7 +277,10 @@ ul.zips .dados-conf { flex-basis: 100%; }
 .ch-desfazer { margin: 8px 0 2px; max-width: 420px; }
 .ch-desfazer .btn { width: 100%; }
 @media (min-width: 1000px) { .ch-desfazer .btn { width: 250px; } }
-#lembrar-texto, textarea.inp.umalinha { min-height: 50px; height: 50px; }  /* uma linha, da altura da família; aumenta puxando o canto */
+#lembrar-texto, textarea.inp.umalinha { min-height: 50px; height: auto; max-height: 40vh; field-sizing: content; }  /* uma linha, da altura da família; cresce com o texto (sem rolagem dentro do campo) e aumenta puxando o canto */
+#lembrar-texto::placeholder, textarea.inp.umalinha::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }  /* o exemplo numa linha só: o campo vazio fica com 50 px */
+.rd-app > b { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }  /* o ícone e o nome do app lado a lado */
+.rd-app > b svg { flex: none; }
 .lembrancas { list-style: none; margin: 12px 0 0; padding: 0; }
 .lembrancas li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--linha, color-mix(in srgb, currentColor 14%, transparent)); }
 .lembrancas li:last-child { border-bottom: 0; }

@@ -871,6 +871,15 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual([(b.inner_text().split("\n")[0].strip(), b.is_disabled()) for b in self.pg.locator(".rd-pronta").all()],
                          [("Tarefas: Concluir", False), ("Itens: Novo", False), ("Finanças: Contas a pagar", True)], "a de um app desligado fica inativa")
         self.assertEqual(self.pg.locator("#rd-livre").count(), 0)
+        # 1.31.4: o ícone ao lado do nome do app, e todas as etapas prontas começando na mesma linha da esquerda
+        self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('.rd-app > b')].every(b => { const s = b.querySelector('svg').getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(b.lastChild); const t = r.getBoundingClientRect(); return s.right <= t.left + 1 && Math.abs((s.top + s.bottom) / 2 - (t.top + t.bottom) / 2) < 6; })"), "o ícone e o nome lado a lado")
+        self.assertEqual(len(set(self.pg.evaluate("[...document.querySelectorAll('.rd-pronta svg')].map(x => Math.round(x.getBoundingClientRect().left))"))), 1, "as etapas prontas alinhadas")
+        # o campo de uma linha cresce com o texto: nada de rolagem dentro dele
+        self.pg.fill("[data-rd-p='0']", "Tem alguma coisa nova neste cômodo que ainda não está no inventário da casa e que vale a pena cadastrar agora?")
+        self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('textarea.umalinha')].every(t => t.scrollHeight <= t.clientHeight + 1)"), "sem rolagem dentro do campo")
+        self.assertGreater(self.pg.evaluate("document.querySelector(\"[data-rd-p='0']\").offsetHeight"), 60)
+        self.assertEqual(self.pg.evaluate("document.querySelector('#rd-nome').offsetHeight"), 50, "uma linha tem a altura da família")
+        self.pg.fill("[data-rd-p='0']", "Tem coisa nova aqui?")
         self.pg.locator(".rd-pronta").first.click()
         self.assertEqual(self.pg.locator(".rd-etapa").count(), 2)
         self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
@@ -1643,6 +1652,13 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         """1.12.0: em Editar perguntas, um toque numa pergunta muda o texto dela (o Enter só termina); o Pronto guarda como
         ficou e uma apagada até ficar vazia sai."""
         self.abrir_conversa()
+        self.pg.click('[data-a="ch-ed-abrir"]')
+        # 1.31.4: sair e voltar para a Conversa: ela abre no chat, sem o Editar perguntas que ficou aberto
+        self.pg.locator("[data-a='mais']").first.click()
+        self.pg.wait_for_selector("[data-a='tela-rondas'], [data-a='tela-config']")
+        self.pg.go_back()
+        self.pg.wait_for_selector('[data-a="ch-ed-abrir"]')
+        self.assertEqual(self.pg.locator('[data-a="ch-ed-pronto"]').count(), 0, "a Conversa abre no chat")
         self.pg.click('[data-a="ch-ed-abrir"]')
         q = ".ch-ed-lin:not(.ch-ed-modelo) > .ch-ed-txt"
         self.pg.locator(q).nth(1).fill(G6[1] + " Hoje")
