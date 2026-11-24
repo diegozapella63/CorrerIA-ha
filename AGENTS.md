@@ -188,6 +188,8 @@ Aqui (o CorrerIA não tem barra de baixo): os três pontos no alto da Conversa a
 
 1.33.0 (o dono: "pode criar ferramenta… o que precisar"; "mais algum template que você acha útil? faça uma análise nos 7 apps"): mais 12 etapas no `rondas.MAIS` (28 ao todo), cada uma com uma ferramenta que o app tem (o `test_mais_etapas_prontas` confere os nomes): `novidades` (a `inventario_novidades` do InventarIA 1.98.0; `so_com="novidades"`, que o `opcoes()` lê do `inventario_resumo`), `sem_valor`, `manut`, `manut_nova`, `remedio_hoje`, `sem_prazo`, `semana`, `atrasadas`, `recebidos`, `fixo_novo`, `lista_limpar` e `folhas`. No editor, o `#rd-acoes` é um `div.rd-acoes` no fim, fora de cartão (o dono: "o Salvar não faz sentido estar em um card retraído").
 
+1.34.0 (o dono, à oferta de duas rondas prontas: "pode fazer"): `patrimonio` (Ronda do patrimônio) e `semana` (Ronda da semana), sem cômodo, no `RONDAS` e no `PADRAO`, montadas pelo `_ronda_de_mais(nome, resumo, ids)` com as etapas do `MAIS` (cada etapa leva `de: "mais.<id>"` e a ronda, `de_mais: True`, para o `catalogo()` não repetir as etapas). Editar, Voltar ao original e o aviso valem como nas outras. Teste: `test_rondas_do_patrimonio_e_da_semana`.
+
 ## Conversa com o dono
 
 Respostas curtas, em português. Ao terminar uma mudança: o que mudou, a versão e se está publicado. Ele usa o app do Home Assistant no Android.

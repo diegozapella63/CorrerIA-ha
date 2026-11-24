@@ -196,6 +196,10 @@ Depois da última pergunta, escolha o próximo cômodo: o que está em dia (feit
 
 **Ronda do mês**: os gastos e as contas a pagar (GerencIA), os compromissos e as rotinas (CronologIA), as tarefas atrasadas (ResolvIA), os itens que saíram (InventarIA) e a reposição (EconomIA).
 
+**Ronda do patrimônio**: os investimentos (conferir, os que vencem, um novo), os bens, os itens mais valiosos, os sem valor e as novidades dos equipamentos (GerencIA e InventarIA).
+
+**Ronda da semana**: as tarefas de hoje e dos próximos 7 dias (ResolvIA), a agenda da semana, as manutenções e os remédios (CronologIA) e as contas atrasadas (GerencIA).
+
 Cada ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
 
 **Aviso** (Mais › Rondas): cada ronda tem a sua chave, no cartão dela, com o prazo embaixo: 15, 30 ou 45 dias, ou **Outro** (de 1 a 365). A Ronda da casa começa com 30 dias; as outras, sem aviso. Numa ronda por cômodo, um cômodo atrasado ganha um ponto no botão das Rondas e vem marcado na escolha, e o que está dentro do prazo fica verde; numa ronda sem cômodo, o aviso vale para a ronda inteira (também quando ela nunca foi feita). Os atrasados aparecem no sino do Home Assistant (conferido de hora em hora). No celular: com algum aviso ligado, o cartão **Aviso** tem o **Horário** e **Quem recebe**, que valem para todas as rondas; cada pessoa escolhida recebe um aviso por dia, nesse horário, nos celulares ligados a ela no Home Assistant (Configurações › Pessoas), só quando há algo atrasado. **Testar no meu celular** manda um aviso de exemplo para você. Um cômodo que nunca teve ronda só conta depois da primeira vez daquela ronda.

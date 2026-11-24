@@ -176,11 +176,36 @@ class TestEditor(Base):
         self.assertIn("Use gerencia_investimentos e conte os investimentos", p)
         self.assertNotIn("cômodo «»", rondas.pedido(rid, "invest", "", S.FERR.todas(), 1, 1))
 
+    def test_rondas_do_patrimonio_e_da_semana(self):
+        """1.34.0: duas rondas daqui, sem cômodo, montadas com as etapas do MAIS (no catálogo cada etapa aparece uma vez só)."""
+        self.casa()
+        self.gerencia = self.ligar("gerencia", "GerencIA", [ferr("investimentos"), ferr("contas_a_pagar"), ferr("novo_investimento", grava=True)],
+                                   {"investimentos": "TOTAL: 2\n- CDB: 1.000\n- Tesouro: 2.000", "contas_a_pagar": "TOTAL: 0"})
+        L = {x["id"]: x for x in self.j("/api/rondas")[1]["rondas"]}
+        self.assertEqual((L["patrimonio"]["nome"], L["patrimonio"]["sem_onde"], [e["id"] for e in L["patrimonio"]["etapas"]]),
+                         ("Ronda do patrimônio", True, ["invest", "invest_vence", "invest_novo", "valiosos", "sem_valor"]), "sem os bens e as novidades, desligados na casa de teste")
+        self.assertEqual((L["semana"]["nome"], [e["id"] for e in L["semana"]["etapas"]]), ("Ronda da semana", ["hoje", "atrasadas"]), "só as etapas dos apps ligados (aqui, o ResolvIA e o GerencIA)")
+        self.assertEqual([e["id"] for e in rondas.PADRAO["semana"]["etapas"]], ["hoje", "semana", "agenda_semana", "manut", "remedios", "atrasadas"])
+        ed = self.j("/api/rondas/editor")[1]
+        pat = next(r for r in ed["rondas"] if r["id"] == "patrimonio")
+        self.assertEqual((pat["minha"], pat["mudada"], [e["de"] for e in pat["etapas"]][:2]), (False, False, ["mais.invest", "mais.invest_vence"]))
+        ids = [c["de"] for c in ed["catalogo"]]
+        self.assertEqual((len(ids), [i for i in ids if i.startswith(("patrimonio.", "semana."))]), (len(set(ids)), []))
+        st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "patrimonio"})
+        self.assertEqual((st, r["ronda"]["ativa"]["id"], "CDB" in r["mensagens"][-1]["texto"], "Algum investimento mudou de valor?" in r["mensagens"][-1]["texto"]), (200, "patrimonio", True, True))
+        self.j("/api/ronda", {"acao": "sair"})
+        # mudar uma delas e voltar ao original, como as outras daqui
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"id": "semana", "nome": "Minha semana", "onde": False, "etapas": [{"de": "mais.hoje"}]}})
+        sem = next(r for r in ed["rondas"] if r["id"] == "semana")
+        self.assertEqual((st, sem["nome"], sem["mudada"]), (200, "Minha semana", True))
+        ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "semana"})[1]
+        self.assertEqual(len(next(r for r in ed["rondas"] if r["id"] == "semana")["etapas"]), 6)
+
     def test_modo_simples_mudar_criar_voltar_e_apagar(self):
         self.casa()
         st, ed = self.j("/api/rondas/editor")
         self.assertEqual((st, ed["avancado"], ed["leituras"]), (200, False, []))
-        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes"])
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana"])
         casa = ed["rondas"][0]
         self.assertEqual((casa["minha"], casa["mudada"], casa["onde"], casa["etapas"][0]["de"], casa["etapas"][0]["ligada"]), (False, False, True, "casa.feita", True))
         cat = {c["de"]: c for c in ed["catalogo"]}
@@ -228,7 +253,7 @@ class TestEditor(Base):
         st, ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "casa"})
         self.assertEqual((ed["rondas"][0]["nome"], ed["rondas"][0]["mudada"], len(ed["rondas"][0]["etapas"]) > 5), ("Ronda da casa", False, True))
         st, ed = self.j("/api/rondas/editor", {"acao": "apagar", "id": minha["id"]})
-        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes"])
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana"])
         with mock.patch.object(rondas, "MAX_RONDAS", 0):
             self.assertEqual(self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Mais uma", "etapas": [{"de": "casa.feita"}]}})[1]["erro"], "Já são 0 rondas suas. Apague alguma.")
 
@@ -274,7 +299,7 @@ class TestEditor(Base):
         self.assertEqual([len(x["etapas"]) for x in self.j("/api/rondas")[1]["rondas"] if x["id"] == rid], [1])
         # o arquivo estragado ou com uma etapa que sumiu não derruba nada
         rondas.montar({"rondas": {"casa": "x", "Ruim!": {}, "mzz": {"nome": "Sumiu", "etapas": [{"de": "casa.nao_existe"}, "x"]}}})
-        self.assertEqual(list(rondas.RONDAS), ["casa", "compras", "chegada", "mes"])
+        self.assertEqual(list(rondas.RONDAS), ["casa", "compras", "chegada", "mes", "patrimonio", "semana"])
 
 
 class TestLinksEMais(Base):
@@ -472,7 +497,8 @@ class TestRondas(Base):
         self.casa()
         r = self.j("/api/rondas")[1]["rondas"]
         self.assertEqual([(x["id"], x["nome"], x["onde"], x["livre"], x["sem_onde"]) for x in r],
-                         [("casa", "Ronda da casa", ["Sala", "Cozinha"], False, False), ("compras", "Ronda de compras", [], False, True), ("mes", "Ronda do mês", [], False, True)],
+                         [("casa", "Ronda da casa", ["Sala", "Cozinha"], False, False), ("compras", "Ronda de compras", [], False, True), ("mes", "Ronda do mês", [], False, True),
+                          ("patrimonio", "Ronda do patrimônio", [], False, True), ("semana", "Ronda da semana", [], False, True)],
                          "a da chegada pede o Anotar compra do EconomIA, que esta casa de teste não tem")
         self.assertEqual([(e["id"], e["grupo"], e["app"]) for e in r[0]["etapas"]],
                          [("feita", "Tarefas", "ResolvIA"), ("arrumar", "Tarefas", "ResolvIA"),
@@ -717,7 +743,7 @@ class TestMaisRondas(Base):
         eco = self.ligar("economia", "EconomIA", [ferr("lista"), ferr("reposicao"), ferr("ofertas"), ferr("roteiro"), ferr("comprei", grava=True)],
                          {"lista": "Na lista: Café, Ração.", "reposicao": "Na hora: Sabão.", "ofertas": "Café 20% no Mercado Exemplo.", "roteiro": "Mercado Exemplo: 2 itens, R$ 30,00."})
         L = {x["id"]: x for x in self.j("/api/rondas")[1]["rondas"]}
-        self.assertEqual(list(L), ["casa", "compras", "chegada", "mes"])
+        self.assertEqual(list(L), ["casa", "compras", "chegada", "mes", "patrimonio", "semana"])
         self.assertEqual(([e["id"] for e in L["compras"]["etapas"]], L["compras"]["sem_onde"], L["compras"]["onde"]), (["lista", "repor", "acabando", "ofertas", "roteiro"], True, []))
         st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "compras", "onde": "tanto faz"})
         self.assertEqual((st, r["ronda"]["ativa"]["onde"], r["ronda"]["ativa"]["total"], r["ronda"]["ativa"]["grupo"]), (200, "", 5, "Lista"))

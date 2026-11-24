@@ -189,12 +189,26 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
 
+# 1.34.0 (o dono, à oferta de duas rondas inteiras prontas, a do patrimônio e a da semana: "pode fazer"): duas rondas daqui
+# montadas com as etapas do MAIS (cada etapa leva o de "mais.<id>": no catálogo ela aparece uma vez só, pelo MAIS)
+def _ronda_de_mais(nome, resumo, ids):
+    por_id = {e["id"]: e for e in MAIS["mais"]["etapas"]}
+    return {"nome": nome, "onde": None, "resumo": resumo, "de_mais": True, "etapas": [dict(copy.deepcopy(por_id[i]), de=f"mais.{i}") for i in ids]}
+
+
+for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, os bens, os itens de valor e as novidades dos equipamentos.",
+                                               ["invest", "invest_vence", "invest_novo", "bens", "bem_novo", "valiosos", "sem_valor", "novidades"])),
+                 ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, a agenda, as manutenções, os remédios e as contas atrasadas.",
+                                           ["hoje", "semana", "agenda_semana", "manut", "remedios", "atrasadas"]))):
+    RONDAS[_rid] = _r
+    PADRAO[_rid] = copy.deepcopy(_r)
+
 
 def catalogo():
     """As etapas prontas, para escolher numa ronda: [{de, app, nome_app, grupo, titulo, pergunta, le, precisa, ronda}]."""
     return [{"de": f"{rid}.{e['id']}", "app": e["app"], "nome_app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"],
              "pergunta": _mostrar(e["pergunta"]), "le": bool(e.get("pedido")), "precisa": e["precisa"], "ronda": r["nome"]}
-            for rid, r in {**PADRAO, **MAIS}.items() for e in r["etapas"]]
+            for rid, r in {**PADRAO, **MAIS}.items() if not r.get("de_mais") for e in r["etapas"]]
 
 
 def _pronta(de):

@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.34.0
+
+- **Duas rondas novas**, sem cômodo, em Mais › Rondas:
+  - **Ronda do patrimônio**: investimentos (conferir, vencendo, novo), bens (conferir, novo), itens mais valiosos, itens sem valor e novidades dos equipamentos.
+  - **Ronda da semana**: tarefas para hoje e dos próximos 7 dias, agenda da semana, manutenções, remédios e contas atrasadas.
+- Como nas outras, só aparecem as etapas dos apps ligados, dá para editar e voltar ao original, e cada uma tem o seu aviso (desligado de início).
+
 ## 1.33.0
 
 - **Mais 12 etapas prontas** no Adicionar etapa: **Novidades** dos equipamentos e itens sem valor (InventarIA); manutenções (conferir, nova) e remédios de hoje (CronologIA); tarefas sem prazo e dos próximos 7 dias (ResolvIA); contas atrasadas, recebimentos e fixo novo (GerencIA); limpar a lista (EconomIA); últimas folhas (MemorIA). As Novidades pedem o InventarIA 1.98.0.
