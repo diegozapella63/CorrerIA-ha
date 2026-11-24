@@ -185,6 +185,14 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
        "Use economia_lista e conte os itens da lista de compras (o nome de cada um; até 10).", se_tem=True),
     _e("folhas", "Anotações", "Últimas folhas", "memoria", "MemorIA", "memoria_buscar", "Alguma dessas anotações precisa ser atualizada?",
        "Use memoria_buscar sem nada e conte as 5 folhas editadas por último (o bloco e o título de cada uma).", se_tem=True),
+    # 1.35.0 (o dono: "pode criar"): as três que pediam ferramenta nova: gerencia_ajustar_saldo (GerencIA 1.85.0), o sem_foto do
+    # inventario_buscar_itens (InventarIA 1.99.0) e o parados_ha_dias do memoria_resumo (MemorIA 1.47.0)
+    _e("saldo", "Finanças", "Saldo do caixa", "gerencia", "GerencIA", "gerencia_ajustar_saldo", "O saldo do caixa está certo?",
+       "Use gerencia_resumo e conte só o saldo do caixa de hoje e quanto entrou e saiu no mês."),
+    _e("sem_foto", "Itens", "Sem foto", "inventario", "InventarIA", "inventario_buscar_itens", "Quer mandar a foto de algum desses itens?",
+       "Use inventario_buscar_itens com sem_foto true{do_comodo} e conte os itens sem foto (o nome e o cômodo; até 8).", se_tem=True),
+    _e("parados", "Anotações", "Blocos parados", "memoria", "MemorIA", "memoria_resumo", "Algum desses blocos pode ser arquivado?",
+       "Use memoria_resumo com parados_ha_dias 60 e conte os blocos parados (o nome e há quantos dias).", se_tem=True),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"

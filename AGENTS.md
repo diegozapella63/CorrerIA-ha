@@ -190,6 +190,8 @@ Aqui (o CorrerIA não tem barra de baixo): os três pontos no alto da Conversa a
 
 1.34.0 (o dono, à oferta de duas rondas prontas: "pode fazer"): `patrimonio` (Ronda do patrimônio) e `semana` (Ronda da semana), sem cômodo, no `RONDAS` e no `PADRAO`, montadas pelo `_ronda_de_mais(nome, resumo, ids)` com as etapas do `MAIS` (cada etapa leva `de: "mais.<id>"` e a ronda, `de_mais: True`, para o `catalogo()` não repetir as etapas). Editar, Voltar ao original e o aviso valem como nas outras. Teste: `test_rondas_do_patrimonio_e_da_semana`.
 
+1.35.0 (o dono: "pode criar"): mais 3 etapas no `rondas.MAIS` (31), com as ferramentas novas dos apps: `saldo` (precisa da `gerencia_ajustar_saldo`, GerencIA 1.85.0; lê o `gerencia_resumo`), `sem_foto` (o `sem_foto` do `inventario_buscar_itens`, InventarIA 1.99.0) e `parados` (o `parados_ha_dias` do `memoria_resumo`, MemorIA 1.47.0). Num app de versão anterior, o `sem_foto` e o `parados_ha_dias` são argumentos que o app não conhece: a IA recebe o erro do app e a etapa sai só com a pergunta.
+
 ## Conversa com o dono
 
 Respostas curtas, em português. Ao terminar uma mudança: o que mudou, a versão e se está publicado. Ele usa o app do Home Assistant no Android.

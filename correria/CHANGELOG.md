@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.35.0
+
+- **Mais 3 etapas prontas** no Adicionar etapa, com as ferramentas novas dos apps:
+  - **Finanças: Saldo do caixa** (GerencIA 1.85.0): a IA mostra o saldo e, se você disser o certo, ajusta.
+  - **Itens: Sem foto** (InventarIA 1.99.0): os itens que ainda não têm foto.
+  - **Anotações: Blocos parados** (MemorIA 1.47.0): os blocos em que ninguém escreve há 60 dias.
+
 ## 1.34.0
 
 - **Duas rondas novas**, sem cômodo, em Mais › Rondas:

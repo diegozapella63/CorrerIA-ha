@@ -157,13 +157,13 @@ class TestEditor(Base):
         ids = [c["de"] for c in rondas.catalogo()]
         self.assertEqual(len(ids), len(set(ids)))
         # 1.33.0: toda etapa pronta usa uma ferramenta que o app tem de verdade (os nomes conferidos nos repositórios dos apps)
-        tem = {"gerencia": "resumo lancamentos contas_a_pagar investimentos cadastros lancar novo_investimento novo_fixo",
+        tem = {"gerencia": "resumo lancamentos contas_a_pagar investimentos cadastros lancar novo_investimento novo_fixo ajustar_saldo",
                "inventario": "resumo buscar_itens novidades cadastrar_itens", "economia": "lista reposicao ofertas roteiro cupons comprei",
                "resolvia": "resumo tarefas repeticoes", "cronologia": "resumo agenda cadastros placar criar_compromisso", "memoria": "resumo buscar"}
         for c in rondas.catalogo():
             app, _, nome = c["precisa"].partition("_")
             self.assertIn(nome, tem[app].split(), c["de"])
-        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 28))
+        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 31))
         # as Novidades só com elas ligadas no InventarIA (opcoes.novidades no resumo, InventarIA 1.98.0)
         self.assertEqual(rondas.opcoes({"opcoes": {"novidades": True, "bens": False}}), {"novidades"})
         self.assertIn("Use inventario_novidades e conte", rondas.MAIS["mais"]["etapas"][16]["pedido"].format(do_comodo=""))
