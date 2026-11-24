@@ -78,6 +78,17 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector("#ch-txt")  # abre na conversa
         self.addCleanup(lambda: self.assertEqual(self.erros, [], "nenhum erro na página"))
 
+    def recarregar(self):
+        """Recarrega a página. A entrada do histórico de um painel que acabou de fechar sai sozinha, um instante depois
+        (1.31.3); recarregar nesse instante é cortado pelo navegador: tenta de novo."""
+        for vez in range(3):
+            try:
+                return self.pg.reload()
+            except Exception as e:  # noqa: BLE001
+                if "ERR_ABORTED" not in str(e) or vez == 2:
+                    raise
+                self.pg.wait_for_timeout(150)
+
     def opcoes(self, aba=None):
         """O Mais (os três pontos no alto da conversa) e, nele, Configurações; aba: apps, whatsapp, mcp, dados ou aparencia."""
         self.pg.click('.cab-bts [data-a="mais"]')
@@ -255,7 +266,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator("#ia .status").all_inner_texts()[0], "Pronta para conversar · Usando a IA padrão do Home Assistant (simulada, fora do Home Assistant).", "0.16.0: na seção da IA")
         app.chave = "outra"
         S.APPS._ferr.clear()
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()
         self.assertEqual(self.texto(".abas .on"), "Integrações", "a aba fica guardada")
@@ -316,7 +327,7 @@ class Tela(unittest.TestCase):
         self.pg.wait_for_selector("#apps.fechada")
         self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#apps > :not(.rot)')].filter(e => e.getClientRects().length).length"), 0, "fechada: só o cabeçalho")
         self.assertEqual(self.pg.get_attribute("#apps .rot", "aria-expanded"), "false")
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes("apps")
         self.assertEqual(self.pg.locator("#apps.fechada").count(), 1, "o aparelho lembra")
@@ -392,14 +403,14 @@ class Tela(unittest.TestCase):
         S.salvar_config({"endereco": "https://casa-exemplo.duckdns.org:8443", "endereco_mcp": "https://casa-exemplo.duckdns.org:8443"})
         S.FORA.update(em=S.agora_iso(), ok=False, erro="o aparelho recusou o certificado")
         with mock.patch.object(S, "certificado", return_value=cc), mock.patch.object(S, "validade_certificado", return_value=(vence, "casa-exemplo.duckdns.org")):
-            self.pg.reload()
+            self.recarregar()
             self.opcoes("mcp")
             t = self.texto("#mcp")
             self.assertIn("Certificado de casa-exemplo.duckdns.org · porta 8443", t)
             self.assertNotIn("Sem :8443", t)
             self.assertRegex(self.texto("#mcp [data-fora]"), r"^Chegou de fora hoje às \d\d:\d\d, mas não abriu · o aparelho recusou o certificado\.$")
             S.FORA.update(ok=True, erro="")
-            self.pg.reload()
+            self.recarregar()
             self.opcoes("whatsapp")
             self.assertRegex(self.texto("#webhook [data-fora]"), r"^Chegou uma conexão de fora hoje às \d\d:\d\d\.$", "no Webhook também")
             self.assertIn("Certificado de casa-exemplo.duckdns.org · porta 8443", self.texto("#webhook"))
@@ -417,7 +428,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator("#f-tunel").count(), 0, "desligado: nada do túnel")
         S.salvar_config({"endereco_mcp": "https://correria.casa-exemplo.com.br"})
         with mock.patch.object(S, "PORTA_TUNEL", 0):
-            self.pg.reload()
+            self.recarregar()
             self.opcoes("mcp")
             self.pg.click('[data-a="tunel"]')
             self.aviso("Túnel ligado")
@@ -431,7 +442,7 @@ class Tela(unittest.TestCase):
         self.assertNotIn("porta 443 para", t)
         self.assertEqual(self.pg.locator('[data-a="copiar"][data-v="f-tunel"]').count(), 1)
         S.TUNEL["em"] = S.agora_iso()
-        self.pg.reload()
+        self.recarregar()
         self.opcoes("mcp")
         self.assertRegex(self.texto("#mcp [data-fora]"), r"^Chegou uma conexão pelo túnel hoje às \d\d:\d\d\.$")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
@@ -441,7 +452,7 @@ class Tela(unittest.TestCase):
         self.assertNotIn("túnel", t)
         self.assertIn("Sem certificado: instale o app Duck DNS", t)
         S.salvar_config({"endereco": "https://correria.casa-exemplo.com.br"})
-        self.pg.reload()
+        self.recarregar()
         self.opcoes("whatsapp")
         self.assertRegex(self.texto("#webhook [data-fora]"), r"^Chegou uma conexão pelo túnel hoje às \d\d:\d\d\.$", "o mesmo endereço: o webhook também vem pelo túnel")
         self.pg.click('.abas [data-v="mcp"]')
@@ -498,7 +509,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.pg.locator(".pedido").count(), 0)
         code = urllib.parse.parse_qs(urllib.parse.urlparse(S.AUT.situacao(p["id"])["ir"]).query)["code"][0]
         S.AUT.trocar({"grant_type": "authorization_code", "code": code, "client_id": cli["client_id"], "code_verifier": v})
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()
         self.pg.wait_for_selector(".conexao")
@@ -558,7 +569,7 @@ class Tela(unittest.TestCase):
         # o monitor todo do navegador fica de mentira (o Chromium dos testes não muda de tamanho nele): só conta os pedidos
         self.pg.add_init_script("window.__fs = 0; Element.prototype.requestFullscreen = function () { window.__fs++; return Promise.resolve(); };")
         self.pg.clock.install()
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector('[data-a="cheia"]')
         self.assertEqual(self.pg.get_attribute('[data-a="cheia"]', "aria-label"), "Tela cheia")
         self.pg.click('[data-a="cheia"]')
@@ -685,7 +696,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.set_viewport_size({"width": 1440, "height": 900})
         self.pg.route("**/api/hassio_ingress/**", lambda r: r.fulfill(body=self.PAINEL_FALSO, content_type="text/html"))
         self.pg.add_init_script("Element.prototype.requestFullscreen = function () { return Promise.resolve(); };")
-        self.pg.reload()
+        self.recarregar()
         self.pg.click('[data-a="cheia"]')
         self.pg.wait_for_selector("body.cheia.cab-painel.recolhida #painel", state="attached")
         self.assertEqual(self.pg.get_attribute("#painel", "src"), "/api/hassio_ingress/AbC123_-xyz/?painel=1&conversa=1")
@@ -823,7 +834,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg = self.nav.new_page(viewport={"width": 390, "height": 844}, color_scheme="dark")
         self.addCleanup(self.pg.close)
         etapa = lambda de, app, grupo, titulo, pergunta, le=True: {"id": de.split(".")[1], "de": de, "app": app, "grupo": grupo, "titulo": titulo, "pergunta": pergunta, "pedido": "", "le": le, "ligada": True}
-        ed = {"avancado": False, "leituras": [], "max": {"etapas": 30, "pergunta": 160, "pedido": 600},
+        ed = {"avancado": False, "leituras": [], "max": {"etapas": 30, "pergunta": 160, "pedido": 600, "quando": 160}, "comodos": ["Sala", "Quarto", "Quarto de hóspedes"],
               "rondas": [{"id": "casa", "nome": "Ronda da casa", "onde": True, "minha": False, "mudada": False,
                           "etapas": [etapa("casa.feita", "ResolvIA", "Tarefas", "Concluir", "Alguma dessas tarefas já foi feita?"), etapa("casa.item_novo", "InventarIA", "Itens", "Novo", "Chegou algum item novo?")]}],
               "catalogo": [{"de": "casa.feita", "app": "resolvia", "nome_app": "ResolvIA", "grupo": "Tarefas", "titulo": "Concluir", "pergunta": "Alguma dessas tarefas já foi feita?", "le": True, "precisa": "resolvia_tarefas", "ronda": "Ronda da casa", "ligada": True},
@@ -880,13 +891,25 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertGreater(self.pg.evaluate("document.querySelector(\"[data-rd-p='0']\").offsetHeight"), 60)
         self.assertEqual(self.pg.evaluate("document.querySelector('#rd-nome').offsetHeight"), 50, "uma linha tem a altura da família")
         self.pg.fill("[data-rd-p='0']", "Tem coisa nova aqui?")
+        # 1.32.0: o Quando perguntar de cada etapa (só numa ronda por cômodo), com o que foi entendido embaixo do campo
+        if self.pg.get_attribute('[data-a="rd-onde"]', "aria-checked") != "true":
+            self.pg.click('[data-a="rd-onde"]')
+        self.assertEqual(self.pg.locator("[data-rd-q]").count(), self.pg.locator("[data-rd-p]").count())
+        self.assertEqual(self.pg.locator("label[for='rd-q-0']").inner_text().strip(), "Quando perguntar")
+        self.assertFalse(self.pg.locator("[data-rd-diz='0']").is_visible(), "vazio: sempre, sem nada embaixo")
+        for frase, diz in (("não perguntar no quarto", "Não pergunta em: Quarto."), ("só na sala e no quarto de hospedes", "Só pergunta em: Sala, Quarto de hóspedes."),
+                           ("de vez em quando", "Nenhum cômodo reconhecido."), ("Não perguntar no Quarto de hóspedes", "Não pergunta em: Quarto de hóspedes.")):
+            self.pg.fill("[data-rd-q='0']", frase)
+            self.assertEqual(self.texto("[data-rd-diz='0']"), diz, frase)
+        self.assertEqual(self.pg.evaluate("document.querySelector(\"[data-rd-q='0']\").offsetHeight"), 50)
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.pg.locator(".rd-pronta").first.click()
         self.assertEqual(self.pg.locator(".rd-etapa").count(), 2)
         self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
         self.pg.locator("[data-a='rd-salvar']").click()
         self.pg.wait_for_selector("#ronda-suas")
         self.assertEqual(posts[-1], {"acao": "salvar", "ronda": {"id": "casa", "nome": "Ronda da minha casa", "onde": True, "etapas": [
-            {"id": "item_novo", "de": "casa.item_novo", "titulo": "Novo", "pergunta": "Tem coisa nova aqui?", "pedido": ""},
+            {"id": "item_novo", "de": "casa.item_novo", "titulo": "Novo", "pergunta": "Tem coisa nova aqui?", "pedido": "", "quando": "Não perguntar no Quarto de hóspedes"},
             {"de": "casa.feita", "titulo": "Concluir", "pergunta": "Alguma dessas tarefas já foi feita?", "pedido": ""}]}})
         # o modo avançado: o que a IA lê e a etapa livre; uma ronda nova
         self.pg.locator("[data-a='rd-avancado']").click()
@@ -936,7 +959,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.route("**/api/dados/*", dados)
         self.pg.goto(self.url)
         self.pg.evaluate("localStorage.setItem('correria-aba', 'dados')")
-        self.pg.reload()
+        self.recarregar()
         self.pg.locator("[data-a='mais']").first.click()
         self.pg.locator("[data-a='opcoes']").click()
         self.pg.wait_for_selector("#backup ul.zips li")
@@ -1005,7 +1028,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.pg.locator(".ch-desfazer").count(), 0)
         # um Feito de mais de 10 minutos atrás não tem o Desfazer
         msgs[1]["em"] = "2026-01-01T10:00:00"
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector(".ch-msg.ia")
         self.assertEqual(self.pg.locator(".ch-desfazer").count(), 0)
         # Mais › Lembranças
@@ -1024,7 +1047,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.route("**/api/lembrancas", lemb)
         # 1.28.0: fica em Configurações › Integrações, o cartão Memória da IA, logo depois do IA
         self.pg.evaluate("localStorage.setItem('correria-aba', 'apps')")
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector(".ch-msg.ia")
         self.pg.locator("[data-a='mais']").first.click()
         self.assertEqual(self.pg.locator("[data-a='tela-lembrancas']").count(), 0, "não é mais uma linha do Mais")
@@ -1188,7 +1211,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector(".ch-ronda-t b >> text=Cozinha")
         self.pg.click('[data-a="ronda-sair"]')
         self.pg.wait_for_selector(".ch-ronda", state="detached")
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector("#ch-txt")
         self.assertEqual(self.pg.locator(".ch-ronda").count(), 0)
 
@@ -1232,16 +1255,20 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.texto("#ronda-casa h2"), "Ronda da casa")
         self.assertEqual(self.texto("#ronda-casa .ronda-grupos"), "Itens · 3 perguntas")
         self.assertEqual(self.texto("#ronda-casa .btn.pri"), "Escolher o cômodo")
-        sw = '#ronda-aviso [data-a="ronda-aviso"]'
+        # 1.32.0 (o dono: "os dias de avisos devem estar configurados em cada ronda, dentro do grupo da ronda"): a chave e o
+        # prazo ficam no cartão de cada ronda; o cartão Aviso fica com o que vale para todas (o horário, quem recebe, o Testar)
+        sw = '#ronda-casa [data-a="ronda-aviso"]'
         self.assertEqual(self.pg.get_attribute(sw, "aria-checked"), "true")
-        self.assertEqual(self.pg.locator("#ronda-aviso .sub-box .chip").all_inner_texts(), ["15 dias", "30 dias", "45 dias", "Outro"], "sem o Nunca: quem desliga é a chave")
-        self.assertEqual(self.pg.locator('#ronda-aviso .chip[aria-checked="true"]').all_inner_texts(), ["30 dias"])
-        self.assertEqual(self.texto("#ronda-aviso .linha-sw span"), "Atrasados: Sala.")
+        self.assertEqual(self.texto("#ronda-casa .ronda-av b"), "Avisar cômodo sem ronda")
+        self.assertEqual(self.pg.locator("#ronda-casa .sub-box .chip").all_inner_texts(), ["15 dias", "30 dias", "45 dias", "Outro"], "sem o Nunca: quem desliga é a chave")
+        self.assertEqual(self.pg.locator('#ronda-casa .chip[aria-checked="true"]').all_inner_texts(), ["30 dias"])
+        self.assertEqual(self.pg.locator("#ronda-aviso .sub-box, #ronda-aviso .sw").count(), 0, "no cartão Aviso, nem chave nem prazo")
+        self.assertEqual(self.texto("#ronda-aviso .lead"), "Atrasados: Sala.")
         self.assertEqual(self.texto("#ronda-hist h2"), "Últimas rondas (2)")
         self.assertEqual(self.pg.locator("#ronda-hist li b").all_inner_texts(), ["Cozinha", "Sala"], "a mais nova primeiro")
         self.assertTrue(self.pg.evaluate("[...document.querySelectorAll('#app section.card')].every(c => c.firstElementChild.querySelector('svg') && c.firstElementChild.querySelector('h2'))"), "todo cartão com o ícone no título")
-        # o Horário (de meia em meia hora), o Quem recebe e o Testar, no quadro embaixo da chave, como nos outros apps
-        self.assertEqual(self.pg.locator("#ronda-aviso .sub-box .campo > b, #ronda-aviso .sub-box .campo > label").all_inner_texts(), ["Há mais de", "Horário", "Quem recebe"])
+        # o Horário (de meia em meia hora), o Quem recebe e o Testar, como nos outros apps
+        self.assertEqual(self.pg.locator("#ronda-aviso .campo > b, #ronda-aviso .campo > label").all_inner_texts(), ["Horário", "Quem recebe"])
         self.assertEqual(self.pg.evaluate("[document.querySelector('#ronda-hora').value, document.querySelector('#ronda-hora').options.length, document.querySelector('#ronda-hora').options[19].value]"), ["09:00", 48, "09:30"])
         self.assertEqual([t.replace("\n", " ") for t in self.pg.locator("#ronda-aviso .quem-p").all_inner_texts()], ["Ana", "Beto sem celular"])
         self.assertEqual(self.texto("#ronda-aviso .quem + .dica"), "Escolha quem recebe.")
@@ -1265,25 +1292,25 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertAlmostEqual(larg[0], larg[1], delta=1, msg="o Testar na largura do quadro")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         self.pg.screenshot(path="/tmp/tela-rondas.png", full_page=True)
-        self.pg.click('[data-a="ronda-dias"][data-v="45"]')
-        self.pg.wait_for_selector('#ronda-aviso .chip.on >> text=45 dias')
-        self.assertEqual(S.ler_config()["ronda_dias"], 45)
-        self.pg.wait_for_function("document.querySelector('#ronda-aviso .linha-sw span').innerText.startsWith('No botão das Rondas')")
-        self.pg.click('[data-a="ronda-dias"][data-v="outro"]')
-        self.pg.wait_for_selector("#ronda-outro")
-        self.pg.click('[data-a="ronda-outro"]')
+        self.pg.click('#ronda-casa [data-a="ronda-dias"][data-v="45"]')
+        self.pg.wait_for_selector('#ronda-casa .chip.on >> text=45 dias')
+        self.assertEqual(S.ler_config()["ronda_prazos"], {"casa": 45})
+        self.pg.wait_for_function("!document.querySelector('#ronda-aviso .lead')")  # com 45 dias, a Sala (40) não está mais atrasada
+        self.pg.click('#ronda-casa [data-a="ronda-dias"][data-v="outro"]')
+        self.pg.wait_for_selector("#ronda-outro-casa")
+        self.pg.click('#ronda-casa [data-a="ronda-outro"]')
         self.aviso("Escreva de 1 a 365 dias.")
-        self.pg.fill("#ronda-outro", "20")
-        self.pg.click('[data-a="ronda-outro"]')
-        self.pg.wait_for_function("document.querySelector('#ronda-outro') && document.querySelector('#ronda-outro').value === '20'")
+        self.pg.fill("#ronda-outro-casa", "20")
+        self.pg.click('#ronda-casa [data-a="ronda-outro"]')
+        self.pg.wait_for_function("document.querySelector('#ronda-outro-casa') && document.querySelector('#ronda-outro-casa').value === '20'")
         self.assertEqual(S.ler_config()["ronda_dias"], 20)
-        self.assertEqual(self.pg.locator('#ronda-aviso .chip[aria-checked="true"]').all_inner_texts(), ["Outro"], "um prazo fora dos prontos é o Outro")
+        self.assertEqual(self.pg.locator('#ronda-casa .chip[aria-checked="true"]').all_inner_texts(), ["Outro"], "um prazo fora dos prontos é o Outro")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
-        self.pg.click(sw)  # desliga: o prazo some; liga de novo com o prazo de antes
-        self.pg.wait_for_function("document.querySelectorAll('#ronda-aviso .sub-box').length === 0")
+        self.pg.click(sw)  # desliga: o prazo some (e, sem nenhum aviso ligado, o cartão Aviso também); liga de novo com o prazo de antes
+        self.pg.wait_for_function("document.querySelectorAll('#ronda-casa .sub-box').length === 0 && !document.querySelector('#ronda-aviso')")
         self.assertEqual(S.ler_config()["ronda_dias"], 0)
         self.pg.click(sw)
-        self.pg.wait_for_selector("#ronda-aviso .sub-box")
+        self.pg.wait_for_selector("#ronda-casa .sub-box")
         self.assertEqual(S.ler_config()["ronda_dias"], 20)
         # o Começar leva à Conversa, com a escolha do cômodo; o Voltar do celular volta às Rondas
         self.pg.click('#ronda-casa [data-a="ronda-comecar"]')
@@ -1417,7 +1444,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         # sem fala para texto no Home Assistant: o botão é só o Enviar, e as Opções dizem por quê
         motivo = {"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}
         with mock.patch.object(S.FALA, "status", side_effect=lambda formato="ogg": motivo):
-            self.pg.reload()
+            self.recarregar()
             self.pg.wait_for_selector('.ch-sug .chip')
             self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-enviar")
             self.opcoes("apps")
@@ -1428,7 +1455,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.click('[data-a="ch-sug"] >> nth=1')
         self.pg.wait_for_selector(RESPOSTA)
         self.assertEqual(self.app.pedidos[0][3]["texto"], "O que vence esta semana?")
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector(RESPOSTA)
         self.assertEqual(self.pg.locator(".ch-msg").count(), 2, "fechou, abre de onde parou")
         self.pg.click('.cab-bts [data-a="ch-nova"]')  # nova conversa, no alto
@@ -1624,7 +1651,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.screenshot(path=os.path.join(S.DATA_DIR, "perguntas.png"))
         self.pg.click('[data-a="ch-ed-pronto"]')
         self.assertEqual(self.pg.locator(".ch-sug .chip").all_inner_texts(), G6[1:] + ["Quanto sobrou no mês?", "Qual a maior despesa?"])
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector(".ch-sug .chip")
         self.assertEqual(self.pg.locator(".ch-sug .chip").count(), 7, "guardadas no aparelho")
         # com a conversa andando: o ✨ ao lado da caixa abre as mesmas
@@ -1690,7 +1717,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         girada = self.pg.evaluate("getComputedStyle(document.querySelector('[data-v=\"mais\"] .dobra-ic')).transform")
         self.assertEqual(girada, "none", "fechada, a seta deitada")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector('[data-a="ch-ed-abrir"]')
         self.pg.click('[data-a="ch-ed-abrir"]')
         self.assertEqual(self.pg.locator(f'{cabs}[aria-expanded="false"]').count(), 2, "o aparelho lembra")
@@ -2137,7 +2164,7 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         # 1.7.0: com a aba Opções sempre, as seis não cabem em 320 px: rolam, com a seta na ponta de onde há mais
         self.pg.wait_for_function("document.querySelector('.abas-wrap').classList.contains('tem-dir') || document.querySelector('.abas-wrap').classList.contains('tem-esq')")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"), "a página não passa da largura")
-        self.pg.reload()
+        self.recarregar()
         self.pg.wait_for_selector("#ch-txt")
         self.opcoes()
         self.assertEqual(self.texto(".abas .on"), "WhatsApp", "a aba fica guardada")
@@ -2150,7 +2177,7 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
             .map(e => [e.offsetHeight, e.className + ' ' + (e.textContent || e.placeholder || '').trim().slice(0, 24)])"""
         for largura in (390, 320):
             self.pg.set_viewport_size({"width": largura, "height": 760})
-            self.pg.reload()
+            self.recarregar()
             self.pg.wait_for_selector("#ch-txt")
             self.opcoes()
             for aba in ("apps", "whatsapp", "mcp", "dados", "aparencia"):

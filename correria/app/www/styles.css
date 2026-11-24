@@ -681,3 +681,8 @@ ul.ronda-hist li:last-child { border-bottom: 0; }
 .quem-p.on .ic-s { color: var(--accent); }
 .op-testar { width: 100%; margin-top: 14px; }
 #ronda-aviso .sub-box .campo + .campo { margin-top: 14px; }
+
+/* 1.32.0: o aviso dentro do cartão de cada ronda (a chave e o prazo dela) e o que o Quando perguntar de uma etapa quer dizer */
+.ronda-card .ronda-av { margin-top: 16px; }
+.rd-q-diz { display: block; margin-top: 6px; }
+.rd-q-diz:empty { display: none; }

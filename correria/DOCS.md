@@ -169,7 +169,8 @@ Em **Mais › Rondas**, cada ronda tem o **Editar** e, embaixo, há a **Nova ron
 
 - **Nome** e **Por cômodo** (a ronda pergunta o cômodo ao começar).
 - **Etapas**: as que entram, na ordem. Cada uma tem a sua **Pergunta**, que você pode reescrever (uma pergunta só, terminando com «?»; `{onde}` vira o cômodo). As setas mudam a ordem e a lixeira tira a etapa.
-- **Adicionar etapa** mostra as etapas prontas, por app. A de um app desligado fica inativa.
+- **Quando perguntar** (só numa ronda por cômodo): escreva em quais cômodos a pergunta vale, com o nome do cômodo como está no InventarIA. «Não perguntar no Quarto» tira a pergunta do Quarto; «Só no Banheiro e na Cozinha» deixa a pergunta só neles. Embaixo do campo aparece o que o app entendeu (**Não pergunta em: Quarto.**). Vazio, pergunta sempre. Quem decide é o app, pelos nomes dos cômodos na frase, não a IA.
+- **Adicionar etapa** mostra as etapas prontas, por app: as das rondas do app e outras por tema (investimentos, fixos e lançamentos do GerencIA; bens e itens mais valiosos do InventarIA; tarefas que se repetem e de hoje do ResolvIA; agenda de hoje e da semana, remédios e placar do CronologIA; cupons do EconomIA; blocos do MemorIA). A de um app desligado fica inativa.
 
 Uma ronda do app que você mudou tem o **Voltar ao original**; uma criada por você, o **Apagar ronda**.
 
@@ -197,7 +198,7 @@ Depois da última pergunta, escolha o próximo cômodo: o que está em dia (feit
 
 Cada ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
 
-**Aviso de cômodo sem ronda** (Mais › Rondas › Aviso): uma chave, com o prazo embaixo: 15, 30 (de início) ou 45 dias, ou **Outro** (de 1 a 365). Um cômodo atrasado ganha um ponto no botão das Rondas, vem marcado na escolha e aparece no sino do Home Assistant (conferido de hora em hora). No celular: escolha o **Horário** e **Quem recebe**; cada pessoa escolhida recebe um aviso por dia, nesse horário, nos celulares ligados a ela no Home Assistant (Configurações › Pessoas), só quando há cômodo atrasado. **Testar no meu celular** manda um aviso de exemplo para você. Um cômodo que nunca teve ronda só conta depois da primeira ronda da casa.
+**Aviso** (Mais › Rondas): cada ronda tem a sua chave, no cartão dela, com o prazo embaixo: 15, 30 ou 45 dias, ou **Outro** (de 1 a 365). A Ronda da casa começa com 30 dias; as outras, sem aviso. Numa ronda por cômodo, um cômodo atrasado ganha um ponto no botão das Rondas e vem marcado na escolha, e o que está dentro do prazo fica verde; numa ronda sem cômodo, o aviso vale para a ronda inteira (também quando ela nunca foi feita). Os atrasados aparecem no sino do Home Assistant (conferido de hora em hora). No celular: com algum aviso ligado, o cartão **Aviso** tem o **Horário** e **Quem recebe**, que valem para todas as rondas; cada pessoa escolhida recebe um aviso por dia, nesse horário, nos celulares ligados a ela no Home Assistant (Configurações › Pessoas), só quando há algo atrasado. **Testar no meu celular** manda um aviso de exemplo para você. Um cômodo que nunca teve ronda só conta depois da primeira vez daquela ronda.
 
 ## Atalho no celular
 

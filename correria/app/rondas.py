@@ -124,19 +124,96 @@ for _rid, _r in RONDAS.items():
 #   avançado, uma etapa livre {id, ferramenta, app, nome_app, titulo, pergunta, pedido?}]}}}
 # Uma ronda com o id de uma daqui é a daqui mudada (Voltar ao original apaga a mudança); as novas têm o id "m" + 6 letras.
 PADRAO = copy.deepcopy(RONDAS)
-MAX_RONDAS, MAX_ETAPAS, MAX_PERGUNTA, MAX_PEDIDO, MAX_NOME = 20, 30, 160, 600, 40
+MAX_RONDAS, MAX_ETAPAS, MAX_PERGUNTA, MAX_PEDIDO, MAX_NOME, MAX_QUANDO = 20, 30, 160, 600, 40, 160
+
+# 1.32.0 (o dono: "analisar entre os apps para criar um template maior ali de opções… com base nos principais temas. Exemplo:
+# investimentos, bens, novidades"): etapas prontas que não estão em nenhuma ronda daqui, para escolher no Adicionar etapa. Cada uma
+# usa uma ferramenta que o app tem de verdade (as Novidades do InventarIA não têm ferramenta: ficam de fora).
+MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
+    _e("invest", "Investimentos", "Conferir", "gerencia", "GerencIA", "gerencia_investimentos", "Algum investimento mudou de valor?",
+       "Use gerencia_investimentos e conte os investimentos (o nome e o valor de hoje de cada um) e o total do patrimônio.", se_tem=True),
+    _e("invest_vence", "Investimentos", "Vencendo", "gerencia", "GerencIA", "gerencia_investimentos", "Algum desses investimentos vai ser resgatado?",
+       "Use gerencia_investimentos e conte os que vencem nos próximos 60 dias (o nome, o valor de hoje e o dia; o TOTAL é só o desses).", se_tem=True),
+    _e("invest_novo", "Investimentos", "Novo", "gerencia", "GerencIA", "gerencia_novo_investimento", "Fez algum investimento novo?"),
+    _e("fixos", "Finanças", "Fixos", "gerencia", "GerencIA", "gerencia_cadastros", "Algum fixo mudou de valor?",
+       "Use gerencia_cadastros e conte os fixos (o nome e o valor de cada um).", se_tem=True),
+    _e("lancados", "Finanças", "Lançamentos do mês", "gerencia", "GerencIA", "gerencia_lancamentos", "Algum desses lançamentos está errado?",
+       "Use gerencia_lancamentos (sem período: o mês atual) e conte os 6 maiores gastos (o que foi, o valor e o dia).", se_tem=True),
+    _e("bens", "Bens", "Conferir", "inventario", "InventarIA", "inventario_buscar_itens", "Algum bem mudou de valor?",
+       "Use inventario_buscar_itens com o cômodo «Bens» e conte os bens (o nome e o valor de cada um).", so_com="bens", se_tem=True),
+    _e("bem_novo", "Bens", "Novo", "inventario", "InventarIA", "inventario_cadastrar_itens", "Tem algum bem novo para cadastrar?", so_com="bens"),
+    _e("valiosos", "Itens", "Mais valiosos", "inventario", "InventarIA", "inventario_buscar_itens", "Algum desses valores precisa mudar?",
+       "Use inventario_buscar_itens com a ordem valor{do_comodo} e conte os 6 itens de maior valor (o nome e o valor).", se_tem=True),
+    _e("repete", "Tarefas", "Que se repetem", "resolvia", "ResolvIA", "resolvia_repeticoes", "Alguma repetição precisa mudar?",
+       "Use resolvia_repeticoes e conte as tarefas que se repetem (o nome e de quanto em quanto tempo).", se_tem=True),
+    _e("hoje", "Tarefas", "Para hoje", "resolvia", "ResolvIA", "resolvia_tarefas", "Alguma dessas tarefas já foi feita?",
+       "Use resolvia_tarefas e conte as atrasadas e as que vencem hoje (o nome e o prazo; o TOTAL é só o dessas).", se_tem=True),
+    _e("agenda_hoje", "Agenda", "Hoje", "cronologia", "CronologIA", "cronologia_agenda", "Falta marcar algo como feito?",
+       "Use cronologia_agenda só de hoje e conte o que ainda falta fazer hoje (o nome e o horário).", se_tem=True),
+    _e("agenda_semana", "Agenda", "Esta semana", "cronologia", "CronologIA", "cronologia_agenda", "Algum compromisso da semana precisa mudar?",
+       "Use cronologia_agenda de hoje a 7 dias e conte os compromissos (sem as rotinas e os remédios de todo dia), com o dia de cada um.", se_tem=True),
+    _e("remedios", "Remédios", "Conferir", "cronologia", "CronologIA", "cronologia_cadastros", "Algum remédio mudou?",
+       "Use cronologia_cadastros e conte só os remédios (o nome, a dose e a repetição de cada um).", se_tem=True),
+    _e("placar", "Placar", "Pontos", "cronologia", "CronologIA", "cronologia_placar", "Quer dar pontos a alguém?",
+       "Use cronologia_placar e conte o placar do período (cada pessoa e os pontos)."),
+    _e("cupons", "Ofertas", "Cupons", "economia", "EconomIA", "economia_cupons", "Quer usar algum desses cupons?",
+       "Use economia_cupons e conte até 5 cupons válidos (a loja, o código e a validade).", se_tem=True),
+    _e("blocos", "Anotações", "Blocos", "memoria", "MemorIA", "memoria_resumo", "Quer anotar algo em algum bloco?",
+       "Use memoria_resumo e conte os blocos de anotações (o nome de cada um)."),
+]}}
+for _x in MAIS["mais"]["etapas"]:
+    _x["orig"], _x["da"] = _x["id"], "mais"
 
 
 def catalogo():
     """As etapas prontas, para escolher numa ronda: [{de, app, nome_app, grupo, titulo, pergunta, le, precisa, ronda}]."""
     return [{"de": f"{rid}.{e['id']}", "app": e["app"], "nome_app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"],
              "pergunta": _mostrar(e["pergunta"]), "le": bool(e.get("pedido")), "precisa": e["precisa"], "ronda": r["nome"]}
-            for rid, r in PADRAO.items() for e in r["etapas"]]
+            for rid, r in {**PADRAO, **MAIS}.items() for e in r["etapas"]]
 
 
 def _pronta(de):
     rid, _, eid = str(de or "").partition(".")
-    return next((e for e in PADRAO.get(rid, {}).get("etapas", []) if e["id"] == eid), None)
+    return next((e for e in (PADRAO.get(rid) or MAIS.get(rid) or {}).get("etapas", []) if e["id"] == eid), None)
+
+
+# ---------- 1.32.0 (o dono: "criar algo aqui para indicar quando a pergunta deve ocorrer, para eu escrever algo como: não
+# perguntar sobre pet shop no cômodo do quarto"): numa ronda por cômodo, cada etapa pode ter o Quando perguntar. A frase é da
+# pessoa, mas quem decide não é a IA: o app acha na frase os nomes dos cômodos (os do InventarIA; o nome mais comprido primeiro,
+# para «Quarto de hóspedes» não virar «Quarto») e vê se a frase nega (não, nunca, menos, exceto, sem, fora, pular): negando, a
+# pergunta não sai nesses cômodos (fora); senão, só sai neles (so). A tela mostra o que foi entendido, embaixo do campo.
+NEGA_RE = re.compile(r"(?<![a-z0-9])(nao|nunca|menos|exceto|sem|fora|pular|pule|tirar|tire)(?![a-z0-9])")
+
+
+def _norm(t):
+    import unicodedata
+    return " ".join("".join(c for c in unicodedata.normalize("NFD", str(t or "").lower()) if unicodedata.category(c) != "Mn").split())
+
+
+def quando_regra(texto, comodos):
+    """{fora: [cômodos]} | {so: [cômodos]} | {} (nenhum cômodo reconhecido na frase)."""
+    t, achados = f" {_norm(texto)} ", []
+    for c in sorted({str(c) for c in comodos or [] if _norm(c)}, key=lambda c: (-len(_norm(c)), c)):
+        alvo = re.compile(rf"(?<![a-z0-9]){re.escape(_norm(c))}(?![a-z0-9])")
+        if alvo.search(t):
+            achados.append(c)
+            t = alvo.sub(" ", t)
+    if not achados:
+        return {}
+    ordem = [c for c in comodos if c in achados]
+    return {"fora": ordem} if NEGA_RE.search(_norm(texto)) else {"so": ordem}
+
+
+def vale_em(e, onde):
+    """A etapa sai neste cômodo? (sem regra, ou numa ronda sem cômodo, sempre)"""
+    n = _norm(onde)
+    if not e or not n:
+        return True
+    if e.get("fora"):
+        return n not in {_norm(c) for c in e["fora"]}
+    if e.get("so"):
+        return n in {_norm(c) for c in e["so"]}
+    return True
 
 
 def _guardar_texto(t, maximo):
@@ -161,7 +238,7 @@ def _pergunta_ok(t):
     return t
 
 
-def conferir_ronda(dados, antes=None, avancado=False, leituras=None):
+def conferir_ronda(dados, antes=None, avancado=False, leituras=None, comodos=None):
     """Confere o que veio da tela e devolve a ronda como fica guardada. antes: a ronda guardada hoje (o que é do modo
     avançado continua nela quando o modo está desligado). leituras: {id da ferramenta: {app, nome_app, titulo}}, as
     ferramentas de leitura ligadas agora (para as etapas livres do modo avançado). ValueError diz o que vale."""
@@ -202,6 +279,15 @@ def conferir_ronda(dados, antes=None, avancado=False, leituras=None):
             raise ValueError(f"O que a IA lê fica com até {MAX_PEDIDO} letras.")
         if pedido:
             e["pedido"] = _guardar_texto(pedido, MAX_PEDIDO)
+        quando = " ".join(str(x.get("quando") or "").split()) if dados.get("onde") is True else ""
+        if len(quando) > MAX_QUANDO:
+            raise ValueError(f"O Quando perguntar fica com até {MAX_QUANDO} letras.")
+        if quando:  # 1.32.0: o que a frase quer dizer fica guardado junto (fora ou so), com os cômodos de agora
+            regra = quando_regra(quando, comodos)
+            if not regra:
+                raise ValueError(f"Em «Quando perguntar» de {e.get('titulo') or pronta['titulo']}, escreva o nome de um cômodo como está no InventarIA."
+                                 if comodos else "O Quando perguntar precisa dos cômodos do InventarIA (ligue o CorrerIA nele).")
+            e.update(quando=quando, **regra)
         eid, n = (velha or {}).get("id") or base, 2
         while eid in ids:
             eid, n = f"{base}_{n}", n + 1
@@ -240,6 +326,11 @@ def montar(minhas):
                 e["orig"], e["da"] = e["id"], rid
             else:
                 continue
+            if m.get("onde") and x.get("quando"):  # 1.32.0: o Quando perguntar (só numa ronda por cômodo)
+                e["quando"] = str(x["quando"])
+                for k in ("fora", "so"):
+                    if isinstance(x.get(k), list) and x[k]:
+                        e[k] = [str(c) for c in x[k]]
             etapas.append(e)
         if etapas:
             daqui = PADRAO.get(rid)
@@ -256,7 +347,7 @@ def para_editor(ids_ligados=None):
     return [{"id": rid, "nome": r["nome"], "onde": bool(r["onde"]), "minha": bool(r.get("minha")), "mudada": bool(r.get("mudada")),
              "etapas": [{"id": e["id"], **({"de": e["de"]} if e.get("de") else {"de": f"{rid}.{e['id']}"} if not e.get("livre") else {"ferramenta": e["precisa"]}),
                          "app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"], "pergunta": _mostrar(e["pergunta"]),
-                         "pedido": _mostrar(e.get("pedido_meu") or ""), "le": bool(e.get("pedido")), "ligada": ok(e["precisa"])} for e in r["etapas"]]}
+                         "pedido": _mostrar(e.get("pedido_meu") or ""), "quando": e.get("quando") or "", "le": bool(e.get("pedido")), "ligada": ok(e["precisa"])} for e in r["etapas"]]}
             for rid, r in RONDAS.items()]
 
 
@@ -295,9 +386,9 @@ def disponiveis(ferr, pessoa=None):
 
 
 def opcoes(inv):
-    """O que está ligado no InventarIA e muda as etapas: consumiveis (Usar consumíveis) e consumiveis_por_comodo."""
+    """O que está ligado no InventarIA e muda as etapas: bens (Usar bens), consumiveis (Usar consumíveis) e consumiveis_por_comodo."""
     o = inv.get("opcoes") or {}
-    return {k for k in ("consumiveis", "consumiveis_por_comodo") if o.get(k) is True}
+    return {k for k in ("bens", "consumiveis", "consumiveis_por_comodo") if o.get(k) is True}
 
 
 def etapa_de(rid, eid):
@@ -322,8 +413,9 @@ def pedido(rid, eid, onde, todas, n, total, ligado=()):
         return None
     modelo = next((t for k, t in (e.get("pedido_com") or {}).items() if k in ligado), e["pedido"])
     filtra = aceita(todas, e["precisa"], "comodo")
-    texto = modelo.format(onde=onde, em=f" em «{onde}»",
-                          do_comodo=(f" do cômodo «{onde}» (o campo comodo)" if filtra else (e.get("pedido_sem_filtro") or "").format(onde=onde)))
+    # 1.32.0: numa ronda sem cômodo não há cômodo a dizer (antes saía «do cômodo «»» num pedido escrito pela pessoa)
+    texto = modelo.format(onde=onde, em=f" em «{onde}»" if onde else "",
+                          do_comodo="" if not onde else (f" do cômodo «{onde}» (o campo comodo)" if filtra else (e.get("pedido_sem_filtro") or "").format(onde=onde)))
     return "\n".join([
         f"{r['nome'].upper()}{f', cômodo «{onde}»' if onde else ''}, etapa {n} de {total}: {e['titulo']} ({e['nome_app']}).",
         texto,

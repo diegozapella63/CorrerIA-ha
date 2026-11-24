@@ -104,6 +104,67 @@ class TestEditor(Base):
         S.montar_rondas()
         self.addCleanup(lambda: (os.path.exists(S.MINHAS_ARQ) and os.remove(S.MINHAS_ARQ), S.montar_rondas()))
 
+    def test_quando_perguntar(self):
+        """1.32.0 (o dono: "para eu escrever algo como: não perguntar sobre pet shop no cômodo do quarto"): a frase é da pessoa,
+        mas quem decide é o app, pelos nomes dos cômodos que estão nela."""
+        C = ["Sala", "Quarto", "Quarto de hóspedes", "Banheiro", "Cozinha"]
+        for frase, regra in (("não perguntar sobre pet shop no cômodo do quarto", {"fora": ["Quarto"]}),
+                             ("Só no banheiro e na cozinha", {"so": ["Banheiro", "Cozinha"]}),
+                             ("nunca no quarto de hospedes", {"fora": ["Quarto de hóspedes"]}),
+                             ("menos na SALA e no Quarto de Hóspedes", {"fora": ["Sala", "Quarto de hóspedes"]}),
+                             ("sempre", {}), ("na salada", {}), ("", {})):
+            self.assertEqual(rondas.quando_regra(frase, C), regra, frase)
+        self.assertTrue(rondas.vale_em({"fora": ["Quarto"]}, "Quarto de hóspedes"))
+        self.assertFalse(rondas.vale_em({"fora": ["Quarto"]}, "quarto"))
+        self.assertEqual([rondas.vale_em({"so": ["Banheiro"]}, c) for c in ("Banheiro", "Sala", "")], [True, False, True])
+        self.casa()
+        nova = {"id": "casa", "nome": "Ronda da casa", "onde": True,
+                "etapas": [{"de": "casa.feita"}, {"de": "casa.pet", "quando": "Não perguntar na Cozinha"}, {"de": "casa.mercado", "quando": "só na cozinha"}]}
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": nova})
+        self.assertEqual((st, ed["comodos"], ed["max"]["quando"]), (200, ["Sala", "Cozinha"], 160))
+        self.assertEqual([e["quando"] for e in ed["rondas"][0]["etapas"]], ["", "Não perguntar na Cozinha", "só na cozinha"])
+        guardada = json.load(open(S.MINHAS_ARQ, encoding="utf-8"))["rondas"]["casa"]["etapas"]
+        self.assertEqual([(e.get("fora"), e.get("so")) for e in guardada], [(None, None), (["Cozinha"], None), (None, ["Cozinha"])])
+        self.assertEqual(self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})[0], 200)
+        self.assertEqual(S.RONDAS_ATIVAS["u-ana"]["etapas"], ["feita", "pet"], "na Sala: sem o mercado")
+        self.j("/api/ronda", {"acao": "sair"})
+        self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Cozinha"})
+        self.assertEqual(S.RONDAS_ATIVAS["u-ana"]["etapas"], ["feita", "mercado"], "na Cozinha: sem o pet shop")
+        self.j("/api/ronda", {"acao": "sair"})
+        # uma frase sem cômodo nenhum não é guardada: o erro diz o que escrever; numa ronda sem cômodo, o campo não vale
+        st, r = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": dict(nova, etapas=[{"de": "casa.pet", "quando": "de vez em quando"}])})
+        self.assertEqual((st, "escreva o nome de um cômodo" in r["erro"]), (400, True))
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Sem cômodo", "onde": False, "etapas": [{"de": "casa.pet", "quando": "não na Sala"}]}})
+        self.assertEqual((st, ed["rondas"][-1]["etapas"][0]["quando"]), (200, ""))
+        # só uma etapa, que não vale no cômodo: a ronda não começa ali
+        self.j("/api/rondas/editor", {"acao": "salvar", "ronda": dict(nova, etapas=[{"de": "casa.pet", "quando": "não na Sala"}])})
+        st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+        self.assertEqual((st, r["erro"]), (400, "Nenhuma pergunta desta ronda vale neste cômodo."))
+
+    def test_mais_etapas_prontas(self):
+        """1.32.0 (o dono: "mais opções disponíveis com base nos principais temas. Exemplo: investimentos, bens"): etapas
+        prontas que não estão em nenhuma ronda daqui entram no catálogo, com as mesmas regras (uma pergunta só)."""
+        self.casa()
+        self.gerencia = self.ligar("gerencia", "GerencIA", [ferr("investimentos"), ferr("resumo")], {"investimentos": "2 investimentos: CDB 1.000; Tesouro 2.000."})
+        cat = {c["de"]: c for c in self.j("/api/rondas/editor")[1]["catalogo"]}
+        self.assertEqual((cat["mais.invest"]["grupo"], cat["mais.invest"]["nome_app"], cat["mais.invest"]["ligada"], cat["mais.bens"]["ligada"], cat["mais.cupons"]["ligada"]),
+                         ("Investimentos", "GerencIA", True, True, False))
+        self.assertNotIn("mais", [r["id"] for r in self.j("/api/rondas/editor")[1]["rondas"]], "não é uma ronda: só etapas para escolher")
+        for e in rondas.MAIS["mais"]["etapas"]:
+            p = e["pergunta"]
+            self.assertEqual((p.count("?"), p.endswith("?")), (1, True), p)
+            self.assertNotRegex(p, r" ou |,|…", p)
+        ids = [c["de"] for c in rondas.catalogo()]
+        self.assertEqual(len(ids), len(set(ids)))
+        st, ed = self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Patrimônio", "onde": False, "etapas": [{"de": "mais.invest"}, {"de": "mais.bens"}]}})
+        rid = ed["rondas"][-1]["id"]
+        self.assertEqual((st, [e["de"] for e in ed["rondas"][-1]["etapas"]]), (200, ["mais.invest", "mais.bens"]))
+        # os bens só com Usar bens ligado no InventarIA (a casa de teste não diz que estão)
+        self.assertEqual([e["id"] for x in self.j("/api/rondas")[1]["rondas"] if x["id"] == rid for e in x["etapas"]], ["invest"])
+        p = rondas.pedido(rid, "invest", "", S.FERR.todas(), 1, 1)
+        self.assertIn("Use gerencia_investimentos e conte os investimentos", p)
+        self.assertNotIn("cômodo «»", rondas.pedido(rid, "invest", "", S.FERR.todas(), 1, 1))
+
     def test_modo_simples_mudar_criar_voltar_e_apagar(self):
         self.casa()
         st, ed = self.j("/api/rondas/editor")
@@ -389,7 +450,7 @@ class TestArquivoNaRonda(Base):
 
 class TestRondas(Base):
     def test_sem_apps_nenhuma_ronda(self):
-        self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "rondas": [], "atrasados": [], "aviso": {"pessoas": []}}))
+        self.assertEqual(self.j("/api/rondas"), (200, {"ativa": None, "feitos": [], "ultimas": {}, "avisar_dias": 30, "ultimas_de": {}, "prazos": {"casa": 30}, "rondas": [], "atrasados": [], "atrasados_de": [], "aviso": {"pessoas": []}}))
         self.assertIn("não está disponível", self.j("/api/ronda", {"acao": "iniciar", "ronda": "nada", "onde": "Sala"})[1]["erro"])
         st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
         self.assertEqual(st, 400)
@@ -738,7 +799,7 @@ class TestHistoricoEAviso(Base):
         self.anotar("Sala", 31)
         self.anotar("Cozinha", 5)
         self.assertEqual(S.ultimas_rondas(), {"Sala": 31, "Cozinha": 5}, "a mais nova de cada cômodo")
-        self.assertEqual(S.conferir_rondas(), [{"onde": "Sala", "dias": 31}])
+        self.assertEqual(S.conferir_rondas(), [{"ronda": "casa", "nome": "Ronda da casa", "onde": "Sala", "dias": 31, "prazo": 30}])
         r = self.j("/api/rondas")[1]
         self.assertEqual((r["atrasados"], r["avisar_dias"], r["ultimas"]), (["Sala"], 30, {"Sala": 31, "Cozinha": 5}))
         self.assertEqual(self.j("/api/estado")[1]["rondas"]["atrasados"], ["Sala"])
@@ -756,7 +817,7 @@ class TestHistoricoEAviso(Base):
     def test_comodo_que_nunca_teve_ronda(self):
         self.casa()
         self.anotar("Sala", 1)
-        self.assertEqual(S.conferir_rondas(), [{"onde": "Cozinha", "dias": None}], "depois da primeira ronda da casa, o que nunca teve conta")
+        self.assertEqual([(a["onde"], a["dias"]) for a in S.conferir_rondas()], [("Cozinha", None)], "depois da primeira ronda da casa, o que nunca teve conta")
 
     def test_o_aviso_no_sino(self):
         self.casa()
@@ -857,6 +918,35 @@ class TestAvisoNoCelular(Base):
         for ruim in ("person.ana", ["ana"], [1], ["person.x"] * 31):
             self.assertEqual(self.j("/api/config", {"ronda_para": ruim})[1]["erro"], "Quem recebe: as pessoas da casa (person.*).")
         self.assertEqual(S.ler_config()["ronda_hora"], "07:30")
+
+    def test_cada_ronda_tem_o_seu_prazo(self):
+        """1.32.0 (o dono: "os dias de avisos devem estar configurados em cada ronda"): o prazo é de cada ronda; uma sem cômodo
+        com o aviso ligado conta também quando nunca foi feita, e o texto do aviso diz de qual ronda é."""
+        from datetime import datetime, timedelta
+        self.casa()
+        self.assertEqual(S.ler_config()["ronda_prazos"], {"casa": 30}, "só a Ronda da casa começa com aviso")
+        self.assertEqual(self.j("/api/config", {"ronda_prazo": {"ronda": "nao_existe", "dias": 10}})[0], 400)
+        self.assertEqual(self.j("/api/config", {"ronda_prazo": {"ronda": "compras", "dias": 999}})[0], 400)
+        st, e = self.j("/api/config", {"ronda_prazo": {"ronda": "compras", "dias": 7}})
+        self.assertEqual((st, e["rondas"]["prazos"], e["rondas"]["avisar_dias"]), (200, {"casa": 30, "compras": 7}, 30))
+        atras = S.conferir_rondas()
+        self.assertEqual([(a["ronda"], a["onde"], a["dias"], a["prazo"]) for a in atras], [("compras", "", None, 7)], "nunca feita, com o aviso ligado")
+        self.assertEqual(S.texto_do_aviso(atras), "Ronda de compras: ainda não foi feita.")
+        self.assertEqual(self.j("/api/estado")[1]["rondas"]["atrasados"], ["Ronda de compras"])
+        self.assertEqual(self.j("/api/estado")[1]["rondas"]["atrasados_de"], [{"ronda": "compras", "onde": ""}])
+        for rid, onde, dias in (("compras", "", 9), ("casa", "Sala", 40), ("casa", "Cozinha", 2)):
+            with mock.patch.object(S, "agora_iso", lambda d=dias: (datetime.now() - timedelta(days=d)).isoformat(timespec="seconds")):
+                S.anotar_ronda(rid, onde, {"nome": "Ana"}, 3)
+        atras = S.conferir_rondas()
+        self.assertEqual([(a["ronda"], a["onde"]) for a in atras], [("casa", "Sala"), ("compras", "")])
+        self.assertEqual(S.texto_do_aviso(atras), "Sala está sem ronda há mais de 30 dias. Ronda de compras: sem fazer há mais de 7 dias.")
+        self.assertEqual(S._titulo_do_aviso(atras), "Rondas")
+        r = self.j("/api/rondas")[1]
+        self.assertEqual((r["ultimas_de"], r["prazos"]), ({"casa": {"Sala": 40, "Cozinha": 2}, "compras": {"": 9}}, {"casa": 30, "compras": 7}))
+        # o prazo de antes (ronda_dias) continua valendo como o da Ronda da casa; 0 desliga só a dela
+        self.assertEqual(self.j("/api/config", {"ronda_dias": 0})[1]["rondas"]["prazos"], {"casa": 0, "compras": 7})
+        self.assertEqual([(a["ronda"], a["onde"]) for a in S.conferir_rondas()], [("compras", "")])
+        self.assertEqual(self.j("/api/config", {"ronda_prazo": {"ronda": "compras", "dias": 0}})[1]["rondas"]["atrasados"], [])
 
     def test_avisa_uma_vez_por_dia_no_horario(self):
         from datetime import datetime

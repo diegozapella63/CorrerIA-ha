@@ -620,6 +620,28 @@
     abrirTela('ronda-editor');
   }
   const nomeEtapa = e => `${e.app} · ${e.grupo && e.grupo !== e.app ? e.grupo + ': ' : ''}${e.titulo}`;
+  /* 1.32.0 (o dono: "para eu escrever algo como: não perguntar sobre pet shop no cômodo do quarto"): o Quando perguntar de
+     cada etapa de uma ronda por cômodo. A mesma regra do rondas.quando_regra (quem decide é o servidor; aqui é só para
+     mostrar, embaixo do campo, o que foi entendido): os nomes dos cômodos que estão na frase, o mais comprido primeiro, e se
+     a frase nega (não, nunca, menos…) a pergunta não sai neles; senão, só sai neles. */
+  const semAcento = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/).filter(Boolean).join(' ');
+  const NEGA_RE = /(^|[^a-z0-9])(nao|nunca|menos|exceto|sem|fora|pular|pule|tirar|tire)(?![a-z0-9])/;
+  function quandoRegra(texto, comodos) {
+    let t = ` ${semAcento(texto)} `;
+    const achados = [];
+    [...new Set((comodos || []).filter(c => semAcento(c)))].sort((a, b) => semAcento(b).length - semAcento(a).length || (a < b ? -1 : 1)).forEach(c => {
+      const alvo = new RegExp('(^|[^a-z0-9])' + semAcento(c).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9])', 'g');
+      if (alvo.test(t)) { achados.push(c); t = t.replace(alvo, '$1 '); }
+    });
+    if (!achados.length) return null;
+    const ordem = (comodos || []).filter(c => achados.includes(c));
+    return NEGA_RE.test(semAcento(texto)) ? { fora: ordem } : { so: ordem };
+  }
+  function quandoDiz(texto, comodos) {
+    if (!String(texto || '').trim()) return '';
+    const r = quandoRegra(texto, comodos);
+    return !r ? 'Nenhum cômodo reconhecido.' : r.fora ? `Não pergunta em: ${r.fora.join(', ')}.` : `Só pergunta em: ${r.so.join(', ')}.`;
+  }
   function telaEditor() {
     const ed = S.ed, E = S.editor;
     if (!ed || !E) return `${topoTela('Editar ronda', 'Rondas')}<section class="card"><p class="vazio">Carregando…</p></section>`;
@@ -631,6 +653,8 @@
           <button class="bt-icone" data-a="rd-tira" data-i="${i}" aria-label="Tirar da ronda">${ic('trash', 'ic-s')}</button></div>
         ${e.ligada === false ? '<small class="dica">O app desta etapa está desligado: ela fica de fora.</small>' : ''}
         <div class="campo">${rotulo('rd-p-' + i, 'chat', 'Pergunta')}<textarea id="rd-p-${i}" class="inp umalinha" rows="1" maxlength="${E.max.pergunta}" data-rd-p="${i}">${esc(e.pergunta)}</textarea></div>
+        ${ed.onde ? `<div class="campo">${rotulo('rd-q-' + i, 'casa', 'Quando perguntar')}<textarea id="rd-q-${i}" class="inp umalinha" rows="1" maxlength="${E.max.quando || 160}" data-rd-q="${i}" placeholder="Sempre">${esc(e.quando || '')}</textarea>
+          <small class="dica rd-q-diz" data-rd-diz="${i}">${esc(quandoDiz(e.quando, E.comodos))}</small></div>` : ''}
         ${av ? `<div class="campo">${rotulo('rd-l-' + i, 'book', 'O que a IA lê')}<textarea id="rd-l-${i}" class="inp" rows="2" maxlength="${E.max.pedido}" data-rd-l="${i}" placeholder="${e.ferramenta ? 'O que contar do que ler' : 'Vazio: como na etapa pronta'}">${esc(e.pedido || '')}</textarea></div>` : ''}</li>`).join('');
     const porApp = {};
     E.catalogo.forEach(c => { (porApp[c.nome_app] = porApp[c.nome_app] || []).push(c); });
@@ -657,8 +681,20 @@
   }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;
-    const d = R.avisar_dias, on = d > 0, outro = on && (S.rondaOutro || !RONDA_DIAS.includes(d));
-    const chip = (v, txt, ligado, icone) => `<button role="radio" aria-checked="${ligado}" class="chip${ligado ? ' on' : ''}" data-a="ronda-dias" data-v="${v}">${ic(icone, 'ic-s')}${txt}</button>`;
+    // 1.32.0 (o dono: "os dias de avisos devem estar configurados em cada ronda, dentro do grupo da ronda"): cada cartão tem
+    // a chave do aviso e o prazo dela; o cartão Aviso fica com o que vale para todas (o horário, quem recebe e o Testar)
+    const prazos = R.prazos || {}, algum = Object.values(prazos).some(n => n > 0);
+    const aviso = r => {
+      const d = prazos[r.id] || 0, on = d > 0, outro = on && (S.rondaOutro === r.id || !RONDA_DIAS.includes(d));
+      const chip = (v, txt, ligado, icone) => `<button role="radio" aria-checked="${ligado}" class="chip${ligado ? ' on' : ''}" data-a="ronda-dias" data-r="${esc(r.id)}" data-v="${v}">${ic(icone, 'ic-s')}${txt}</button>`;
+      const nome = r.sem_onde ? 'Avisar sem esta ronda' : 'Avisar cômodo sem ronda';
+      return `<div class="linha-sw ronda-av"><div>${tituloLinha('alert', nome)}</div>
+          <button class="sw${on ? ' on' : ''}" data-a="ronda-aviso" data-r="${esc(r.id)}" role="switch" aria-checked="${on}" aria-label="${nome}"></button></div>
+        ${on ? `<div class="sub-op"><div class="sub-box"><div class="campo">${tituloLinha('calendar', 'Há mais de')}
+          <div class="chips-tempo" role="radiogroup" aria-label="Há mais de">${RONDA_DIAS.map(n => chip(n, n + ' dias', !outro && d === n, 'calendar')).join('')}${chip('outro', 'Outro', !!outro, 'nova')}</div>
+          ${outro ? `<div class="ch-ed-nova ronda-outro"><input id="ronda-outro-${esc(r.id)}" class="inp" type="number" inputmode="numeric" min="1" max="365" aria-label="Dias" placeholder="Dias" value="${RONDA_DIAS.includes(d) ? '' : d}">
+            <button class="btn pri" data-a="ronda-outro" data-r="${esc(r.id)}">${ic('check', 'ic-s')}Salvar</button></div>` : ''}</div></div></div>` : ''}`;
+    };
     const H = R.historico || [];
     const cartoes = !L ? '<section class="card"><p class="vazio">Carregando…</p></section>'
       : !L.length ? '<section class="card"><p class="vazio">Nenhuma ronda disponível: ligue o CorrerIA nos apps.</p></section>'
@@ -666,7 +702,8 @@
           <p class="lead">${esc(r.resumo)}</p>
           <p class="ronda-grupos">${esc([...new Set(r.etapas.map(x => x.grupo))].join(' › '))} · ${r.etapas.length} ${r.etapas.length === 1 ? 'pergunta' : 'perguntas'}</p>
           <div class="dados-acoes dois"><button class="btn out" data-a="rd-editar" data-v="${esc(r.id)}">${ic('nova', 'ic-s')}Editar</button>
-            <button class="btn pri" data-a="ronda-comecar" data-v="${esc(r.id)}"${r.sem_onde ? '' : ' data-escolher="1"'}>${ic('chev', 'ic-s')}${r.sem_onde ? 'Começar' : 'Escolher o cômodo'}</button></div></section>`).join('');
+            <button class="btn pri" data-a="ronda-comecar" data-v="${esc(r.id)}"${r.sem_onde ? '' : ' data-escolher="1"'}>${ic('chev', 'ic-s')}${r.sem_onde ? 'Começar' : 'Escolher o cômodo'}</button></div>
+          ${r.livre ? '' : aviso(r)}</section>`).join('');
     // 1.30.0: criar uma ronda e o modo avançado (desligado de início), com o que ele muda dito ali
     const av = !!(S.editor && S.editor.avancado);
     const suas = `<section class="card" id="ronda-suas">${cab('plus', 'Suas rondas')}
@@ -676,15 +713,10 @@
     return `${topoTela('Rondas', 'Mais')}
       ${cartoes}
       ${suas}
-      <section class="card" id="ronda-aviso">${cab('alert', 'Aviso')}
-        <div class="linha-sw"><div>${tituloLinha('alert', 'Avisar cômodo sem ronda')}<span>${(R.atrasados || []).length ? `Atrasados: ${esc(R.atrasados.join(', '))}.` : 'No botão das Rondas e no sino do Home Assistant.'}</span></div>
-          <button class="sw${on ? ' on' : ''}" data-a="ronda-aviso" role="switch" aria-checked="${on}" aria-label="Avisar cômodo sem ronda"></button></div>
-        ${on ? `<div class="sub-op"><div class="sub-box"><div class="campo">${tituloLinha('calendar', 'Há mais de')}
-          <div class="chips-tempo" role="radiogroup" aria-label="Há mais de">${RONDA_DIAS.map(n => chip(n, n + ' dias', !outro && d === n, 'calendar')).join('')}${chip('outro', 'Outro', !!outro, 'nova')}</div>
-          ${outro ? `<div class="ch-ed-nova ronda-outro"><input id="ronda-outro" class="inp" type="number" inputmode="numeric" min="1" max="365" aria-label="Dias" placeholder="Dias" value="${RONDA_DIAS.includes(d) ? '' : d}">
-            <button class="btn pri" data-a="ronda-outro">${ic('check', 'ic-s')}Salvar</button></div>` : ''}</div>
-          <div class="campo">${rotulo('ronda-hora', 'clock', 'Horário')}<select id="ronda-hora" class="inp" data-ronda-hora aria-label="Horário do aviso">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
-          ${quemRecebe(R)}</div></div>` : ''}</section>
+      ${algum ? `<section class="card" id="ronda-aviso">${cab('alert', 'Aviso')}
+        ${(R.atrasados || []).length ? `<p class="lead">Atrasados: ${esc(R.atrasados.join(', '))}.</p>` : ''}
+        <div class="campo">${rotulo('ronda-hora', 'clock', 'Horário')}<select id="ronda-hora" class="inp" data-ronda-hora aria-label="Horário do aviso">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
+        ${quemRecebe(R)}</section>` : ''}
       <section class="card" id="ronda-hist">${cab('clock', `Últimas rondas${H.length ? ` (${H.length})` : ''}`)}
         <ul class="ronda-hist">${H.map(x => `<li><b>${esc(x.onde || x.ronda)}</b><span>${esc(dataCurta(x.em))}${x.pessoa ? ' · ' + esc(x.pessoa) : ''}</span></li>`).join('') || '<li>Nenhuma ronda ainda.</li>'}</ul></section>`;
   }
@@ -1394,23 +1426,30 @@
     const c = S.ch;
     c.rondaFeitos = r.feitos || c.rondaFeitos || [];
     if (r.ultimas) c.rondaUltimas = r.ultimas;
-    if (r.atrasados) { c.rondaAtrasados = r.atrasados; if (S.e && S.e.rondas) S.e.rondas.atrasados = r.atrasados; }
+    if (r.ultimas_de) c.rondaUltimasDe = r.ultimas_de;
+    if (r.prazos && S.e && S.e.rondas) S.e.rondas.prazos = r.prazos;
+    if (r.atrasados) { c.rondaAtrasados = r.atrasados; if (S.e && S.e.rondas) Object.assign(S.e.rondas, { atrasados: r.atrasados, atrasados_de: r.atrasados_de || [] }); }
   }
   const haDias = d => d == null ? 'nunca' : d === 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
   function blocoRondas() {
-    const R = S.ch.rondas, feitos = S.ch.rondaFeitos || [], ult = S.ch.rondaUltimas || {}, atras = S.ch.rondaAtrasados || [];
-    const temHist = Object.keys(ult).length > 0;
-    // 1.31.5: verde é o cômodo em dia: feito hoje ou, com o aviso ligado, dentro do prazo dele (feito há 2 dias num prazo de 30)
-    const prazo = ((S.e && S.e.rondas) || {}).avisar_dias || 0;
-    const emDia = n => feitos.includes(n) || (prazo > 0 && ult[n] != null && ult[n] <= prazo);
+    const R = S.ch.rondas, E = (S.e && S.e.rondas) || {};
     if (!R.lista) return `<div class="ch-ronda-esc"><p class="vazio">Carregando…</p></div>`;
     if (!R.lista.length) return `<div class="ch-ronda-esc"><p class="vazio">Nenhuma ronda disponível: ligue o CorrerIA no ResolvIA, no InventarIA ou no EconomIA.</p></div>`;
+    // 1.32.0: cada ronda com as últimas vezes, o prazo e os atrasados dela. Verde é o que está em dia: feito hoje ou, com o
+    // aviso ligado, dentro do prazo (1.31.5: feito há 2 dias num prazo de 30)
+    const lado = (r, n) => {
+      const ult = (S.ch.rondaUltimasDe || {})[r.id] || {}, prazo = (E.prazos || {})[r.id] || 0, d = ult[n];
+      const emDia = d === 0 || (prazo > 0 && d != null && d <= prazo);
+      const atras = (E.atrasados_de || []).some(a => a.ronda === r.id && a.onde === n);
+      return { cls: `${emDia ? ' feito' : ''}${atras ? ' atrasado' : ''}`, icone: emDia ? ic('check', 'ic-s') : atras ? ic('alert', 'ic-s') : '',
+        quando: Object.keys(ult).length ? `<small>${haDias(d)}</small>` : '' };
+    };
     return `<div class="ch-ronda-esc">${R.lista.map(r => `<div class="ch-ronda-op">
         ${tituloLinha('ronda', esc(r.nome))}<p class="ch-ronda-res">${esc([...new Set(r.etapas.map(x => x.grupo))].join(' › '))} · ${r.etapas.length} ${r.etapas.length === 1 ? 'pergunta' : 'perguntas'}</p>
-        ${r.sem_onde ? `<div class="ch-ronda-onde um"><button class="btn out" data-a="ronda-ir" data-v="${esc(r.id)}" data-sem="1">${ic('chev', 'ic-s')}<span>Começar</span></button></div>`
+        ${r.sem_onde ? (L => `<div class="ch-ronda-onde um"><button class="btn out${L.cls}" data-a="ronda-ir" data-v="${esc(r.id)}" data-sem="1">${L.icone || ic('chev', 'ic-s')}<span>Começar${L.quando}</span></button></div>`)(lado(r, ''))
           : r.livre ? `<div class="ch-ed-nova"><input id="ch-ronda-onde" class="inp" maxlength="60" placeholder="Qual cômodo?" aria-label="Cômodo" enterkeyhint="done" value="${esc(R.livre || '')}">
             <button class="btn pri" data-a="ronda-ir" data-v="${esc(r.id)}">${ic('check', 'ic-s')}Começar</button></div>`
-          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${emDia(n) ? ' feito' : ''}${atras.includes(n) ? ' atrasado' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${emDia(n) ? ic('check', 'ic-s') : atras.includes(n) ? ic('alert', 'ic-s') : ''}<span>${esc(n)}${temHist ? `<small>${haDias(ult[n])}</small>` : ''}</span></button>`).join('')}</div>`}
+          : `<div class="ch-ronda-onde">${r.onde.map(n => (L => `<button class="btn out${L.cls}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${L.icone}<span>${esc(n)}${L.quando}</span></button>`)(lado(r, n))).join('')}</div>`}
       </div>`).join('')}</div>`;
   }
   function faixaRonda() {
@@ -1538,12 +1577,12 @@
       await acao('config', { casa: !on }, on ? 'Casa desligada' : 'Casa ligada');
     } else if (a === 'recolher') {
       await acao('config', { recolher: Number(el.dataset.v) }, 'Salvo');
-    } else if (a === 'ronda-aviso') {  // 1.20.0: a chave liga (com 30 dias, ou o prazo de antes) e desliga
-      const on = S.e.rondas.avisar_dias > 0;
-      if (on) guardar('correria-ronda-dias', String(S.e.rondas.avisar_dias));
-      const n = on ? 0 : (Number(guardada('correria-ronda-dias')) || 30);
+    } else if (a === 'ronda-aviso') {  // 1.20.0: a chave liga (com 30 dias, ou o prazo de antes) e desliga; 1.32.0: a de cada ronda
+      const rid = el.dataset.r || 'casa', d = (S.e.rondas.prazos || {})[rid] || 0, on = d > 0;
+      const chave = rid === 'casa' ? 'correria-ronda-dias' : 'correria-ronda-dias-' + rid;
+      if (on) guardar(chave, String(d));
       S.rondaOutro = false;
-      await acao('config', { ronda_dias: n }, on ? 'Aviso de ronda desligado' : 'Aviso de ronda ligado');
+      await acao('config', { ronda_prazo: { ronda: rid, dias: on ? 0 : (Number(guardada(chave)) || 30) } }, on ? 'Aviso de ronda desligado' : 'Aviso de ronda ligado');
     } else if (a === 'ronda-pessoa') {  // 1.21.0: quem recebe o aviso no celular
       const para = new Set(S.e.rondas.para || []);
       if (para.has(el.dataset.v)) para.delete(el.dataset.v); else para.add(el.dataset.v);
@@ -1551,15 +1590,16 @@
     } else if (a === 'ronda-testar') {
       try { await api.post('ronda/testar', {}); toast('Aviso enviado para o seu celular'); } catch (err) { toast(err.message); }
     } else if (a === 'ronda-dias') {  // 1.19.0
-      if (el.dataset.v === 'outro') { S.rondaOutro = true; render(); const i = $('#ronda-outro'); if (i) i.focus({ preventScroll: true }); return; }
+      const rid = el.dataset.r || 'casa';
+      if (el.dataset.v === 'outro') { S.rondaOutro = rid; render(); const i = $('#ronda-outro-' + rid); if (i) i.focus({ preventScroll: true }); return; }
       S.rondaOutro = false;
       const n = Number(el.dataset.v);
-      await acao('config', { ronda_dias: n }, `Aviso depois de ${n} dias sem ronda`);
+      await acao('config', { ronda_prazo: { ronda: rid, dias: n } }, `Aviso depois de ${n} dias sem ronda`);
     } else if (a === 'ronda-outro') {
-      const n = Math.round(Number(($('#ronda-outro') || {}).value));
+      const rid = el.dataset.r || 'casa', n = Math.round(Number(($('#ronda-outro-' + rid) || {}).value));
       if (!(n >= 1 && n <= 365)) { toast('Escreva de 1 a 365 dias.'); return; }
       S.rondaOutro = false;
-      await acao('config', { ronda_dias: n }, `Aviso depois de ${n} dias sem ronda`);
+      await acao('config', { ronda_prazo: { ronda: rid, dias: n } }, `Aviso depois de ${n} dias sem ronda`);
     } else if (a === 'abrir-app') {  // 1.22.0: outro app, dentro do Home Assistant, sem recarregar (o Voltar volta para cá)
       const href = el.getAttribute('href');
       try {
@@ -1641,7 +1681,7 @@
       el.disabled = true;
       try {
         S.editor = await api.post('rondas/editor', a === 'rd-salvar'
-          ? { acao: 'salvar', ronda: { id: ed.id, nome: ed.nome, onde: ed.onde, etapas: ed.etapas.map(e => ({ id: e.id, de: e.de, ferramenta: e.ferramenta, titulo: e.titulo, pergunta: e.pergunta, pedido: e.pedido })) } }
+          ? { acao: 'salvar', ronda: { id: ed.id, nome: ed.nome, onde: ed.onde, etapas: ed.etapas.map(e => ({ id: e.id, de: e.de, ferramenta: e.ferramenta, titulo: e.titulo, pergunta: e.pergunta, pedido: e.pedido, quando: ed.onde ? e.quando : '' })) } }
           : { acao: ed.mudada ? 'restaurar' : 'apagar', id: ed.id });
         S.confirma = ''; S.ed = null; S.rondas = null; S.ch.rondas = null; S.ch.ronda = null;
         toast(a === 'rd-salvar' ? 'Ronda salva' : ed.mudada ? 'Ronda como era' : 'Ronda apagada');
@@ -1806,6 +1846,11 @@
       if (el.id === 'rd-nome') S.ed.nome = el.value;
       if (el.dataset.rdP != null && S.ed.etapas[Number(el.dataset.rdP)]) S.ed.etapas[Number(el.dataset.rdP)].pergunta = el.value;
       if (el.dataset.rdL != null && S.ed.etapas[Number(el.dataset.rdL)]) S.ed.etapas[Number(el.dataset.rdL)].pedido = el.value;
+      if (el.dataset.rdQ != null && S.ed.etapas[Number(el.dataset.rdQ)]) {  // 1.32.0: o que foi entendido aparece na hora, embaixo do campo
+        S.ed.etapas[Number(el.dataset.rdQ)].quando = el.value;
+        const diz = $(`[data-rd-diz="${el.dataset.rdQ}"]`);
+        if (diz) diz.textContent = quandoDiz(el.value, (S.editor || {}).comodos);
+      }
     }
     if (el.dataset.edI != null && S.ch.editando) S.ch.editando.lista[Number(el.dataset.edI)] = el.value;  // 1.12.0: mudar uma pergunta
     if (el.id === 'ch-txt') {

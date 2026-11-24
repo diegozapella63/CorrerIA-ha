@@ -122,6 +122,16 @@ def ler_json(caminho):
 
 # ---------------------------------------------------------------- configuração
 
+def _prazos_de(c):
+    """1.32.0: o prazo do aviso de cada ronda, {id da ronda: dias} (0: sem aviso). O da Ronda da casa, sem escolha, é o
+    ronda_dias de antes (30 de início); as outras começam sem aviso."""
+    dias = lambda n: isinstance(n, int) and not isinstance(n, bool) and 0 <= n <= 365
+    p = {str(k): v for k, v in c["ronda_prazos"].items() if dias(v) and re.fullmatch(r"[a-z0-9_]{1,20}", str(k))} if isinstance(c.get("ronda_prazos"), dict) else {}
+    if "casa" not in p:
+        p["casa"] = c["ronda_dias"] if dias(c.get("ronda_dias")) else 30
+    return p
+
+
 def ler_config():
     c = ler_json(CONFIG_ARQ)
     out = {"numero_id": str(c.get("numero_id") or ""), "token": str(c.get("token") or ""), "segredo": str(c.get("segredo") or ""),
@@ -139,7 +149,7 @@ def ler_config():
            # 1.21.0: o aviso no celular: a que horas (de meia em meia hora; 09:00 de início) e quem recebe (person.*)
            "ronda_hora": c["ronda_hora"] if HORA_RE.match(str(c.get("ronda_hora") or "")) else "09:00",
            "ronda_para": [p for p in c.get("ronda_para") or [] if isinstance(p, str) and PESSOA_RE.match(p)][:30] if isinstance(c.get("ronda_para"), list) else [],
-           "ronda_dias": c["ronda_dias"] if isinstance(c.get("ronda_dias"), int) and not isinstance(c.get("ronda_dias"), bool) and 0 <= c["ronda_dias"] <= 365 else 30,
+           "ronda_dias": _prazos_de(c).get("casa", 0), "ronda_prazos": _prazos_de(c),
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
@@ -235,11 +245,19 @@ def salvar_config(corpo):
             if not isinstance(para, list) or not all(isinstance(p, str) and PESSOA_RE.match(p) for p in para) or len(para) > 30:
                 raise ValueError("Quem recebe: as pessoas da casa (person.*).")
             c["ronda_para"] = list(dict.fromkeys(para))
-        if "ronda_dias" in corpo:  # 1.19.0
+        if "ronda_dias" in corpo:  # 1.19.0 (o prazo da Ronda da casa; 1.32.0: o de cada ronda vem em ronda_prazo)
             n = corpo.get("ronda_dias")
             if not isinstance(n, int) or isinstance(n, bool) or not 0 <= n <= 365:
                 raise ValueError("Escolha de 1 a 365 dias, ou nunca.")
-            c["ronda_dias"] = n
+            c["ronda_prazos"] = dict(c["ronda_prazos"], casa=n)
+        if "ronda_prazo" in corpo:  # 1.32.0: {ronda, dias}: o aviso de cada ronda (0 desliga)
+            pz = corpo.get("ronda_prazo") if isinstance(corpo.get("ronda_prazo"), dict) else {}
+            rid, n = str(pz.get("ronda") or ""), pz.get("dias")
+            if rid not in rondas.RONDAS:
+                raise ValueError("Essa ronda não existe mais.")
+            if not isinstance(n, int) or isinstance(n, bool) or not 0 <= n <= 365:
+                raise ValueError("Escolha de 1 a 365 dias.")
+            c["ronda_prazos"] = dict(c["ronda_prazos"], **{rid: n})
         if "ia_entidade" in corpo:  # 0.16.0: a IA para conversar
             e = str(corpo.get("ia_entidade") or "")
             if not IA_RE.match(e):
@@ -264,7 +282,7 @@ def salvar_config(corpo):
         threading.Thread(target=publicar_sensores if c["sensores"] else remover_sensores, daemon=True).start()
     if "apagar_dias" in corpo:  # 1.7.0: as velhas saem na hora
         limpar_conversas_velhas()
-    if "ronda_dias" in corpo:  # 1.19.0: confere na hora (a tela já recebe os atrasados do prazo novo)
+    if "ronda_dias" in corpo or "ronda_prazo" in corpo:  # 1.19.0: confere na hora (a tela já recebe os atrasados do prazo novo)
         _tentar(conferir_rondas)
     if "tunel" in corpo:  # 1.13.0: abre ou fecha a porta do túnel na hora
         ligar_tunel(c["tunel"])
@@ -1548,7 +1566,8 @@ def estado():
         "casa": {"ligado": c["casa"], "disponivel": bool(TOKEN)},
         "recolher": c["recolher"], "apagar_dias": c["apagar_dias"],
         # 1.19.0: as rondas: o prazo do aviso, os cômodos atrasados (conferidos de hora em hora) e as últimas 30 do histórico
-        "rondas": {"avisar_dias": c["ronda_dias"], "hora": c["ronda_hora"], "para": c["ronda_para"], "atrasados": [a["onde"] for a in ESTADO.get("rondas_atrasadas") or []],
+        "rondas": {"avisar_dias": c["ronda_dias"], "prazos": c["ronda_prazos"], "hora": c["ronda_hora"], "para": c["ronda_para"],
+                   **_atrasados_para_tela(ESTADO.get("rondas_atrasadas")),
                    "historico": [{"ronda": rondas.RONDAS[x["ronda"]]["nome"], "onde": x.get("onde") or "", "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
@@ -1919,13 +1938,22 @@ def _leituras():
             for f in FERR.todas() if not f["grava"] and not f.get("anexo")}
 
 
+def comodos_da_casa(pessoa=None):
+    """Os nomes dos cômodos do InventarIA (para o Quando perguntar de uma etapa), ou [] sem ele."""
+    try:
+        inv = rondas._resumo_inventario(FERR, FERR.todas(), pessoa)
+    except Exception:  # noqa: BLE001
+        return []
+    return [str(c.get("nome")) for c in inv.get("comodos") or [] if isinstance(c, dict) and c.get("nome")][:60]
+
+
 def editor_rondas():
     m, todas = ler_minhas(), FERR.todas()
     ids = {f["id"] for f in todas}
-    return {"avancado": m["avancado"], "rondas": rondas.para_editor(ids),
+    return {"avancado": m["avancado"], "rondas": rondas.para_editor(ids), "comodos": comodos_da_casa(),
             "catalogo": [dict(c, ligada=c["precisa"] in ids) for c in rondas.catalogo()],
             "leituras": [dict(v, id=k) for k, v in sorted(_leituras().items(), key=lambda kv: (kv[1]["nome_app"], kv[1]["titulo"]))] if m["avancado"] else [],
-            "max": {"etapas": rondas.MAX_ETAPAS, "pergunta": rondas.MAX_PERGUNTA, "pedido": rondas.MAX_PEDIDO}}
+            "max": {"etapas": rondas.MAX_ETAPAS, "pergunta": rondas.MAX_PERGUNTA, "pedido": rondas.MAX_PEDIDO, "quando": rondas.MAX_QUANDO}}
 
 
 def editar_rondas(c):
@@ -1944,7 +1972,9 @@ def editar_rondas(c):
                 if len([k for k in m["rondas"] if k not in rondas.PADRAO]) >= rondas.MAX_RONDAS:
                     raise ValueError(f"Já são {rondas.MAX_RONDAS} rondas suas. Apague alguma.")
                 rid = rondas.nova_id(set(rondas.RONDAS) | set(m["rondas"]))
-            m["rondas"][rid] = rondas.conferir_ronda(r, m["rondas"].get(rid), m["avancado"], _leituras() if m["avancado"] else None)
+            tem_quando = r.get("onde") is True and any(isinstance(x, dict) and str(x.get("quando") or "").strip() for x in r.get("etapas") or [])
+            m["rondas"][rid] = rondas.conferir_ronda(r, m["rondas"].get(rid), m["avancado"], _leituras() if m["avancado"] else None,
+                                                     comodos_da_casa() if tem_quando else None)
         elif acao in ("apagar", "restaurar"):
             rid = str(c.get("id") or "")
             if rid not in m["rondas"] or (acao == "apagar") != (rid not in rondas.PADRAO):
@@ -1996,30 +2026,88 @@ def ultimas_rondas(rid="casa", agora=None):
     return out
 
 
+def ultima_ronda(rid, agora=None):
+    """Há quantos dias foi a última vez desta ronda (em qualquer cômodo), ou None."""
+    dias = [d for d in (_dias_desde(x["em"], agora) for x in historico_rondas() if x.get("ronda") == rid) if d is not None]
+    return min(dias) if dias else None
+
+
+def ultimas_de_todas(agora=None):
+    """{id da ronda: {cômodo, ou "" numa ronda sem cômodo: há quantos dias}}."""
+    out = {}
+    for x in historico_rondas():
+        d = _dias_desde(x["em"], agora)
+        if d is not None:
+            r, k = out.setdefault(x["ronda"], {}), str(x.get("onde") or "")
+            r[k] = d if k not in r else min(r[k], d)
+    return out
+
+
+def atrasadas_todas(disps, agora=None):
+    """1.32.0: cada ronda tem o seu prazo. [{ronda, nome, onde, dias, prazo}]: numa ronda por cômodo, os cômodos sem ronda há
+    mais do que o prazo dela (um que nunca teve só conta depois da primeira vez dessa ronda); numa sem cômodo, a própria ronda
+    (onde ""), também quando nunca foi feita: o aviso dela só existe porque a pessoa ligou."""
+    prazos, out = ler_config()["ronda_prazos"], []
+    for x in disps or []:
+        limite = prazos.get(x["id"], 0)
+        if not limite:
+            continue
+        if x.get("sem_onde"):
+            d = ultima_ronda(x["id"], agora)
+            if d is None or d > limite:
+                out.append({"ronda": x["id"], "nome": x["nome"], "onde": "", "dias": d, "prazo": limite})
+        else:
+            ult = ultimas_rondas(x["id"], agora)
+            out += [{"ronda": x["id"], "nome": x["nome"], "onde": c, "dias": ult.get(c), "prazo": limite}
+                    for c in (x.get("onde") or []) if ult and (ult.get(c) is None or ult[c] > limite)]
+    return out
+
+
+def _atrasados_para_tela(atras):
+    """atrasados: os nomes (o cômodo ou, sem cômodo, a ronda); atrasados_de: [{ronda, onde}], para a tela saber de qual ronda é."""
+    atras = atras or []
+    return {"atrasados": [a["onde"] or a.get("nome") or "" for a in atras], "atrasados_de": [{"ronda": a.get("ronda", "casa"), "onde": a["onde"]} for a in atras]}
+
+
+def texto_do_aviso(atras):
+    """O texto do aviso (no sino e no celular): uma frase por ronda atrasada. Só a Ronda da casa: a frase de sempre."""
+    frases, vistos = [], []
+    for a in atras:
+        if a.get("ronda", "casa") in vistos:
+            continue
+        rid = a.get("ronda", "casa")
+        vistos.append(rid)
+        grupo = [b for b in atras if b.get("ronda", "casa") == rid]
+        if a["onde"]:
+            f = texto_atrasados([b["onde"] for b in grupo], a.get("prazo") or ler_config()["ronda_prazos"].get(rid, 0))
+            frases.append(f if rid == "casa" else f"{a.get('nome') or 'Ronda'}: {f[0].lower()}{f[1:]}")
+        else:
+            frases.append(f"{a.get('nome') or 'Ronda'}: " + ("ainda não foi feita." if a.get("dias") is None else f"sem fazer há mais de {a.get('prazo')} dias."))
+    return " ".join(frases)
+
+
+def _titulo_do_aviso(atras):
+    return "Ronda da casa" if all(a.get("ronda", "casa") == "casa" for a in atras) else "Rondas"
+
+
 def rondas_atrasadas(comodos, agora=None):
     """Os cômodos sem ronda há mais de ronda_dias (com o aviso ligado). Um cômodo que nunca teve ronda só conta depois da
     primeira ronda da casa: numa instalação nova não há do que avisar."""
-    limite = ler_config()["ronda_dias"]
-    ult = ultimas_rondas("casa", agora)
-    if not limite or not ult:
-        return []
-    return [{"onde": c, "dias": ult.get(c)} for c in comodos if ult.get(c) is None or ult[c] > limite]
+    return atrasadas_todas([{"id": "casa", "nome": rondas.RONDAS["casa"]["nome"], "onde": list(comodos)}], agora)
 
 
 def conferir_rondas():
     """De hora em hora (e quando uma ronda acaba ou o prazo muda): guarda os atrasados para a tela e avisa no sino do Home
     Assistant (um aviso só, que muda com a lista e some quando não há mais nenhum)."""
-    disp = next((x for x in (rondas.disponiveis(FERR) if FERR.tem() else []) if x["id"] == "casa"), None)
-    atras = rondas_atrasadas(disp["onde"]) if disp else []
+    atras = atrasadas_todas(rondas.disponiveis(FERR) if FERR.tem() else [])
     antes = ESTADO.get("rondas_atrasadas")
     ESTADO["rondas_atrasadas"] = atras
-    nomes = [a["onde"] for a in atras]
-    if not TOKEN or nomes == [a["onde"] for a in antes or []]:
+    nomes = [(a["ronda"], a["onde"]) for a in atras]
+    if not TOKEN or nomes == [(a.get("ronda", "casa"), a["onde"]) for a in antes or []]:
         return atras
     if nomes:
-        n = ler_config()["ronda_dias"]
-        texto = texto_atrasados(nomes, n)
-        _tentar(ha_post, "/services/persistent_notification/create", {"notification_id": "correria_ronda", "title": "CorrerIA · Ronda da casa", "message": texto})
+        _tentar(ha_post, "/services/persistent_notification/create",
+                {"notification_id": "correria_ronda", "title": "CorrerIA · " + _titulo_do_aviso(atras), "message": texto_do_aviso(atras)})
     elif antes:
         _tentar(ha_post, "/services/persistent_notification/dismiss", {"notification_id": "correria_ronda"})
     return atras
@@ -2071,12 +2159,12 @@ def avisar_rondas(agora=None):
     c = ler_config()
     agora = agora or datetime.now()
     hoje = agora.strftime("%Y-%m-%d")
-    if not TOKEN or not c["ronda_dias"] or not c["ronda_para"] or agora.strftime("%H:%M") < c["ronda_hora"] or ESTADO.get("ronda_avisado") == hoje:
+    if not TOKEN or not any(c["ronda_prazos"].values()) or not c["ronda_para"] or agora.strftime("%H:%M") < c["ronda_hora"] or ESTADO.get("ronda_avisado") == hoje:
         return None
     if ler_json(RONDAS_ARQ).get("avisado") == hoje:  # o app reiniciou depois de avisar
         ESTADO["ronda_avisado"] = hoje
         return None
-    atras = [a["onde"] for a in conferir_rondas()]
+    atras = conferir_rondas()
     ESTADO["ronda_avisado"] = hoje
     with TRAVA_RONDAS:
         d = ler_json(RONDAS_ARQ)
@@ -2084,7 +2172,7 @@ def avisar_rondas(agora=None):
     if not atras:
         return 0
     alvos = [cel for p in pessoas_com_celular(True) if p["id"] in c["ronda_para"] for cel in p["celulares"]]
-    return mandar_aviso(list(dict.fromkeys(alvos)), "🧭 Ronda da casa", texto_atrasados(atras, c["ronda_dias"]), "correria-ronda")
+    return mandar_aviso(list(dict.fromkeys(alvos)), "🧭 " + _titulo_do_aviso(atras), texto_do_aviso(atras), "correria-ronda")
 
 
 def testar_aviso_ronda(usuario):
@@ -2117,11 +2205,12 @@ def rondas_estado(chave, pessoa=None, listar=False):
         ativa = {"id": r["id"], "nome": rondas.RONDAS[r["id"]]["nome"], "onde": r["onde"], "n": r["i"] + 1, "total": len(r["etapas"]),
                  "etapa": e["titulo"], "grupo": e["grupo"], "app": e["nome_app"]}
     ult = ultimas_rondas()
-    out = {"ativa": ativa, "feitos": [c for c, d in ult.items() if d == 0], "ultimas": ult, "avisar_dias": ler_config()["ronda_dias"]}
+    c = ler_config()
+    out = {"ativa": ativa, "feitos": [c_ for c_, d in ult.items() if d == 0], "ultimas": ult, "avisar_dias": c["ronda_dias"],
+           "ultimas_de": ultimas_de_todas(), "prazos": c["ronda_prazos"]}  # 1.32.0: de cada ronda
     if listar:
         out["rondas"] = rondas.disponiveis(FERR, pessoa) if FERR.tem() else []
-        casa_ = next((x for x in out["rondas"] if x["id"] == "casa"), None)
-        out["atrasados"] = [a["onde"] for a in rondas_atrasadas(casa_["onde"])] if casa_ else []
+        out.update(_atrasados_para_tela(atrasadas_todas(out["rondas"])))
     return out
 
 
@@ -2142,7 +2231,11 @@ def ronda_passo(corpo, pessoa, chave):
             onde = ""
         elif not onde or (disp["onde"] and onde not in disp["onde"]):
             raise ValueError("Escolha o cômodo.")
-        r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": [e["id"] for e in disp["etapas"]], "opcoes": disp["opcoes"]}
+        # 1.32.0: o Quando perguntar de cada etapa: as que não valem neste cômodo ficam de fora
+        etapas = [e["id"] for e in disp["etapas"] if rondas.vale_em(rondas.etapa_de(rid, e["id"]), onde)]
+        if not etapas:
+            raise ValueError("Nenhuma pergunta desta ronda vale neste cômodo.")
+        r = RONDAS_ATIVAS[chave] = {"id": rid, "onde": onde, "i": 0, "etapas": etapas, "opcoes": disp["opcoes"]}
     elif not r:
         raise ValueError("Nenhuma ronda em andamento.")
     elif acao == "proxima":

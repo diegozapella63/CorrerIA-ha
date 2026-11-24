@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.32.0
+
+- **Quando perguntar**: no editor de uma ronda por cômodo, cada etapa ganhou esse campo. Escreva, por exemplo, «Não perguntar no Quarto» ou «Só no Banheiro e na Cozinha»; embaixo aparece o que o app entendeu (**Não pergunta em: Quarto.**). Vazio, a pergunta sai em todo cômodo.
+- **Mais etapas prontas** no Adicionar etapa, por tema: investimentos (conferir, vencendo, novo), fixos e lançamentos do mês (GerencIA); bens e itens mais valiosos (InventarIA); tarefas que se repetem e para hoje (ResolvIA); agenda de hoje e da semana, remédios e placar (CronologIA); cupons (EconomIA); blocos (MemorIA).
+- **Aviso em cada ronda**: a chave do aviso e o prazo (15, 30, 45 dias ou Outro) ficam no cartão de cada ronda, e cada uma tem o seu. A Ronda da casa continua com o prazo que você tinha; as outras começam sem aviso. O cartão **Aviso** fica com o Horário, o Quem recebe e o Testar, que valem para todas.
+- Na escolha da ronda, as rondas sem cômodo também mostram há quantos dias foram feitas.
+
 ## 1.31.5
 
 - **Rondas**: na escolha do cômodo, fica verde todo cômodo em dia, e não só o feito hoje: com o aviso a cada 30 dias, o cômodo feito há 2 dias aparece verde. Com o aviso desligado, verde continua sendo só o de hoje.
