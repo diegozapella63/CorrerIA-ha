@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.35.1
+
+- **Com o Gemini, a IA voltou a ler e a mudar os apps**: as ferramentas recebiam um campo «json» que nenhum app conhece (**Argumento desconhecido: json** depois do Sim) e, nas rondas, a leitura do app não chegava (por isso só a pergunta, como «Algum desses consumíveis precisa repor?» sem a lista, e o «Não consegui responder agora» com a foto).
+- **A etapa que lê o app nunca fica só com a pergunta**: quando a IA não escreve o que achou, o próprio CorrerIA diz em cima da pergunta **Nenhuma rotina encontrada.** (ou tarefa, item, consumível…), **3 rotinas no CronologIA.** ou, se a leitura não deu, **Não consegui ler o CronologIA agora.** (o erro aparece em Uso da IA › Últimas chamadas).
+
 ## 1.35.0
 
 - **Mais 3 etapas prontas** no Adicionar etapa, com as ferramentas novas dos apps:

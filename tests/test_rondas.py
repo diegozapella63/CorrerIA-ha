@@ -361,10 +361,34 @@ class TestLinksEMais(Base):
                 st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
             self.assertEqual(st, 200)
             m = r["mensagens"][-1]
-            self.assertRegex(m["texto"], r"^\*[^*\n]+\?\*$", "só a pergunta da etapa")
-            self.assertNotIn("Não consegui", m["texto"])
+            # 1.35.1 (o dono: "do nada só uma pergunta sem contexto"): a linha do app diz que a leitura não deu, e a pergunta vem embaixo
+            self.assertRegex(m["texto"], r"^Não consegui ler o ResolvIA agora\.\n\n\*[^*\n]+\?\*$")
+            self.assertNotIn("Pode perguntar de outro jeito", m["texto"])
             self.assertEqual(m["app"], "ResolvIA")
             self.assertIn("abrir", m)
+
+    def test_a_leitura_sem_texto_ganha_a_linha_do_app(self):
+        """1.35.1 (o dono, com o print de «Falta alguma rotina?» sozinha: "pq ele não diz que não encontrou nenhuma?"): a
+        resposta que não deixa texto (só o TOTAL, só a pergunta repetida, nada) ganha a linha do app: nada encontrado, quantos,
+        ou que a leitura não deu. Com texto da IA, a linha do app não entra."""
+        self.casa()
+        for resposta, linha in (("TOTAL: 0", "Nenhuma tarefa encontrada."), ("TOTAL: 3", "3 tarefas no ResolvIA."), ("TOTAL: 1", "1 tarefa no ResolvIA."),
+                                ("Alguma dessas tarefas já foi feita?", "Não consegui ler o ResolvIA agora."), ("", "Não consegui ler o ResolvIA agora.")):
+            S.RONDAS_ATIVAS.clear()
+            with mock.patch.object(S, "responder_ia", return_value=(resposta, ["ResolvIA"], False)):
+                st, r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})
+            self.assertEqual(st, 200)
+            self.assertTrue(r["mensagens"][-1]["texto"].startswith(linha + "\n\n*"), (resposta, r["mensagens"][-1]["texto"]))
+        S.RONDAS_ATIVAS.clear()
+        with mock.patch.object(S, "responder_ia", return_value=("TOTAL: 2\n2 tarefas abertas:\n- Varrer\n- Lavar", ["ResolvIA"], False)):
+            r = self.j("/api/ronda", {"acao": "iniciar", "ronda": "casa", "onde": "Sala"})[1]
+        self.assertTrue(r["mensagens"][-1]["texto"].startswith("2 tarefas abertas:"), "com o texto da IA, sem a linha do app")
+        self.assertNotIn("no ResolvIA.", r["mensagens"][-1]["texto"])
+        # o nome do que se procura vem do grupo; um grupo sem nome conhecido diz o app
+        self.assertEqual([rondas.vazio("casa", "rotina_nova", n) for n in (0, 2, None)],
+                         ["Nenhuma rotina encontrada.", "2 rotinas no CronologIA.", "Não consegui ler o CronologIA agora."])
+        rid, e = next((rid, e) for rid, r in rondas.RONDAS.items() for e in r["etapas"] if e.get("pedido") and e["grupo"] not in rondas.VAZIO)
+        self.assertEqual([rondas.vazio(rid, e["id"], n) for n in (0, 4)], [f"Nada encontrado no {e['nome_app']}.", f"4 resultados no {e['nome_app']}."])
 
 
 class TestArquivoNaRonda(Base):

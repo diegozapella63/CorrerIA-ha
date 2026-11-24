@@ -524,7 +524,8 @@ ESTRUTURA = {
     "chamar": {"description": "As ferramentas a chamar agora (lista vazia se nenhuma).",
                "selector": {"object": {"multiple": True, "fields": {
                    "ferramenta": {"required": True, "selector": {"text": {}}},
-                   "argumentos": {"selector": {"object": {}}},
+                   "argumentos": {"description": "Os argumentos da ferramenta, um objeto JSON com os campos da entrada dela.",
+                                  "selector": {"object": {}}},
                    "resumo": {"selector": {"text": {}}}}}}},
 }
 SEM_ESTRUTURA = set()  # as IAs (entity_id; "" é a padrão) que recusaram a estrutura
@@ -839,7 +840,7 @@ def executar(acoes, pessoa, cliente, chave=None, falhas=None):
         if f.get("anexo") and not erro:
             guardar_foto(chave, None)  # a foto foi para o lugar dela: não vai duas vezes
         if erro:
-            linhas.append(f"- Não deu: {a.get('resumo') or f['titulo']}. {erro_para_gente(texto)}")
+            linhas.append(f"- Não deu: {str(a.get('resumo') or f['titulo']).rstrip('. ')}. {erro_para_gente(texto)}")
             if falhas is not None and recusa:
                 falhas.append((a, texto))
         else:
@@ -2272,16 +2273,20 @@ def ronda_passo(corpo, pessoa, chave):
         texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
         if str(texto or "").strip() in ia.NAO_DEU:
             # 1.31.1 (o dono mandou o print: «Não consegui responder agora. Pode perguntar de outro jeito?» em cima da
-            # pergunta da etapa): a IA não conseguiu ler o app; a etapa é um guia e segue só com a pergunta (e o Abrir no app)
+            # pergunta da etapa): a IA não conseguiu ler o app; a etapa é um guia e segue com a pergunta (e o Abrir no app).
+            # 1.35.1: e com a linha do app que diz que a leitura não deu (rondas.vazio)
+            log(f"Ronda: a IA não leu o {etapa['nome_app']} na etapa {eid}: {texto}")
             texto, nomes, confirmar = "", [etapa["nome_app"]], False
         achou, texto = rondas.total(texto)  # 1.21.0: sem nada ali, as perguntas que não fazem sentido saem
+        # 1.35.1: o que o app diz se a resposta não deixar texto (da etapa que leu); sem IA nenhuma (resp None), a etapa é só o guia
+        sem_texto = rondas.vazio(r["id"], eid, achou) if resp is not None else None
         r["etapas"] = rondas.sem_o_que_perguntar(r["id"], r["etapas"], r["i"], achou)
         junta = rondas.junta_com(r["id"], r["etapas"], r["i"], achou)
         if junta is not None:  # 1.21.1: nada ali: a pergunta seguinte do grupo vem na mesma mensagem (a etapa que leu sai)
             r["etapas"] = r["etapas"][:r["i"]] + r["etapas"][junta:]
             eid = r["etapas"][r["i"]]
             etapa = rondas.etapa_de(r["id"], eid)
-        texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=junta is not None or not (achou == 0 and etapa.get("se_tem")))
+        texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=junta is not None or not (achou == 0 and etapa.get("se_tem")), vazio=sem_texto)
         texto = rondas.e_mais(texto, achou)
     ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
     if confirmar:

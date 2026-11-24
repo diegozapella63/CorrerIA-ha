@@ -604,7 +604,28 @@ def sem_o_que_perguntar(rid, etapas, i, n):
     return fica + list(etapas[k:])
 
 
-def arrumar(texto, rid, eid, onde, perguntar=True):
+# 1.35.1 (o dono, com o print de «Falta alguma rotina?» sozinha: "pq ele não diz que não encontrou nenhuma? do nada só uma
+# pergunta sem contexto"): quando a leitura não deixa texto nenhum, quem escreve a linha de cima é o app, pelo que sabe: o
+# TOTAL que a IA deu (0: nada encontrado; N: quantos) ou, sem ele, que a leitura não deu. O nome do que se procura vem do grupo.
+VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotinas": ("Nenhuma rotina encontrada.", "rotina", "rotinas"),
+         "Itens": ("Nenhum item encontrado.", "item", "itens"), "Consumíveis": ("Nenhum consumível encontrado.", "consumível", "consumíveis"),
+         "Compras": ("A lista está vazia.", "item na lista", "itens na lista"), "Lista": ("A lista está vazia.", "item na lista", "itens na lista"),
+         "Agenda": ("Nenhum compromisso encontrado.", "compromisso", "compromissos"),
+         "Investimentos": ("Nenhum investimento encontrado.", "investimento", "investimentos"), "Bens": ("Nenhum bem encontrado.", "bem", "bens"),
+         "Manutenção": ("Nenhuma manutenção encontrada.", "manutenção", "manutenções"), "Remédios": ("Nenhum remédio encontrado.", "remédio", "remédios"),
+         "Novidades": ("Nenhuma novidade encontrada.", "novidade", "novidades")}
+
+
+def vazio(rid, eid, achou):
+    """A linha que o app escreve numa etapa que leu e cuja resposta veio sem texto: achou None é a leitura que não deu."""
+    e = etapa_de(rid, eid)
+    if achou is None:
+        return f"Não consegui ler o {e['nome_app']} agora."
+    zero, um, varios = VAZIO.get(e.get("grupo"), (f"Nada encontrado no {e['nome_app']}.", "resultado", "resultados"))
+    return zero if achou == 0 else f"{achou} {um if achou == 1 else varios} no {e['nome_app']}."
+
+
+def arrumar(texto, rid, eid, onde, perguntar=True, vazio=None):
     """A resposta da IA numa etapa, arrumada para ler: a pergunta sai de dentro do texto (a IA às vezes repete, entre «»),
     uma lista escrita numa linha só («: - a - b») vira uma linha por item, e a pergunta da etapa vem no fim, à parte, em negrito (perguntar=False: sem a pergunta, quando não há do que perguntar)."""
     p = pergunta(rid, eid, onde)
@@ -629,5 +650,5 @@ def arrumar(texto, rid, eid, onde, perguntar=True):
         if out and out[-1] and l and item != out[-1].startswith("- "):
             out.append("")
         out.append(l)
-    corpo = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    corpo = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() or vazio or ""
     return (corpo + "\n\n" if corpo else "") + f"*{p}*" if perguntar else corpo or "Nada por aqui."

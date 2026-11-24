@@ -123,6 +123,23 @@ SEM_RESPOSTA = "Não consegui responder agora. Pode perguntar de outro jeito?"
 NAO_DEU = (SEM_MUDANCA, SEM_FOTO, SEM_RESPOSTA)
 
 
+def argumentos_de(v):
+    """Os argumentos de uma chamada como objeto. Com a saída estruturada, eles podem vir como texto (JSON) e, no Gemini do
+    Home Assistant, dentro de {"json": "<texto>"}: o Gemini não aceita um objeto sem campos e o Home Assistant troca por um
+    campo «json» de texto. 1.35.1 (o dono: «Argumento desconhecido: json» depois do Sim, e as rondas sem a leitura dos apps):
+    esse campo ia como argumento para o app, que recusava."""
+    if isinstance(v, dict) and set(v) == {"json"} and isinstance(v["json"], (str, dict)):
+        v = v["json"]
+    if isinstance(v, str):
+        try:
+            v = json.loads(v or "{}", strict=False)
+        except ValueError:
+            return {}
+        if isinstance(v, dict) and set(v) == {"json"}:
+            return argumentos_de(v)
+    return v if isinstance(v, dict) else {}
+
+
 class Agente:
     def __init__(self, ferramentas, chamar_ia, log, simulada=False, pesquisar=None, lembrancas=None):
         self.ferr, self.chamar_ia, self.log, self.simulada = ferramentas, chamar_ia, log, simulada
@@ -212,11 +229,8 @@ class Agente:
                 bruto = self.chamar_ia(self.instrucoes(lista, historico, pessoa, canal, resultados, agora, ultima, foto=foto, lido=lido))
             r = extrair_json(bruto)
             for c in r.get("chamar") if isinstance(r.get("chamar"), list) else []:
-                if isinstance(c, dict) and isinstance(c.get("argumentos"), str):  # com a saída estruturada, os argumentos podem vir como texto
-                    try:
-                        c["argumentos"] = json.loads(c["argumentos"] or "{}", strict=False)
-                    except ValueError:
-                        c["argumentos"] = {}
+                if isinstance(c, dict):
+                    c["argumentos"] = argumentos_de(c.get("argumentos"))
             texto = str(r.get("resposta") or r.get("texto") or "").strip()[:4000]
             chamadas = [c for c in (r.get("chamar") or []) if isinstance(c, dict)] if isinstance(r.get("chamar"), list) else []
             achadas, desconhecidas = [], []

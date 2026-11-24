@@ -52,6 +52,19 @@ class TestAgente(unittest.TestCase):
         self.assertIn("gerencia_resumo({}) → Hoje no GerencIA: 3 contas, R$ 120,00.", p2, "o resultado volta para a IA")
         self.assertEqual(self.app.feitos[0]["cliente"], "WhatsApp")
 
+    def test_argumentos_no_campo_json_do_gemini(self):
+        """1.35.1 (o dono: «Argumento desconhecido: json» depois do Sim): com a saída estruturada, o Gemini do Home Assistant
+        põe os argumentos num campo «json» de texto; eles vão para o app como objeto (também em texto, ou com o json dentro)."""
+        ag = self.agente({"chamar": [{"ferramenta": "gerencia_resumo", "argumentos": {"json": '{"mes": "2026-11"}'}}], "resposta": ""},
+                         {"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"json": '{"descricao": "Feira", "valor": 32.5}'},
+                                      "resumo": "Lançar R$ 32,50 de Feira hoje."}], "resposta": ""})
+        r = ag.responder(self.hist("lança 32,50 de feira"), ANA, "correria", "CorrerIA", AGORA)
+        self.assertEqual(self.app.feitos[0]["argumentos"], {"mes": "2026-11"})
+        self.assertEqual(r["pendente"][0]["argumentos"], {"descricao": "Feira", "valor": 32.5})
+        for v, esperado in (('{"a": 1}', {"a": 1}), ('{"json": "{\\"a\\": 1}"}', {"a": 1}), ({"json": {"a": 1}}, {"a": 1}),
+                            ({"a": 1, "json": "x"}, {"a": 1, "json": "x"}), ("não é json", {}), ([1], {}), (None, {}), ({"json": 3}, {"json": 3})):
+            self.assertEqual(I.argumentos_de(v), esperado, v)
+
     def test_mudar_fica_para_o_sim(self):
         ag = self.agente({"chamar": [{"ferramenta": "gerencia_lancar", "argumentos": {"descricao": "Feira", "valor": 32.5},
                                       "resumo": "Lançar R$ 32,50 de Feira hoje"}], "resposta": "Certo."})
