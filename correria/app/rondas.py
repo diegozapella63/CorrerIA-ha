@@ -193,6 +193,22 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
        "Use inventario_buscar_itens com sem_foto true{do_comodo} e conte os itens sem foto (o nome e o cômodo; até 8).", se_tem=True),
     _e("parados", "Anotações", "Blocos parados", "memoria", "MemorIA", "memoria_resumo", "Algum desses blocos pode ser arquivado?",
        "Use memoria_resumo com parados_ha_dias 60 e conte os blocos parados (o nome e há quantos dias).", se_tem=True),
+    # 1.36.0 (o dono: "veja mais quais etapas e ferramentas podem ficar nas rondas como templates para uso"): o OdisseIA (os
+    # filmes, as séries e os jogos), o que o EconomIA e a CronologIA fazem e ainda não tinham etapa (repor, o preço, pular)
+    _e("continuar", "Séries", "Continuar vendo", "odisseia", "OdisseIA", "odisseia_proximo_episodio", "Viu algum episódio novo?",
+       "Use odisseia_resumo e conte só as séries em andamento (o nome, o episódio em que parou e quantos faltam; até 8).", se_tem=True),
+    _e("quero_ver", "Filmes e séries", "Quero ver", "odisseia", "OdisseIA", "odisseia_marcar", "Já viu algum desses?",
+       "Use odisseia_buscar com situacao quero e conte os filmes e as séries que a casa quer ver (o nome e o ano; até 8; sem os jogos).", se_tem=True),
+    _e("em_alta", "Sugestões", "Em alta", "odisseia", "OdisseIA", "odisseia_lista_pronta", "Quer pôr algum desses na lista?",
+       "Use odisseia_lista_pronta com lista alta e conte os títulos que ainda não estão na lista da casa (o nome e o tipo; até 8)."),
+    _e("quero_jogar", "Jogos", "Quero jogar", "odisseia", "OdisseIA", "odisseia_marcar", "Já jogou algum desses?",
+       "Use odisseia_buscar com tipo jogo e situacao quero e conte os jogos que a casa quer jogar (o nome e o ano; até 8).", se_tem=True),
+    _e("reposto", "Reposição", "Já repôs", "economia", "EconomIA", "economia_reposto", "Repôs algum desses?",
+       "Use economia_reposicao e conte o que está na hora de repor (o nome e quando venceu; até 8).", se_tem=True),
+    _e("precos", "Lista", "Preços", "economia", "EconomIA", "economia_preco", "Quer saber o preço de algum desses?",
+       "Use economia_lista e conte os itens da lista de compras (o nome de cada um; até 10).", se_tem=True),
+    _e("pular", "Agenda", "Pular hoje", "cronologia", "CronologIA", "cronologia_pular", "Alguma coisa de hoje não vai acontecer?",
+       "Use cronologia_agenda só de hoje e conte o que ainda falta fazer hoje (o nome e o horário).", se_tem=True),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -207,7 +223,10 @@ def _ronda_de_mais(nome, resumo, ids):
 for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, os bens, os itens de valor e as novidades dos equipamentos.",
                                                ["invest", "invest_vence", "invest_novo", "bens", "bem_novo", "valiosos", "sem_valor", "novidades"])),
                  ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, a agenda, as manutenções, os remédios e as contas atrasadas.",
-                                           ["hoje", "semana", "agenda_semana", "manut", "remedios", "atrasadas"]))):
+                                           ["hoje", "semana", "agenda_semana", "manut", "remedios", "atrasadas"])),
+                 # 1.36.0: a do OdisseIA, sem cômodo
+                 ("lazer", _ronda_de_mais("Ronda do lazer", "As séries em andamento, o que a casa quer ver e jogar e o que está em alta.",
+                                          ["continuar", "quero_ver", "quero_jogar", "em_alta"]))):
     RONDAS[_rid] = _r
     PADRAO[_rid] = copy.deepcopy(_r)
 
@@ -613,7 +632,10 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Agenda": ("Nenhum compromisso encontrado.", "compromisso", "compromissos"),
          "Investimentos": ("Nenhum investimento encontrado.", "investimento", "investimentos"), "Bens": ("Nenhum bem encontrado.", "bem", "bens"),
          "Manutenção": ("Nenhuma manutenção encontrada.", "manutenção", "manutenções"), "Remédios": ("Nenhum remédio encontrado.", "remédio", "remédios"),
-         "Novidades": ("Nenhuma novidade encontrada.", "novidade", "novidades")}
+         "Novidades": ("Nenhuma novidade encontrada.", "novidade", "novidades"),
+         "Séries": ("Nenhuma série em andamento.", "série", "séries"), "Filmes e séries": ("Nada em Quero ver.", "título", "títulos"),
+         "Jogos": ("Nenhum jogo em Quero jogar.", "jogo", "jogos"), "Sugestões": ("Nada em alta agora.", "título", "títulos"),
+         "Reposição": ("Nada na hora de repor.", "item", "itens")}
 
 
 def vazio(rid, eid, achou):

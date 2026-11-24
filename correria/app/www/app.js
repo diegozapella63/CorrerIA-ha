@@ -401,7 +401,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardCasa(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardRondas(e) + cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardCasa(e) + cardUso(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -413,7 +413,7 @@
   function telaMais() {
     const linha = (a, icone, titulo, txt) => `<button class="linha" data-a="${a}"><span class="rot-ic">${ic(icone)}</span><span class="linha-t"><b>${titulo}</b><small>${txt}</small></span>${ic('chev', 'ic-s chev')}</button>`;
     return `${topoTela('Mais', 'Conversa')}
-      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps, o aviso e as últimas rondas.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
+      <section class="card linha-card mais-menu">${S.e && S.e.apps.length ? linha('tela-rondas', 'ronda', 'Rondas', 'Os roteiros pelos apps e o aviso de cada um.') : ''}${linha('opcoes', 'gear', 'Configurações', 'Integrações, WhatsApp, MCP, dados e aparência.')}
         ${linha('sobre', 'info', 'Sobre', 'CorrerIA Code, os apps e o GitHub.')}</section>`;
   }
 
@@ -705,21 +705,33 @@
           <div class="dados-acoes dois"><button class="btn out" data-a="rd-editar" data-v="${esc(r.id)}">${ic('nova', 'ic-s')}Editar</button>
             <button class="btn pri" data-a="ronda-comecar" data-v="${esc(r.id)}"${r.sem_onde ? '' : ' data-escolher="1"'}>${ic('chev', 'ic-s')}${r.sem_onde ? 'Começar' : 'Escolher o cômodo'}</button></div>
           ${r.livre ? '' : aviso(r)}</section>`).join('');
-    // 1.30.0: criar uma ronda e o modo avançado (desligado de início), com o que ele muda dito ali
-    const av = !!(S.editor && S.editor.avancado);
+    // 1.30.0: criar uma ronda (o modo avançado foi para Configurações › Opções, 1.36.0)
     const suas = `<section class="card" id="ronda-suas">${cab('plus', 'Suas rondas')}
-        <div class="dados-acoes"><button class="btn pri" data-a="rd-editar" data-v="">${ic('plus', 'ic-s')}Nova ronda</button></div>
-        <div class="linha-sw rd-av"><div>${tituloLinha('sparkles', 'Modo avançado')}<span>Você escreve o que a IA lê em cada etapa e cria etapas livres. Uma instrução mal escrita faz a IA ler a coisa errada ou inventar.</span></div>
-          <button class="sw${av ? ' on' : ''}" data-a="rd-avancado" role="switch" aria-checked="${av}" aria-label="Modo avançado"></button></div></section>`;
+        <div class="dados-acoes"><button class="btn pri" data-a="rd-editar" data-v="">${ic('plus', 'ic-s')}Nova ronda</button></div></section>`;
     return `${topoTela('Rondas', 'Mais')}
       ${cartoes}
-      ${suas}
-      ${algum ? `<section class="card" id="ronda-aviso">${cab('alert', 'Aviso')}
-        ${(R.atrasados || []).length ? `<p class="lead">Atrasados: ${esc(R.atrasados.join(', '))}.</p>` : ''}
-        <div class="campo">${rotulo('ronda-hora', 'clock', 'Horário')}<select id="ronda-hora" class="inp" data-ronda-hora aria-label="Horário do aviso">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
-        ${quemRecebe(R)}</section>` : ''}
-      <section class="card" id="ronda-hist">${cab('clock', `Últimas rondas${H.length ? ` (${H.length})` : ''}`)}
-        <ul class="ronda-hist">${H.map(x => `<li><b>${esc(x.onde || x.ronda)}</b><span>${esc(dataCurta(x.em))}${x.pessoa ? ' · ' + esc(x.pessoa) : ''}</span></li>`).join('') || '<li>Nenhuma ronda ainda.</li>'}</ul></section>`;
+      ${suas}`;
+  }
+  // 1.36.0 (o dono: "aviso e última ronda deve ficar em configurações, na parte de opções"; "e a opção de modo avançado
+  // também deve ficar lá dentro"; "últimas rondas deve ficar num tamanho menor, igual o últimas chamadas do uso da IA"):
+  // em Configurações › Opções, o cartão Rondas: o Modo avançado, o aviso (o que vale para todas: o horário, quem recebe e
+  // o Testar; a chave e o prazo de cada uma ficam no cartão dela, em Mais › Rondas) e as Últimas rondas, recolhidas
+  function cardRondas(e) {
+    if (!e.apps.length) return '';
+    if (S.rondas == null && !S.rondasPedidas) { S.rondasPedidas = true; carregarRondas(); }
+    if (!S.editor && !S.editorPedido) { S.editorPedido = true; carregarEditor(); }
+    const R = e.rondas || {}, H = R.historico || [], av = !!(S.editor && S.editor.avancado);
+    const algum = Object.values(R.prazos || {}).some(n => n > 0);
+    const nome = id => ((S.rondas || []).find(r => r.id === id) || {}).nome || id;
+    const ult = H.map(x => `<li><b>${esc(x.onde || nome(x.ronda))}</b><span>${esc(dataCurta(x.em))}${x.pessoa ? ' · ' + esc(x.pessoa) : ''}</span></li>`).join('');
+    return `<section class="card" id="rondas">${cab('ronda', 'Rondas')}
+      <div class="linha-sw rd-av"><div>${tituloLinha('sparkles', 'Modo avançado')}<span>Você escreve o que a IA lê em cada etapa e cria etapas livres. Uma instrução mal escrita faz a IA ler a coisa errada ou inventar.</span></div>
+        <button class="sw${av ? ' on' : ''}" data-a="rd-avancado" role="switch" aria-checked="${av}" aria-label="Modo avançado"></button></div>
+      <div id="ronda-aviso">${algum ? `${(R.atrasados || []).length ? `<p class="lead ronda-atras">${ic('alert', 'ic-s')}Atrasados: ${esc(R.atrasados.join(', '))}.</p>` : ''}
+        <div class="campo">${rotulo('ronda-hora', 'clock', 'Horário do aviso')}<select id="ronda-hora" class="inp" data-ronda-hora aria-label="Horário do aviso">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
+        ${quemRecebe(R)}` : `<p class="dica ronda-sem-aviso">${ic('alert', 'ic-s')}O aviso liga em cada ronda, em Mais › Rondas.</p>`}</div>
+      <details class="uso-ult ronda-ult"${S.rondaUltAberta ? ' open' : ''}><summary>${ic('chev', 'ic-s')}${ic('clock', 'ic-s')}Últimas rondas${H.length ? ` (${H.length})` : ''}</summary><ul>${ult || '<li>Nenhuma ronda ainda.</li>'}</ul></details>
+    </section>`;
   }
   const dataCurta = iso => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(String(iso || '')); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : ''; };
   function cardTelaCheia(e) {
@@ -1709,7 +1721,7 @@
         if (a !== 'dados-backup') {  // os dados são outros: a tela busca tudo de novo
           Object.assign(S.ch, { lista: null, ronda: null, rondas: null });
           carregarConversa();
-          S.lembrancas = null; S.lembPedidas = false; S.rondas = null; S.editor = null; S.ed = null;
+          S.lembrancas = null; S.lembPedidas = false; S.rondas = null; S.editor = null; S.ed = null; S.rondasPedidas = false; S.editorPedido = false;
           await carregar();
         }
         toast(pedido[2]);
@@ -1839,6 +1851,7 @@
   document.addEventListener('toggle', ev => {
     if (!ev.target.classList) return;
     if (ev.target.classList.contains('mudancas')) S.mudAberto = ev.target.open;
+    else if (ev.target.classList.contains('ronda-ult')) S.rondaUltAberta = ev.target.open;
     else if (ev.target.classList.contains('uso-ult')) S.usoAberto = ev.target.open;
   }, true);
   document.addEventListener('input', ev => {

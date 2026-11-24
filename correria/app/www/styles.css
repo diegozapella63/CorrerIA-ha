@@ -689,3 +689,11 @@ ul.ronda-hist li:last-child { border-bottom: 0; }
 
 /* 1.33.0: o Salvar e o Cancelar do editor de rondas no fim da tela, fora de cartão (um cartão fecha, e eles não podem sumir) */
 .rd-acoes { margin: 18px 0 8px; }
+
+/* 1.36.0: o cartão Rondas em Configurações › Opções: as Últimas rondas no tamanho das Últimas chamadas do Uso da IA */
+#rondas .rd-av { margin: 0 0 4px; }
+#ronda-aviso { margin-top: 14px; }
+.ronda-atras, .ronda-sem-aviso { display: flex; align-items: center; gap: 8px; }
+.ronda-ult { margin-top: 10px; }
+.ronda-ult li { justify-content: space-between; }
+.ronda-ult li span { font-size: 13px; white-space: nowrap; }

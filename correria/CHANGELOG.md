@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.36.0
+
+- **Configurações › Opções › Rondas**: o **Modo avançado**, o aviso (os atrasados, o **Horário do aviso**, **Quem recebe** e **Testar no meu celular**) e as **Últimas rondas**, recolhidas e no tamanho das Últimas chamadas do Uso da IA. Em **Mais › Rondas** ficam as rondas, com a chave e o prazo do aviso de cada uma, e a **Nova ronda**.
+- **Ronda do lazer** (OdisseIA): as séries em andamento, o que a casa quer ver e jogar e o que está em alta.
+- **Etapas prontas novas** no Adicionar etapa: as do OdisseIA (Continuar vendo, Quero ver, Quero jogar, Em alta), **Já repôs** e **Preços** (EconomIA) e **Pular hoje** (CronologIA).
+
 ## 1.35.2
 
 - **Mais › Sobre**: o **OdisseIA** (os filmes e as séries da casa) entra na lista dos apps.
