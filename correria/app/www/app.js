@@ -76,6 +76,7 @@
     minimize: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
     casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     luz: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+    clapperboard: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
     'book-open': '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   };
   const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
@@ -752,6 +753,7 @@
     ['InventarIA', 'inventario-ha', 'package', 'Inventário da casa: cômodos, itens e valores.'],
     ['EconomIA', 'economia-ha', 'receipt', 'Lista de compras com o melhor preço perto de casa.'],
     ['MemorIA', 'memoria-ha', 'book-open', 'Cadernos de anotação que abrem na hora certa.'],
+    ['OdisseIA', 'odisseia', 'clapperboard', 'Os filmes e as séries da casa: o que ver e onde.'],
     ['CorrerIA', 'CorrerIA-ha', 'chat', 'Pergunte e peça a qualquer app, no chat ou no WhatsApp.'],
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;
@@ -788,6 +790,7 @@
     cronologia: ['O que tem na agenda amanhã?', 'Quais remédios faltam hoje?', 'Quem está ganhando o placar?', 'Marca dentista sexta às 15h', 'Quais rotinas estão atrasadas?'],
     resolvia: ['Quais tarefas vencem hoje?', 'Por onde eu começo hoje?', 'Adiciona leite na lista de compras', 'O que está atrasado?', 'Quantas tarefas eu tenho?'],
     inventario: ['Quanto valem os itens da sala?', 'Quantos eletrônicos eu tenho?', 'Quais cômodos valem mais?', 'Onde está o liquidificador?', 'Quanto vale a casa toda?'],
+    odisseia: ['O que a casa está vendo?', 'Que episódios saem esta semana?', 'O que está em alta para ver?', 'Onde assistir o filme que eu quero ver?'],
     memoria: ['O que eu anotei esta semana?', 'O que abre agora?', 'Onde anotei o telefone do encanador?', 'Quais blocos são meus?'],
     economia: ['Onde a compra fica mais barata?', 'Tem cupom bom agora?', 'O que está acabando?', 'Quanto vai dar a compra da lista?'],
     casa: ['Quais luzes estão acesas?', 'Apaga a luz da sala', 'A porta da frente está trancada?', 'Qual é a temperatura da casa?'],

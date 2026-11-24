@@ -235,9 +235,9 @@ class Tela(unittest.TestCase):
         self.assertIn("Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.", self.texto("#apps"))
         # 1.15.0: todos os apps da família aparecem, cada um dizendo que está com a integração desligada
         nomes = [t.strip() for t in self.pg.locator("#apps .app-l.off b").all_inner_texts()]
-        self.assertEqual(nomes, ["CronologIA", "EconomIA", "GerencIA", "InventarIA", "MemorIA", "ResolvIA"])
+        self.assertEqual(nomes, ["CronologIA", "EconomIA", "GerencIA", "InventarIA", "MemorIA", "OdisseIA", "ResolvIA"])
         self.assertEqual(set(self.pg.locator("#apps .app-l.off .le").all_inner_texts()), {"Integração desligada."}, "o como ligar já está no aviso de cima")
-        self.assertEqual(self.pg.locator("#apps .app-l.off .rot-ic svg").count(), 6, "cada um com o ícone")
+        self.assertEqual(self.pg.locator("#apps .app-l.off .rot-ic svg").count(), 7, "cada um com o ícone")
         self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= innerWidth"))
 
     def test_apps_que_respondem(self):
@@ -249,7 +249,7 @@ class Tela(unittest.TestCase):
         self.assertEqual(self.texto("#apps .app-l .le"), "Responde; recebe fotos e PDF.")
         # 1.15.0: o ligado primeiro; os outros cinco da família depois, com a integração desligada e como ligar
         linhas = self.pg.evaluate("[...document.querySelectorAll('#apps .app-l')].map(l => [l.querySelector('b').textContent, l.classList.contains('off'), l.querySelector('.le').textContent])")
-        self.assertEqual([x[:2] for x in linhas], [["GerencIA", False], ["CronologIA", True], ["EconomIA", True], ["InventarIA", True], ["MemorIA", True], ["ResolvIA", True]])
+        self.assertEqual([x[:2] for x in linhas], [["GerencIA", False], ["CronologIA", True], ["EconomIA", True], ["InventarIA", True], ["MemorIA", True], ["OdisseIA", True], ["ResolvIA", True]])
         self.assertEqual({x[2] for x in linhas[1:]}, {"Integração desligada. No app: Mais › Configurações › Integrações › CorrerIA."})
         op = self.pg.evaluate("[...document.querySelectorAll('#apps .app-l')].map(l => getComputedStyle(l.querySelector('b')).opacity)")
         self.assertEqual((op[0], set(op[1:])), ("1", {"0.55"}), "os desligados, apagados")
@@ -1775,7 +1775,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(self.texto(".sb-nome"), "CorrerIA Code")
         apps = self.pg.locator(".sb-app b").all_inner_texts()
         self.assertEqual([a.split("\n")[0].replace("Este app · v" + S.VERSAO, "").strip() for a in apps],
-                         ["CronologIA", "ResolvIA", "GerencIA", "InventarIA", "EconomIA", "MemorIA", "CorrerIA"])
+                         ["CronologIA", "ResolvIA", "GerencIA", "InventarIA", "EconomIA", "MemorIA", "OdisseIA", "CorrerIA"])
         self.assertEqual(self.texto(".sb-app.aqui .sb-aqui"), "Este app · v" + S.VERSAO)
         self.assertEqual(self.pg.locator(".sb-app.aqui .mb > span").inner_text().strip(), "Pergunte e peça a qualquer app, no chat ou no WhatsApp.",
                          "0.7.2: o chat com qualquer app, não só o WhatsApp")

@@ -1205,7 +1205,7 @@ class TestMcpHttp(Base):
         self.assertEqual((a["app"], a["ferramentas"], a["gravam"], a["conversa"], a["erro"]), ("gerencia", 3, 2, False, ""))
         # 1.15.0: os outros apps da família, sem a opção CorrerIA ligada (sem o correria.json deles)
         fora = est["apps_desligados"]
-        self.assertEqual([x["app"] for x in fora], ["cronologia", "economia", "inventario", "memoria", "resolvia"])
+        self.assertEqual([x["app"] for x in fora], ["cronologia", "economia", "inventario", "memoria", "odisseia", "resolvia"])
         self.assertEqual((fora[0]["nome"], set(fora[0])), ("CronologIA", {"app", "nome", "assunto"}))
         self.assertTrue(all(x["assunto"] and "chave" not in x for x in fora))
         self.assertEqual(est["mcp"], {"ligado": False, "endereco": "", "url": "", "cert_confere": None, "pedidos": [], "conexoes": []})

@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.35.2
+
+- **Mais › Sobre**: o **OdisseIA** (os filmes e as séries da casa) entra na lista dos apps.
+- **Configurações › Integrações**: o OdisseIA aparece entre os apps da família (como Integração desligada até ligar o CorrerIA nele).
+
 ## 1.35.1
 
 - **Com o Gemini, a IA voltou a ler e a mudar os apps**: as ferramentas recebiam um campo «json» que nenhum app conhece (**Argumento desconhecido: json** depois do Sim) e, nas rondas, a leitura do app não chegava (por isso só a pergunta, como «Algum desses consumíveis precisa repor?» sem a lista, e o «Não consegui responder agora» com a foto).

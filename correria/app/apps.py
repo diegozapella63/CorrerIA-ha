@@ -30,6 +30,7 @@ PALAVRAS = {
                   "estoque duracao dura inventariar",
     "economia": "oferta ofertas preco precos cupom cupons encarte farmacia supermercado reposicao repor",
     "memoria": "anotacao anotacoes nota notas folha folhas bloco caderno",
+    "odisseia": "filme filmes serie series episodio episodios temporada assistir assisti vendo vi netflix streaming colecao saga",
 }
 
 
@@ -44,6 +45,7 @@ FAMILIA = (
     ("gerencia", "GerencIA", "finanças da casa: caixa, gastos, contas a pagar, cartões, investimentos e patrimônio"),
     ("inventario", "InventarIA", "inventário da casa: cômodos, itens com valor, categorias e os bens"),
     ("memoria", "MemorIA", "anotações em blocos (cadernos): folhas, categorias e links"),
+    ("odisseia", "OdisseIA", "filmes e séries da casa: o que cada um está vendo, já viu ou quer ver, episódios, notas e onde assistir"),
     ("resolvia", "ResolvIA", "listas de tarefas da casa: o que fazer, prazos, compras, repetição e pontos"),
 )
 
