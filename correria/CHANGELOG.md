@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.31.5
+
+- **Rondas**: na escolha do cômodo, fica verde todo cômodo em dia, e não só o feito hoje: com o aviso a cada 30 dias, o cômodo feito há 2 dias aparece verde. Com o aviso desligado, verde continua sendo só o de hoje.
+
 ## 1.31.4
 
 - **Conversa**: abre sempre no chat. As perguntas prontas ou o **Editar perguntas** que ficaram abertos fecham ao sair.

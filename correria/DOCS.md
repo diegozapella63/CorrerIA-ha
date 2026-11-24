@@ -187,7 +187,7 @@ Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no a
 4. **Consumíveis** (InventarIA): *Algum desses consumíveis precisa repor?* (com algum acabando) · *Quer adicionar algum consumível?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
 5. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
 
-Depois da última pergunta, escolha o próximo cômodo: o feito hoje fica verde e cada um mostra há quantos dias foi a última ronda.
+Depois da última pergunta, escolha o próximo cômodo: o que está em dia (feito hoje ou dentro do prazo do aviso) fica verde e cada um mostra há quantos dias foi a última ronda.
 
 **Ronda de compras** (antes de sair): a lista, o que está na hora de repor, os consumíveis acabando, as ofertas e em qual loja a lista sai mais em conta.
 

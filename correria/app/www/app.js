@@ -1304,7 +1304,10 @@
     if (t) Object.assign(S.ch, { rondas: null, rapidas: false, editando: null, menu: false });
     S.tela = t;
     // o que a tela nova já abre por cima (a escolha da ronda, vindo do Começar) vai na mesma entrada: um Voltar só
-    history.pushState({ tela: t, ...(S.cheia ? { cheia: 1 } : {}), ...(temPainel() ? { painel: 1 } : {}) }, '');
+    // 1.31.5: a entrada do painel que acabou de fechar vira a da tela nova (senão sobrava uma entrada vazia no caminho da volta)
+    const novo = { tela: t, ...(S.cheia ? { cheia: 1 } : {}), ...(temPainel() ? { painel: 1 } : {}) };
+    if (history.state && history.state.painel && !temPainel()) history.replaceState(novo, '');
+    else history.pushState(novo, '');
     window.scrollTo(0, 0);
     render();
   }
@@ -1397,6 +1400,9 @@
   function blocoRondas() {
     const R = S.ch.rondas, feitos = S.ch.rondaFeitos || [], ult = S.ch.rondaUltimas || {}, atras = S.ch.rondaAtrasados || [];
     const temHist = Object.keys(ult).length > 0;
+    // 1.31.5: verde é o cômodo em dia: feito hoje ou, com o aviso ligado, dentro do prazo dele (feito há 2 dias num prazo de 30)
+    const prazo = ((S.e && S.e.rondas) || {}).avisar_dias || 0;
+    const emDia = n => feitos.includes(n) || (prazo > 0 && ult[n] != null && ult[n] <= prazo);
     if (!R.lista) return `<div class="ch-ronda-esc"><p class="vazio">Carregando…</p></div>`;
     if (!R.lista.length) return `<div class="ch-ronda-esc"><p class="vazio">Nenhuma ronda disponível: ligue o CorrerIA no ResolvIA, no InventarIA ou no EconomIA.</p></div>`;
     return `<div class="ch-ronda-esc">${R.lista.map(r => `<div class="ch-ronda-op">
@@ -1404,7 +1410,7 @@
         ${r.sem_onde ? `<div class="ch-ronda-onde um"><button class="btn out" data-a="ronda-ir" data-v="${esc(r.id)}" data-sem="1">${ic('chev', 'ic-s')}<span>Começar</span></button></div>`
           : r.livre ? `<div class="ch-ed-nova"><input id="ch-ronda-onde" class="inp" maxlength="60" placeholder="Qual cômodo?" aria-label="Cômodo" enterkeyhint="done" value="${esc(R.livre || '')}">
             <button class="btn pri" data-a="ronda-ir" data-v="${esc(r.id)}">${ic('check', 'ic-s')}Começar</button></div>`
-          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${feitos.includes(n) ? ' feito' : ''}${atras.includes(n) ? ' atrasado' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${feitos.includes(n) ? ic('check', 'ic-s') : atras.includes(n) ? ic('alert', 'ic-s') : ''}<span>${esc(n)}${temHist ? `<small>${haDias(ult[n])}</small>` : ''}</span></button>`).join('')}</div>`}
+          : `<div class="ch-ronda-onde">${r.onde.map(n => `<button class="btn out${emDia(n) ? ' feito' : ''}${atras.includes(n) ? ' atrasado' : ''}" data-a="ronda-ir" data-v="${esc(r.id)}" data-onde="${esc(n)}">${emDia(n) ? ic('check', 'ic-s') : atras.includes(n) ? ic('alert', 'ic-s') : ''}<span>${esc(n)}${temHist ? `<small>${haDias(ult[n])}</small>` : ''}</span></button>`).join('')}</div>`}
       </div>`).join('')}</div>`;
   }
   function faixaRonda() {

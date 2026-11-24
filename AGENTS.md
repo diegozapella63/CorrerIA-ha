@@ -182,6 +182,8 @@ Aqui (o CorrerIA não tem barra de baixo): os três pontos no alto da Conversa a
 
 1.31.4 (o dono: "sempre que eu clicar na conversa da IA deve iniciar com o chat"; vale em todos os apps): o `abrirTela(t)` para outra tela fecha o que estava aberto na Conversa (`rondas`, `rapidas`, `editando`, `menu`); a entrada `{painel: 1}` que sobra no histórico sai sozinha na volta (`acertarHistorico`). O `test_mudar_uma_pergunta` confere.
 
+1.31.5 (o dono: "se eu faço a cada 30 dias e faz 2 dias que eu fiz, então o card fica verde"): na escolha do cômodo (`blocoRondas`), `.btn.feito` é o cômodo em dia (`emDia`): feito hoje ou, com `rondas.avisar_dias` > 0, com a última ronda dentro do prazo; com o aviso desligado, só o de hoje. Teste: o das rondas atrasadas no `tests/test_tela.py`.
+
 ## Conversa com o dono
 
 Respostas curtas, em português. Ao terminar uma mudança: o que mudou, a versão e se está publicado. Ele usa o app do Home Assistant no Android.

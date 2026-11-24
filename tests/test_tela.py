@@ -1220,6 +1220,8 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector(".ch-ronda-onde .btn")
         self.assertEqual([t.replace("\n", " · ") for t in self.pg.locator(".ch-ronda-op:first-child .ch-ronda-onde .btn").all_inner_texts()], ["Sala · há 40 dias", "Cozinha · há 3 dias"])
         self.assertEqual(self.pg.locator(".ch-ronda-onde .btn.atrasado").all_inner_texts()[0].split("\n")[0], "Sala")
+        # 1.31.5: a Cozinha, feita há 3 dias num prazo de 30, está em dia: verde; a Sala, atrasada, não
+        self.assertEqual([t.split("\n")[0] for t in self.pg.locator(".ch-ronda-onde .btn.feito").all_inner_texts()], ["Cozinha"])
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
         # 1.20.0: Mais › Rondas (antes de Configurações e do Sobre): as rondas, o aviso (uma chave) e as últimas rondas
         self.pg.click('[data-a="mais"]')
