@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.33.0
+
+- **Mais 12 etapas prontas** no Adicionar etapa: **Novidades** dos equipamentos e itens sem valor (InventarIA); manutenções (conferir, nova) e remédios de hoje (CronologIA); tarefas sem prazo e dos próximos 7 dias (ResolvIA); contas atrasadas, recebimentos e fixo novo (GerencIA); limpar a lista (EconomIA); últimas folhas (MemorIA). As Novidades pedem o InventarIA 1.98.0.
+- **Editar ronda**: o **Salvar** e o **Cancelar** ficam soltos no fim da tela, fora de cartão.
+
 ## 1.32.0
 
 - **Quando perguntar**: no editor de uma ronda por cômodo, cada etapa ganhou esse campo. Escreva, por exemplo, «Não perguntar no Quarto» ou «Só no Banheiro e na Cozinha»; embaixo aparece o que o app entendeu (**Não pergunta em: Quarto.**). Vazio, a pergunta sai em todo cômodo.

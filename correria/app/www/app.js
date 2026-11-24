@@ -677,7 +677,7 @@
         <ul class="rd-etapas">${etapas || '<li class="vazio">Nenhuma etapa ainda.</li>'}</ul>
         ${ed.add ? '' : `<div class="dados-acoes"><button class="btn out" data-a="rd-abrir-add">${ic('plus', 'ic-s')}Adicionar etapa</button></div>`}</section>
       ${ed.add ? `<section class="card" id="rd-catalogo">${cab('plus', 'Adicionar etapa')}${catalogo}${livre}</section>` : ''}
-      <section class="card" id="rd-acoes">${cab('check', 'Salvar')}${fim}</section>`;
+      <div class="rd-acoes" id="rd-acoes">${fim}</div>`;  // 1.33.0 (o dono: "o Salvar não faz sentido estar em um card retraído"): os botões soltos no fim, como nos outros apps
   }
   function telaRondas(e) {
     const R = e.rondas || {}, L = S.rondas;

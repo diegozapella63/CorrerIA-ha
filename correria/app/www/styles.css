@@ -686,3 +686,6 @@ ul.ronda-hist li:last-child { border-bottom: 0; }
 .ronda-card .ronda-av { margin-top: 16px; }
 .rd-q-diz { display: block; margin-top: 6px; }
 .rd-q-diz:empty { display: none; }
+
+/* 1.33.0: o Salvar e o Cancelar do editor de rondas no fim da tela, fora de cartão (um cartão fecha, e eles não podem sumir) */
+.rd-acoes { margin: 18px 0 8px; }

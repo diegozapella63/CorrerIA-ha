@@ -867,7 +867,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.locator("#ronda-casa [data-a='rd-editar']").click()
         self.pg.wait_for_selector("#rd-etapas .rd-etapa")
         self.assertEqual(self.pg.locator("h1").inner_text().strip(), "Editar ronda")
-        self.assertEqual([t.strip() for t in self.pg.locator("#app section.card h2").all_inner_texts()], ["Ronda", "Etapas (2)", "Salvar"])
+        self.assertEqual([t.strip() for t in self.pg.locator("#app section.card h2").all_inner_texts()], ["Ronda", "Etapas (2)"])
         self.assertEqual([t.strip() for t in self.pg.locator(".rd-cab b").all_inner_texts()], ["ResolvIA · Tarefas: Concluir", "InventarIA · Itens: Novo"])
         self.assertEqual(self.pg.locator("[data-rd-l]").count(), 0, "no modo simples não se escreve o que a IA lê")
         self.assertEqual(self.pg.evaluate("[...document.querySelectorAll('#app .btn')].filter(b => !b.querySelector('svg')).length"), 0, "todo botão com ícone")
@@ -906,6 +906,10 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.locator(".rd-pronta").first.click()
         self.assertEqual(self.pg.locator(".rd-etapa").count(), 2)
         self.assertTrue(self.pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "nada sai da tela")
+        # 1.33.0: o Salvar e o Cancelar soltos no fim, fora de cartão (um cartão fecha), lado a lado e do mesmo tamanho
+        self.assertEqual(self.pg.evaluate("[document.querySelector('#rd-acoes').tagName, !!document.querySelector('#rd-acoes').closest('.card'), document.querySelectorAll('#rd-acoes h2, #rd-acoes [data-dobra]').length]"), ["DIV", False, 0])
+        cx = self.pg.evaluate("[...document.querySelectorAll('#rd-acoes .btn')].slice(-2).map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+        self.assertEqual((cx[0][0], cx[0][1], cx[0][2]), (cx[1][0], cx[1][1], 50), cx)
         self.pg.locator("[data-a='rd-salvar']").click()
         self.pg.wait_for_selector("#ronda-suas")
         self.assertEqual(posts[-1], {"acao": "salvar", "ronda": {"id": "casa", "nome": "Ronda da minha casa", "onde": True, "etapas": [

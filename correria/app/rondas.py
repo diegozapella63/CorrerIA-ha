@@ -160,6 +160,31 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
        "Use economia_cupons e conte até 5 cupons válidos (a loja, o código e a validade).", se_tem=True),
     _e("blocos", "Anotações", "Blocos", "memoria", "MemorIA", "memoria_resumo", "Quer anotar algo em algum bloco?",
        "Use memoria_resumo e conte os blocos de anotações (o nome de cada um)."),
+    # 1.33.0 (o dono: "mais algum template que você acha útil para criar nas rondas? faça uma análise nos 7 apps"): o que as
+    # ferramentas de cada app já leem e ainda não tinha etapa; as Novidades, com a inventario_novidades do InventarIA 1.98.0
+    _e("novidades", "Novidades", "Equipamentos", "inventario", "InventarIA", "inventario_novidades", "Alguma dessas novidades pede uma tarefa?",
+       "Use inventario_novidades{do_comodo} e conte as novidades (o item, o que é e a data; as novas primeiro).", so_com="novidades", se_tem=True),
+    _e("sem_valor", "Itens", "Sem valor", "inventario", "InventarIA", "inventario_buscar_itens", "Quer informar o valor de algum desses itens?",
+       "Use inventario_buscar_itens com valor_max 0{do_comodo} e conte os itens sem valor (o nome e o cômodo; até 8).", se_tem=True),
+    _e("manut", "Manutenção", "Conferir", "cronologia", "CronologIA", "cronologia_cadastros", "Alguma dessas manutenções já foi feita?",
+       "Use cronologia_cadastros{do_comodo} e conte só as manutenções (o nome e a próxima vez de cada uma).",
+       pedido_sem_filtro=" (conte só as que citam «{onde}»)", se_tem=True),
+    _e("manut_nova", "Manutenção", "Nova", "cronologia", "CronologIA", "cronologia_criar_compromisso", "Falta cadastrar alguma manutenção?"),
+    _e("remedio_hoje", "Remédios", "De hoje", "cronologia", "CronologIA", "cronologia_resumo", "Algum desses remédios já foi tomado?",
+       "Use cronologia_resumo e conte os remédios de hoje que ainda não foram tomados (o nome, de quem é e o horário; o TOTAL é só o desses).", se_tem=True),
+    _e("sem_prazo", "Tarefas", "Sem prazo", "resolvia", "ResolvIA", "resolvia_tarefas", "Alguma dessas tarefas precisa de prazo?",
+       "Use resolvia_tarefas{do_comodo} e conte as pendentes que não têm prazo (o nome e a lista; até 8; o TOTAL é só o dessas).", se_tem=True),
+    _e("semana", "Tarefas", "Próximos 7 dias", "resolvia", "ResolvIA", "resolvia_resumo", "Alguma dessas tarefas precisa mudar de prazo?",
+       "Use resolvia_resumo e conte as tarefas que vencem nos próximos 7 dias (o nome e o dia; o TOTAL é só o dessas).", se_tem=True),
+    _e("atrasadas", "Finanças", "Contas atrasadas", "gerencia", "GerencIA", "gerencia_contas_a_pagar", "Alguma dessas contas atrasadas já foi paga?",
+       "Use gerencia_contas_a_pagar e conte só as atrasadas (o nome, o valor e o vencimento; o TOTAL é só o dessas).", se_tem=True),
+    _e("recebidos", "Finanças", "Recebimentos", "gerencia", "GerencIA", "gerencia_lancamentos", "Falta lançar algum recebimento do mês?",
+       "Use gerencia_lancamentos (sem período: o mês atual) e conte só os recebimentos (o que foi, o valor e o dia)."),
+    _e("fixo_novo", "Finanças", "Fixo novo", "gerencia", "GerencIA", "gerencia_novo_fixo", "Tem algum gasto fixo novo?"),
+    _e("lista_limpar", "Compras", "Limpar a lista", "economia", "EconomIA", "economia_lista", "Algum item pode sair da lista?",
+       "Use economia_lista e conte os itens da lista de compras (o nome de cada um; até 10).", se_tem=True),
+    _e("folhas", "Anotações", "Últimas folhas", "memoria", "MemorIA", "memoria_buscar", "Alguma dessas anotações precisa ser atualizada?",
+       "Use memoria_buscar sem nada e conte as 5 folhas editadas por último (o bloco e o título de cada uma).", se_tem=True),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -386,9 +411,9 @@ def disponiveis(ferr, pessoa=None):
 
 
 def opcoes(inv):
-    """O que está ligado no InventarIA e muda as etapas: bens (Usar bens), consumiveis (Usar consumíveis) e consumiveis_por_comodo."""
+    """O que está ligado no InventarIA e muda as etapas: bens (Usar bens), consumiveis (Usar consumíveis), consumiveis_por_comodo e novidades (1.33.0)."""
     o = inv.get("opcoes") or {}
-    return {k for k in ("bens", "consumiveis", "consumiveis_por_comodo") if o.get(k) is True}
+    return {k for k in ("bens", "consumiveis", "consumiveis_por_comodo", "novidades") if o.get(k) is True}
 
 
 def etapa_de(rid, eid):
