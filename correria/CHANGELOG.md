@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.36.2
+
+- Em **Mais › Sobre**, a linha do OdisseIA ficou mais curta.
+
 ## 1.36.1
 
 - Em **Sobre** e no que a IA sabe dos apps, o OdisseIA aparece com os jogos e as categorias (as notas saíram de lá).
