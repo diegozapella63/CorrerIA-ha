@@ -765,7 +765,7 @@
     ['InventarIA', 'inventario-ha', 'package', 'Inventário da casa: cômodos, itens e valores.'],
     ['EconomIA', 'economia-ha', 'receipt', 'Lista de compras com o melhor preço perto de casa.'],
     ['MemorIA', 'memoria-ha', 'book-open', 'Cadernos de anotação que abrem na hora certa.'],
-    ['OdisseIA', 'odisseia', 'clapperboard', 'Os filmes e as séries da casa: o que ver e onde.'],
+    ['OdisseIA', 'odisseia', 'clapperboard', 'Os filmes, as séries e os jogos da casa: o que ver, jogar e onde.'],
     ['CorrerIA', 'CorrerIA-ha', 'chat', 'Pergunte e peça a qualquer app, no chat ou no WhatsApp.'],
   ];
   const marcaNome = n => `<span class="sb-wm">${n.slice(0, -2)}<span>${n.slice(-2)}</span></span>`;

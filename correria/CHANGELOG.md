@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.36.1
+
+- Em **Sobre** e no que a IA sabe dos apps, o OdisseIA aparece com os jogos e as categorias (as notas saíram de lá).
+
 ## 1.36.0
 
 - **Configurações › Opções › Rondas**: o **Modo avançado**, o aviso (os atrasados, o **Horário do aviso**, **Quem recebe** e **Testar no meu celular**) e as **Últimas rondas**, recolhidas e no tamanho das Últimas chamadas do Uso da IA. Em **Mais › Rondas** ficam as rondas, com a chave e o prazo do aviso de cada uma, e a **Nova ronda**.
