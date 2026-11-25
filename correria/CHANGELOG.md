@@ -1,5 +1,10 @@
 # Mudanças
 
+## 1.36.3
+
+- O ícone das **Rondas** agora é uma bússola. O de antes tinha um círculo no canto e, com o ponto amarelo dos cômodos
+  atrasados em cima, parecia uma notificação a mais.
+
 ## 1.36.2
 
 - Em **Mais › Sobre**, a linha do OdisseIA ficou mais curta.
