@@ -2,14 +2,25 @@
 
 ![CorrerIA](correria/logo.png)
 
-Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business), e em outras IAs, como um **conector MCP**. Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com a sua confirmação.
+Um App do Home Assistant que junta os apps da família num lugar só: a **Conversa** da própria tela, o **WhatsApp** (um contato da CorrerIA Code, pela API oficial do WhatsApp Business) e outras IAs, como o Claude e o Gemini, por um **conector MCP**. Pergunte ("quanto gastei com mercado este mês?", "o que tem na agenda amanhã?") e peça ("lança 45 de mercado", "marca a tarefa do lixo como feita"): a IA usa as ferramentas de cada app, e as mudanças só acontecem com o seu **Sim**.
 
 <p align="center">
-  <img src="docs/conversa.png" width="24%" alt="A conversa com a IA: perguntar e lançar com o sim">
-  <img src="docs/apps.png" width="24%" alt="Configurações › Integrações: os apps e o que cada um faz">
-  <img src="docs/whatsapp.png" width="24%" alt="Configurações › WhatsApp: a conta da Meta">
-  <img src="docs/claude-gemini.png" width="24%" alt="Configurações › MCP: o pedido de conexão com o código">
+  <img src="docs/conversa.png" width="19%" alt="A Conversa com a IA: perguntar, lançar com o Sim e a agenda de amanhã">
+  <img src="docs/rondas.png" width="19%" alt="A Ronda da casa na Sala: o que o app tem e uma pergunta de cada vez">
+  <img src="docs/apps.png" width="19%" alt="Configurações › Integrações: os apps da família e o que cada um faz">
+  <img src="docs/whatsapp.png" width="19%" alt="Configurações › WhatsApp: a conta da Meta e quem conversa">
+  <img src="docs/claude-gemini.png" width="19%" alt="Configurações › MCP: o pedido de conexão com o código">
 </p>
+
+## O que tem
+
+- **Conversa**: perguntas e pedidos para todos os apps de uma vez, com fotos e PDFs (o app do assunto lê), o **Falar** e as perguntas prontas. Cada mudança mostra o que vai fazer e espera o **Sim**; o **Desfazer** volta atrás.
+- **Rondas**: um roteiro pronto pelos apps, **uma pergunta de cada vez**, com o que cada app já tem antes da pergunta. A **Ronda da casa** passa cômodo por cômodo (tarefas, rotinas, manutenções, itens, consumíveis, compras e o que ficou ligado); há também as do dia, da noite, da semana, do mês, das compras, da chegada das compras, das finanças, do patrimônio, das anotações, do lazer e da viagem. Dá para mudar qualquer uma, criar as suas e receber o aviso no celular quando uma ficar atrasada.
+- **WhatsApp**: as pessoas da casa conversam com os apps pelo WhatsApp, também por áudio e foto.
+- **Claude, Gemini e outras IAs**: o conector MCP, com login aprovado no painel do Home Assistant.
+- **A casa**: "apaga a luz da sala", "o que ficou ligado?" vão para o Assist do Home Assistant.
+- **Memória da IA**: uma memória só, da casa, compartilhada por todos os apps.
+- **Tela cheia**: num monitor, o painel da CronologIA com a Conversa ao lado.
 
 ## Instalação
 
@@ -28,10 +39,16 @@ Um App do Home Assistant que junta os apps no **WhatsApp** (um contato da Correr
 
 | App | O que é |
 |---|---|
-| [GerencIA](https://github.com/diegozapella63/gerencia-ha) | finanças: caixa, cartões, investimentos |
 | [CronologIA](https://github.com/diegozapella63/cronologia-ha) | agenda da família, remédios, rotinas e placar |
 | [ResolvIA](https://github.com/diegozapella63/resolvia-ha) | listas de tarefas com prazos, pontos e repetição |
+| [GerencIA](https://github.com/diegozapella63/gerencia-ha) | finanças: caixa, cartões, investimentos |
 | [InventarIA](https://github.com/diegozapella63/inventario-ha) | inventário da casa: cômodos, itens e valores |
+| [EconomIA](https://github.com/diegozapella63/economia-ha) | lista de compras com o melhor preço perto de casa |
 | [MemorIA](https://github.com/diegozapella63/memoria-ha) | cadernos de anotação que abrem na hora certa |
+| [OdisseIA](https://github.com/diegozapella63/OdisseIA) | filmes, séries e jogos: o que ver, jogar e onde |
+
+## Desenvolvimento
+
+Rodar no computador, os testes e as capturas deste README (`python3 tools/prints_readme.py`, com uma casa inventada): veja o [AGENTS.md](AGENTS.md) e o [tests/README.md](tests/README.md).
 
 Feito por **CorrerIA Code** · desenvolvimento de softwares.
