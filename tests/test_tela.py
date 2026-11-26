@@ -24,7 +24,7 @@ RESPOSTA = ".ch-msg.ia .ch-bolha:not(.ch-pensando)"  # a resposta (o "pensando" 
 
 
 # 1.10.0: as 6 perguntas prontas com o GerencIA ligado
-G6 = ["Quanto gastei este mês?", "O que vence esta semana?", "Qual é o meu patrimônio hoje?", "Lança 45 de mercado", "Quanto sobrou este mês?", "Quanto rende a carteira por mês?"]
+G6 = ["Quanto gastei este mês?", "O que vence esta semana?", "Qual é o meu patrimônio hoje?", "Quais contas faltam pagar este mês?", "Quanto sobrou este mês?", "Quanto rende a carteira por mês?"]
 
 
 class Tela(unittest.TestCase):

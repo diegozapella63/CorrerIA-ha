@@ -799,15 +799,17 @@
     }).join('');
   }
   // 1.10.0: as perguntas de cada app; à vista ficam 6, uma de cada app por vez, e em Editar perguntas mais 20 modelos
+  // 1.37.1 (o dono: "revisar as 20 perguntas padrões da IA, tem algumas muito específicas"): só perguntas que valem em
+  // qualquer casa, sem valores, compromissos, itens ou cômodos inventados
   const SUGESTOES = {
-    gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?', 'Qual é o meu patrimônio hoje?', 'Lança 45 de mercado', 'Quanto sobrou este mês?', 'Quanto rende a carteira por mês?'],
-    cronologia: ['O que tem na agenda amanhã?', 'Quais remédios faltam hoje?', 'Quem está ganhando o placar?', 'Marca dentista sexta às 15h', 'Quais rotinas estão atrasadas?'],
-    resolvia: ['Quais tarefas vencem hoje?', 'Por onde eu começo hoje?', 'Adiciona leite na lista de compras', 'O que está atrasado?', 'Quantas tarefas eu tenho?'],
-    inventario: ['Quanto valem os itens da sala?', 'Quantos eletrônicos eu tenho?', 'Quais cômodos valem mais?', 'Onde está o liquidificador?', 'Quanto vale a casa toda?'],
-    odisseia: ['O que a casa está vendo?', 'Que episódios saem esta semana?', 'O que está em alta para ver?', 'Onde assistir o filme que eu quero ver?'],
-    memoria: ['O que eu anotei esta semana?', 'O que abre agora?', 'Onde anotei o telefone do encanador?', 'Quais blocos são meus?'],
+    gerencia: ['Quanto gastei este mês?', 'O que vence esta semana?', 'Qual é o meu patrimônio hoje?', 'Quais contas faltam pagar este mês?', 'Quanto sobrou este mês?', 'Quanto rende a carteira por mês?'],
+    cronologia: ['O que tem na agenda amanhã?', 'Quais remédios faltam hoje?', 'Quem está ganhando o placar?', 'O que tenho esta semana?', 'Quais rotinas estão atrasadas?'],
+    resolvia: ['Quais tarefas vencem hoje?', 'Por onde eu começo hoje?', 'Quais tarefas estão sem prazo?', 'O que está atrasado?', 'Quantas tarefas eu tenho?'],
+    inventario: ['Quanto valem os itens de cada cômodo?', 'Quais itens estão sem foto?', 'Quais cômodos valem mais?', 'Quantos itens tem cada categoria?', 'Quanto vale a casa toda?'],
+    odisseia: ['O que a casa está vendo?', 'Que episódios saem esta semana?', 'O que está em alta para ver?', 'Onde assistir o que está na lista?'],
+    memoria: ['O que eu anotei esta semana?', 'O que abre agora?', 'Qual foi a última coisa que eu anotei?', 'Quais blocos são meus?'],
     economia: ['Onde a compra fica mais barata?', 'Tem cupom bom agora?', 'O que está acabando?', 'Quanto vai dar a compra da lista?'],
-    casa: ['Quais luzes estão acesas?', 'Apaga a luz da sala', 'A porta da frente está trancada?', 'Qual é a temperatura da casa?'],
+    casa: ['Quais luzes estão acesas?', 'O que ficou ligado?', 'Tem alguma porta ou janela aberta?', 'Qual é a temperatura da casa?'],
   };
   const GERAIS = ['Resume o meu dia', 'O que eu tenho para fazer hoje?', 'O que vence nos próximos dias, em todos os apps?'];
   function perguntasDosApps(e) {

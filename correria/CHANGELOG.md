@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.37.1
+
+- As **perguntas prontas** da Conversa (e as **Mais perguntas** do **Editar perguntas**) ficaram gerais, para valer em qualquer casa: saíram as que citavam itens, valores, compromissos ou cômodos inventados, como «Lança 45 de mercado», «Marca dentista sexta às 15h» e «Apaga a luz da sala». As perguntas que você já editou continuam como estão.
+
 ## 1.37.0
 
 - **Cinco rondas novas**, prontas: **Ronda do dia** (de manhã: a agenda, os remédios e as tarefas de hoje e por onde começar), **Ronda da noite** (o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã), **Ronda das finanças** (as faturas do e-mail, as contas, os lançamentos, o saldo, os benefícios e as milhas), **Ronda das anotações** (os blocos e as folhas do MemorIA) e **Ronda da viagem** (as férias, as contas do período, os remédios, as compras e a casa).
