@@ -126,7 +126,7 @@ do app vira aba (o CorrerIA tem também WhatsApp e MCP).
 **O alto das listas** (o Buscar e toda tela com uma lista; o dono: "documenta nos padrões.md e aplica ele em todos os apps")
 - Embaixo da busca, um embaixo do outro e sem vão entre eles, o **Filtros** e o **Agrupar por**: cada um é uma linha que
   fecha e abre num toque, com o ícone pequeno (18 px) na cor do app, o nome em 15 px, peso 500, na cor do texto e, no fim,
-  a seta. Fechado, «· o escolhido» ao lado do nome, em cinza. Aberto, o conteúdo logo abaixo, e 8 px até a linha seguinte.
+  a seta. Fechado, «· o escolhido» ao lado do nome, em cinza, numa linha só: o que não cabe termina em «…». Aberto, o conteúdo logo abaixo, e 8 px até a linha seguinte.
   O aparelho lembra.
 - **Agrupar por**: fora dos Filtros; as escolhas numa barra só, do mesmo tamanho (com o ícone; sem ele onde não cabe); de
   início, a escolha que mais ajuda naquela tela (um **Nenhum**, onde houver, fica por último).
