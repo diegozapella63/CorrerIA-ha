@@ -11,6 +11,11 @@ CLOUD = {"languages": ["en-US", "pt-BR"], "formats": ["wav", "ogg"], "codecs": [
 WHISPER = {"languages": ["pt"], "formats": ["wav"], "codecs": ["pcm"], "sample_rates": [16000], "bit_rates": [16], "channels": [1]}
 
 
+
+def pn(st):
+    """Só o pronta e o nome do status (1.38.0: o status traz também as opções, o automático e se a escolhida sumiu)."""
+    return {k: st[k] for k in ("pronta", "nome") if k in st}
+
 class TestFala(unittest.TestCase):
     def setUp(self):
         self.ha = ServidorFalso({
@@ -26,7 +31,7 @@ class TestFala(unittest.TestCase):
 
     def test_escolhe_o_motor_que_aceita_ogg(self):
         self.assertEqual(self.f.motor(), {"id": "stt.home_assistant_cloud", "nome": "Home Assistant Cloud", "idioma": "pt-BR", "taxa": 16000})
-        self.assertEqual(self.f.status(), {"pronta": True, "nome": "Home Assistant Cloud"})
+        self.assertEqual(pn(self.f.status()), {"pronta": True, "nome": "Home Assistant Cloud"})
         n = len(self.ha.pedidos)
         self.f.motor()
         self.assertEqual(len(self.ha.pedidos), n, "guardado por 5 minutos")
@@ -74,7 +79,7 @@ class TestFala(unittest.TestCase):
         """O microfone da conversa: PCM de 16 kHz, 16 bits, mono, como o Assist; qualquer motor com wav/pcm em 16 kHz."""
         self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = (200, dict(CLOUD, formats=["ogg"], codecs=["opus"]))
         self.ha.rotas["/api/stt/stt.faster_whisper"] = lambda h, c: (200, WHISPER) if h.command == "GET" else (200, {"result": "success", "text": "O que vence esta semana?"})
-        self.assertEqual(self.f.status("wav"), {"pronta": True, "nome": "faster-whisper"})
+        self.assertEqual(pn(self.f.status("wav")), {"pronta": True, "nome": "faster-whisper"})
         self.assertEqual(self.f.status()["nome"], "Home Assistant Cloud", "o do WhatsApp continua no Cloud: cada formato tem o seu")
         pcm = bytes(16000 * 2)
         self.assertEqual(self.f.texto(pcm, "wav"), "O que vence esta semana?")
@@ -93,7 +98,7 @@ class TestFala(unittest.TestCase):
         """Um motor que responde algo que não é JSON fica de fora; o áudio que não chega ou volta quebrado vira um erro claro."""
         self.ha.rotas["/api/stt/stt.home_assistant_cloud"] = lambda h, c: (200, "isto não é JSON") if h.command == "GET" else (200, "")
         self.ha.rotas["/api/stt/stt.faster_whisper"] = lambda h, c: (200, WHISPER) if h.command == "GET" else (200, "quebrado")
-        self.assertEqual(self.f.status("wav"), {"pronta": True, "nome": "faster-whisper"}, "o Cloud quebrado fica de fora")
+        self.assertEqual(pn(self.f.status("wav")), {"pronta": True, "nome": "faster-whisper"}, "o Cloud quebrado fica de fora")
         with self.assertRaisesRegex(F.ErroFala, "Não entendi o áudio."):
             self.f.texto(bytes(32000), "wav")
         antes = self.f._pedir
@@ -112,6 +117,14 @@ class TestFala(unittest.TestCase):
         self.assertEqual(f.texto(b"x"), "Quanto gastei com mercado este mês?")
         self.assertTrue(f.status("wav")["pronta"])
         self.assertEqual(f.texto(bytes(32000), "wav"), "O que tem na agenda amanhã?")
+        # 1.38.0: a escolhida (Integrações › Falar) e o exemplo de cada app (o fala.py é o mesmo do OdisseIA)
+        st = f.status("wav", "stt.outra_simulada")
+        self.assertEqual((st["nome"], st["automatico"], [o["id"] for o in st["opcoes"]], st["escolha_sumiu"]),
+                         ("Outra fala simulada", "Fala simulada (teste)", ["stt.simulada", "stt.outra_simulada"], False))
+        self.assertTrue(f.status("wav", "stt.que_saiu")["escolha_sumiu"])
+        self.assertEqual(f.motor("wav", "stt.outra_simulada")["id"], "stt.outra_simulada")
+        self.assertEqual(F.Fala("http://x/api", None, print, simulada=True, exemplo="Oi").texto(bytes(32000), "wav", "stt.simulada"), "Oi")
+        self.assertEqual(F.Fala("http://x/api", None, print).status("wav")["opcoes"], [])
 
 
 if __name__ == "__main__":

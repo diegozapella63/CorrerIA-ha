@@ -300,14 +300,13 @@
     return f && le ? `${f}; recebe ${le}.` : f ? f + '.' : le ? `Recebe ${le}.` : '';
   }
   function cardApps(e) {
-    const A = e.apps, i = e.ia || {}, ft = e.fala_tela || {};
+    const A = e.apps;
     const lista = A.length ? A.map(a => `<div class="app-l"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small>${a.erro ? `<small class="le erro">${esc(a.erro)}</small>` : oQueFaz(a) ? `<small class="le">${oQueFaz(a)}</small>` : ''}</span></div>`).join('')
       : '<div class="status manual">Nenhum app ligado. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA.</div>';
     // 1.15.0: todos os apps da família aparecem; os que estão com a integração desligada, depois dos ligados, dizendo isso
     const fora = (e.apps_desligados || []).map(a => `<div class="app-l off"><span class="rot-ic">${ic('layers')}</span><span class="app-t"><b class="wm">${esc(a.nome.slice(0, -2))}<span>${esc(a.nome.slice(-2))}</span></b><small>${esc(a.assunto)}</small><small class="le off">Integração desligada.${A.length ? ' No app: Mais › Configurações › Integrações › CorrerIA.' : ''}</small></span></div>`).join('');
-    const mic = ft.pronta === false ? `<div class="status manual">Falar na conversa: ${esc(ft.motivo || 'sem fala para texto.')}</div>` : '';
     return `<section class="card" id="apps">${cab('layers', 'Apps')}
-      ${lista}${fora}${A.length ? mic : ''}
+      ${lista}${fora}
     </section>`;
   }
 
@@ -330,6 +329,29 @@
       <div class="campo">${rotulo('f-ia-pesquisa', 'globe', 'Para pesquisar na internet')}<select id="f-ia-pesquisa" class="inp" data-ia-pesq aria-label="IA para pesquisar na internet">
         <option value=""${pesq ? '' : ' selected'}>Igual à de conversar</option>${opts(pesq)}</select></div>` : ''}
       <button class="btn out larga" data-a="ia-verificar">${ic('refresh', 'ic-s')}Verificar de novo</button></section>`;
+  }
+
+  /* 1.38.0 (o padrão da família): o Falar, com os textos dos outros apps: Pronto para ouvir · Transcreve com…, a Fala para
+     texto (Automático: nome, ou um motor do Home Assistant), Verificar de novo e, sem fala para texto, Como configurar. A
+     escolhida vale para o microfone da Conversa e para os áudios do WhatsApp. */
+  function cardFalar(e) {
+    const f = e.fala_tela || {}, w = e.fala || {}, escolha = e.fala_escolha || '', ops = f.opcoes || [];
+    const st = f.pronta ? ['', 'Pronto para ouvir', `Transcreve com ${esc(f.nome || 'a fala para texto do Home Assistant')}.${f.escolha_sumiu ? ' O escolhido não foi encontrado: usando o automático.' : ''}`]
+      : ['erro', 'Sem fala para texto', esc(f.motivo || '')];
+    // os áudios do WhatsApp (OGG) podem não servir no motor do microfone: só diz quando o WhatsApp está ligado e não dá
+    const wa = (e.config || {}).whatsapp && f.pronta && w.pronta === false ? `<div class="status manual"><span><b>Áudios do WhatsApp</b> · ${esc(w.motivo || '')}</span></div>` : '';
+    const auto = f.automatico ? `: ${esc(f.automatico)}` : '';
+    return `<section class="card" id="falar">${cab('mic', 'Falar')}
+      <p class="lead">Quem transforma a fala em texto, no microfone da Conversa e nos áudios do WhatsApp. Não muda o assistente de voz do Home Assistant.</p>
+      <div class="status ${st[0]}"><span><b>${st[1]}</b>${st[2] ? ` · ${st[2]}` : ''}</span></div>${wa}
+      ${ops.length ? `<div class="campo">${rotulo('f-fala', 'mic', 'Fala para texto')}<select id="f-fala" class="inp" data-fala aria-label="Fala para texto">
+        <option value=""${escolha ? '' : ' selected'}>Automático${auto}</option>${ops.map(o => `<option value="${esc(o.id)}"${o.id === escolha ? ' selected' : ''}>${esc(o.nome)}</option>`).join('')}</select></div>` : ''}
+      <button class="btn out larga" data-a="fala-verificar">${ic('refresh', 'ic-s')}Verificar de novo</button>
+      ${f.pronta ? '' : `<div class="como">${tituloLinha('info', 'Como configurar')}</div><ol class="passos">
+        <li>Com o ${site('https://www.nabucasa.com/', 'Home Assistant Cloud')}, a fala para texto já vem pronta.</li>
+        <li>Sem ele, instale um motor de fala: o app Whisper (local, de graça) com a integração Wyoming, ou a fala para texto de uma IA como Google Gemini ou OpenAI.</li>
+        <li>Volte aqui, toque em Verificar de novo e escolha o motor na lista.</li></ol>`}
+    </section>`;
   }
 
   // o conector MCP (para qualquer IA que aceite um, sem nome de marca na tela): o endereço, os pedidos esperando aprovação e quem está conectado
@@ -403,7 +425,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardRondas(e) + cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardCasa(e) + cardUso(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardRondas(e) + cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardFalar(e) + cardUso(e) + cardCasa(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -1591,6 +1613,8 @@
       await acao('config', { mcp: !S.e.mcp.ligado }, S.e.mcp.ligado ? 'Conector desligado' : 'Conector ligado');
     } else if (a === 'ia-verificar') {  // a lista das IAs de novo e esquece o erro da última chamada
       await acao('ia/verificar', {}, 'Verificado');
+    } else if (a === 'fala-verificar') {  // 1.38.0: os motores de fala para texto de novo
+      await acao('fala/verificar', {}, 'Verificado');
     } else if (a === 'casa') {
       const on = !!(S.e.casa && S.e.casa.ligado);
       await acao('config', { casa: !on }, on ? 'Casa desligada' : 'Casa ligada');
@@ -1928,6 +1952,11 @@
     }
     if (el.matches('[data-ronda-hora]')) {  // 1.21.0: o horário do aviso das rondas
       acao('config', { ronda_hora: el.value }, `Aviso às ${el.value}`);
+      return;
+    }
+    if (el.matches('[data-fala]')) {  // 1.38.0: a Fala para texto
+      const x = (((S.e.fala_tela || {}).opcoes) || []).find(o => o.id === el.value);
+      await acao('config', { fala: el.value }, 'Fala para texto: ' + (x ? x.nome : 'automático'));
       return;
     }
     if (el.matches('[data-ia-ent]')) {  // 0.16.0: a IA para conversar

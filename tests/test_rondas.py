@@ -161,14 +161,16 @@ class TestEditor(Base):
         tem = {"gerencia": "resumo lancamentos contas_a_pagar investimentos cadastros lancar novo_investimento novo_fixo ajustar_saldo marcar_pago"
                            " faturas_do_email beneficios oportunidades",
                "inventario": "resumo buscar_itens novidades cadastrar_itens avaliar", "economia": "lista reposicao ofertas roteiro cupons comprei por_na_lista tirar_da_lista",
-               "resolvia": "resumo tarefas repeticoes comece_por_aqui", "cronologia": "resumo agenda cadastros placar criar_compromisso pular ferias", "memoria": "resumo buscar",
-               "odisseia": "resumo buscar marcar lista_pronta proximo_episodio", "casa": "estado comando"}
+               "resolvia": "resumo tarefas repeticoes comece_por_aqui pontos editar_lista concluir_tarefa",
+               "cronologia": "resumo agenda cadastros placar criar_compromisso pular ferias",
+               "memoria": "resumo buscar editar_bloco acrescentar editar_categoria nova_folha",
+               "odisseia": "resumo buscar marcar lista_pronta proximo_episodio adicionar adicionar_colecao marcar_varios", "casa": "estado comando"}
         tem["economia"] += " reposto preco"
         for c in rondas.catalogo():
             for f in (c["precisa"], *c["tambem"]):
                 app, _, nome = f.partition("_")
                 self.assertIn(nome, tem[app].split(), c["de"])
-        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 53))
+        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 82))
         for e in rondas.MAIS["mais"]["etapas"]:  # o que a IA lê também é de uma ferramenta que o app tem
             for f in re.findall(r"Use ([a-z]+)_([a-z_]+)", e["pedido"] or ""):
                 self.assertIn(f[1], tem[f[0]].split(), e["id"])
@@ -192,8 +194,8 @@ class TestEditor(Base):
         L = {x["id"]: x for x in self.j("/api/rondas")[1]["rondas"]}
         self.assertEqual((L["patrimonio"]["nome"], L["patrimonio"]["sem_onde"], [e["id"] for e in L["patrimonio"]["etapas"]]),
                          ("Ronda do patrimônio", True, ["invest", "invest_vence", "invest_novo", "valiosos", "sem_valor", "sem_foto"]), "sem os bens e as novidades, desligados na casa de teste")
-        self.assertEqual((L["semana"]["nome"], [e["id"] for e in L["semana"]["etapas"]]), ("Ronda da semana", ["hoje", "atrasadas"]), "só as etapas dos apps ligados (aqui, o ResolvIA e o GerencIA)")
-        self.assertEqual([e["id"] for e in rondas.PADRAO["semana"]["etapas"]], ["hoje", "comece", "semana", "agenda_semana", "manut", "remedios", "atrasadas", "placar"])
+        self.assertEqual((L["semana"]["nome"], [e["id"] for e in L["semana"]["etapas"]]), ("Ronda da semana", ["hoje", "externos", "atrasadas"]), "só as etapas dos apps ligados (aqui, o ResolvIA e o GerencIA)")
+        self.assertEqual([e["id"] for e in rondas.PADRAO["semana"]["etapas"]], ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "remedios", "atrasadas", "placar"])
         ed = self.j("/api/rondas/editor")[1]
         pat = next(r for r in ed["rondas"] if r["id"] == "patrimonio")
         self.assertEqual((pat["minha"], pat["mudada"], [e["de"] for e in pat["etapas"]][:2]), (False, False, ["mais.invest", "mais.invest_vence"]))
@@ -207,7 +209,7 @@ class TestEditor(Base):
         sem = next(r for r in ed["rondas"] if r["id"] == "semana")
         self.assertEqual((st, sem["nome"], sem["mudada"]), (200, "Minha semana", True))
         ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "semana"})[1]
-        self.assertEqual(len(next(r for r in ed["rondas"] if r["id"] == "semana")["etapas"]), 8)
+        self.assertEqual(len(next(r for r in ed["rondas"] if r["id"] == "semana")["etapas"]), 10)
 
     def test_ronda_do_lazer(self):
         """1.36.0 (o dono: "veja mais quais etapas e ferramentas podem ficar nas rondas como templates"): a Ronda do lazer, com
@@ -225,6 +227,29 @@ class TestEditor(Base):
         self.assertEqual(rondas.vazio("lazer", "quero_jogar", 0), "Nenhum jogo em Quero jogar.")
         self.assertEqual(rondas.vazio("lazer", "em_alta", 2), "2 títulos no OdisseIA.")
 
+    def test_etapas_de_1_38(self):
+        """1.38.0 (o dono: "cria mais para a casa, energia, cores da luz talvez, temperatura cômodos?"; "a MemorIA parece que
+        tem poucas etapas"; "Casa e OdisseIA também"; "o ResolvIA também"; "do MemorIA poderia ter pra revisar horários"):
+        mais etapas prontas de cada app e a Ronda dos aparelhos."""
+        por_app = {}
+        for c in rondas.catalogo():
+            por_app[c["nome_app"]] = por_app.get(c["nome_app"], 0) + 1
+        for app, n in (("Casa", 9), ("MemorIA", 10), ("OdisseIA", 12), ("ResolvIA", 14)):
+            self.assertGreaterEqual(por_app[app], n, app)
+        ap = rondas.PADRAO["aparelhos"]
+        self.assertEqual((ap["nome"], ap["onde"], [e["id"] for e in ap["etapas"]]),
+                         ("Ronda dos aparelhos", None, ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador"]))
+        self.assertIn("Use casa_estado com tipo temperatura e conte", rondas.pedido("aparelhos", "temperatura", "", [], 1, 1))
+        self.assertIn("Use memoria_resumo e conte os blocos que abrem sozinhos", rondas.etapa_de("anotacoes", "horarios")["pedido"])
+        self.assertEqual(rondas.precisa_todas(rondas.etapa_de("aparelhos", "aspirador")), ("casa_comando", "casa_estado"))
+        self.assertEqual((rondas.vazio("aparelhos", "baterias", 0), rondas.vazio("aparelhos", "luzes", 2), rondas.vazio("anotacoes", "horarios", 0)),
+                         ("Nenhuma bateria fraca.", "2 luzes acesas no Casa.", "Nenhum bloco encontrado."))
+        # só com a ferramenta que a etapa usa: sem o casa_comando (a casa desligada), o aspirador sai; os pontos, só com eles no ResolvIA
+        self.casa()
+        self.ligar("resolvia", "ResolvIA", [ferr("resumo"), ferr("tarefas"), ferr("editar_lista", True)], {"resumo": "TOTAL: 2"})
+        cat = {c["de"]: c for c in self.j("/api/rondas/editor")[1]["catalogo"]}
+        self.assertEqual((cat["mais.listas"]["ligada"], cat["mais.pontos"]["ligada"], cat["mais.externos"]["ligada"]), (True, False, True))
+
     def test_rondas_e_etapas_de_1_37(self):
         """1.37.0 (o dono: "as etapas e a ronda devem ficar completíssimas para o modo manual"): cinco rondas novas, mais
         etapas nas de sempre, a etapa que lê um app e muda outro (as duas ferramentas precisam existir) e o link pelo que a
@@ -233,7 +258,7 @@ class TestEditor(Base):
         self.assertEqual(P["dia"], ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular"])
         self.assertEqual(P["noite"], ["ligado", "remedio_hoje", "agenda_hoje", "amanha"])
         self.assertEqual(P["financas"][:2], ["faturas_email", "atrasadas"])
-        self.assertEqual(P["anotacoes"], ["blocos", "folhas", "parados"])
+        self.assertEqual(P["anotacoes"], ["blocos", "folhas", "horarios", "sem_horario", "sem_categoria", "parados", "arquivados"])  # 1.38.0
         self.assertEqual(P["viagem"], ["ferias", "contas_viagem", "remedios_levar", "lista_viagem", "ligado"])
         self.assertEqual((P["compras"][:2], "cupons" in P["compras"], "reposto" in P["chegada"]), (["lista", "limpar"], True, True))
         self.assertEqual([e["id"] for e in rondas.PADRAO["mes"]["etapas"]][:6], ["gastos", "contas", "recebidos", "fixos", "saldo", "faturas_email"])
@@ -270,7 +295,7 @@ class TestEditor(Base):
         self.casa()
         st, ed = self.j("/api/rondas/editor")
         self.assertEqual((st, ed["avancado"], ed["leituras"]), (200, False, []))
-        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "viagem"])
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "aparelhos", "viagem"])
         casa = ed["rondas"][0]
         self.assertEqual((casa["minha"], casa["mudada"], casa["onde"], casa["etapas"][0]["de"], casa["etapas"][0]["ligada"]), (False, False, True, "casa.feita", True))
         cat = {c["de"]: c for c in ed["catalogo"]}
@@ -318,7 +343,7 @@ class TestEditor(Base):
         st, ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "casa"})
         self.assertEqual((ed["rondas"][0]["nome"], ed["rondas"][0]["mudada"], len(ed["rondas"][0]["etapas"]) > 5), ("Ronda da casa", False, True))
         st, ed = self.j("/api/rondas/editor", {"acao": "apagar", "id": minha["id"]})
-        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "viagem"])
+        self.assertEqual([r["id"] for r in ed["rondas"]], ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "aparelhos", "viagem"])
         with mock.patch.object(rondas, "MAX_RONDAS", 0):
             self.assertEqual(self.j("/api/rondas/editor", {"acao": "salvar", "ronda": {"nome": "Mais uma", "etapas": [{"de": "casa.feita"}]}})[1]["erro"], "Já são 0 rondas suas. Apague alguma.")
 
@@ -364,7 +389,7 @@ class TestEditor(Base):
         self.assertEqual([len(x["etapas"]) for x in self.j("/api/rondas")[1]["rondas"] if x["id"] == rid], [1])
         # o arquivo estragado ou com uma etapa que sumiu não derruba nada
         rondas.montar({"rondas": {"casa": "x", "Ruim!": {}, "mzz": {"nome": "Sumiu", "etapas": [{"de": "casa.nao_existe"}, "x"]}}})
-        self.assertEqual(list(rondas.RONDAS), ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "viagem"])
+        self.assertEqual(list(rondas.RONDAS), ["casa", "compras", "chegada", "mes", "patrimonio", "semana", "lazer", "dia", "noite", "financas", "anotacoes", "aparelhos", "viagem"])
 
 
 class TestLinksEMais(Base):

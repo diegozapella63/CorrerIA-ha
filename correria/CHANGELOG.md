@@ -1,5 +1,16 @@
 # Mudanças
 
+## 1.38.0
+
+- **Mais etapas prontas** no Adicionar etapa das rondas (82 ao todo), para todos os apps:
+  - **Casa**: o que gasta energia agora (em watts, do maior para o menor), as luzes acesas com o brilho e a cor (branca quente, azul…), a temperatura e a umidade de cada cômodo (e o ar ligado), as portas, janelas e fechaduras, as baterias fracas, o que o Home Assistant não alcança, o aspirador e as cenas.
+  - **MemorIA**: os horários dos blocos (quando abrem sozinhos), os blocos sem horário, o bloco de agora, as categorias, os blocos sem categoria, os arquivados e anotar algo novo.
+  - **OdisseIA**: os mais bem avaliados, os mais populares, as coleções para completar, os jogos em alta, os títulos sem categoria e quem viu o quê.
+  - **ResolvIA**: as listas, as tarefas feitas, os serviços externos, os pontos de cada tarefa, as tarefas que deviam se repetir sozinhas e a lista de compras.
+  - **CronologIA**: os aniversários dos próximos 30 dias.
+- **Ronda dos aparelhos**, nova: o que ficou ligado, o consumo, as luzes, a temperatura dos cômodos, as portas e fechaduras, as baterias e o que não responde. A **Ronda das anotações** passa pelos horários, pelas categorias e pelos arquivados; a **da semana**, pelos serviços externos e pelos aniversários; a **do lazer**, por quem viu e pelas coleções.
+- **Configurações › Integrações › Falar**, como nos outros apps: **Pronto para ouvir** · com qual fala para texto, a escolha da **Fala para texto** (**Automático** ou uma do Home Assistant), que vale para o microfone da Conversa e para os áudios do WhatsApp, **Verificar de novo** e, sem fala para texto, **Como configurar**. A **Casa** veio para depois do **Uso da IA**.
+
 ## 1.37.1
 
 - As **perguntas prontas** da Conversa (e as **Mais perguntas** do **Editar perguntas**) ficaram gerais, para valer em qualquer casa: saíram as que citavam itens, valores, compromissos ou cômodos inventados, como «Lança 45 de mercado», «Marca dentista sexta às 15h» e «Apaga a luz da sala». As perguntas que você já editou continuam como estão.

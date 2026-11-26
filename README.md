@@ -15,7 +15,7 @@ Um App do Home Assistant que junta os apps da família num lugar só: a **Conver
 ## O que tem
 
 - **Conversa**: perguntas e pedidos para todos os apps de uma vez, com fotos e PDFs (o app do assunto lê), o **Falar** e as perguntas prontas. Cada mudança mostra o que vai fazer e espera o **Sim**; o **Desfazer** volta atrás.
-- **Rondas**: um roteiro pronto pelos apps, **uma pergunta de cada vez**, com o que cada app já tem antes da pergunta. A **Ronda da casa** passa cômodo por cômodo (tarefas, rotinas, manutenções, itens, consumíveis, compras e o que ficou ligado); há também as do dia, da noite, da semana, do mês, das compras, da chegada das compras, das finanças, do patrimônio, das anotações, do lazer e da viagem. Dá para mudar qualquer uma, criar as suas e receber o aviso no celular quando uma ficar atrasada.
+- **Rondas**: um roteiro pronto pelos apps, **uma pergunta de cada vez**, com o que cada app já tem antes da pergunta. A **Ronda da casa** passa cômodo por cômodo (tarefas, rotinas, manutenções, itens, consumíveis, compras e o que ficou ligado); há também as do dia, da noite, da semana, do mês, das compras, da chegada das compras, das finanças, do patrimônio, das anotações, do lazer, dos aparelhos (o consumo, as luzes, a temperatura dos cômodos e as baterias, pelo Home Assistant) e da viagem. Dá para mudar qualquer uma, criar as suas e receber o aviso no celular quando uma ficar atrasada.
 - **WhatsApp**: as pessoas da casa conversam com os apps pelo WhatsApp, também por áudio e foto.
 - **Claude, Gemini e outras IAs**: o conector MCP, com login aprovado no painel do Home Assistant.
 - **A casa**: "apaga a luz da sala", "o que ficou ligado?" vão para o Assist do Home Assistant.

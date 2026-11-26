@@ -111,6 +111,73 @@ class TestCasa(unittest.TestCase):
         self.assertEqual(sem.usar("estado", {"comodo": "garagem"}), "Nada com “garagem” no Home Assistant.")
         self.assertTrue(C.ligado({"entity_id": "climate.x", "state": "heat"}) and not C.ligado({"entity_id": "climate.x", "state": "off"}))
 
+    def test_visoes_prontas(self):
+        """1.38.0 (o dono: "cria mais para a casa, energia, cores da luz talvez, temperatura cômodos?"): o casa_estado com
+        tipo: energia (watts, do maior), temperatura (por cômodo), luzes (o brilho e a cor), seguranca, baterias fracas e
+        o que não responde; cada linha com o cômodo (a área), e o comodo filtra."""
+        E = [
+            {"entity_id": "light.sala", "state": "on", "attributes": {"friendly_name": "Luz da sala", "brightness": 128, "color_mode": "color_temp", "color_temp_kelvin": 2700}},
+            {"entity_id": "light.fita", "state": "on", "attributes": {"friendly_name": "Fita", "color_mode": "hs", "hs_color": [230, 80]}},
+            {"entity_id": "light.abajur", "state": "on", "attributes": {"friendly_name": "Abajur", "color_mode": "rgb", "rgb_color": [255, 0, 0]}},
+            {"entity_id": "light.corredor", "state": "off", "attributes": {"friendly_name": "Corredor"}},
+            {"entity_id": "sensor.geladeira", "state": "120.4", "attributes": {"friendly_name": "Geladeira", "device_class": "power", "unit_of_measurement": "W"}},
+            {"entity_id": "sensor.chuveiro", "state": "5.5", "attributes": {"friendly_name": "Chuveiro", "device_class": "power", "unit_of_measurement": "kW"}},
+            {"entity_id": "sensor.tv", "state": "0", "attributes": {"friendly_name": "TV", "device_class": "power", "unit_of_measurement": "W"}},
+            {"entity_id": "sensor.t_sala", "state": "24.5", "attributes": {"friendly_name": "Temperatura sala", "device_class": "temperature", "unit_of_measurement": "°C"}},
+            {"entity_id": "sensor.u_sala", "state": "58", "attributes": {"friendly_name": "Umidade sala", "device_class": "humidity", "unit_of_measurement": "%"}},
+            {"entity_id": "sensor.t_fora", "state": "19", "attributes": {"friendly_name": "Temperatura lá fora", "device_class": "temperature", "unit_of_measurement": "°C"}},
+            {"entity_id": "climate.ar", "state": "cool", "attributes": {"friendly_name": "Ar do quarto", "current_temperature": 25, "temperature": 23}},
+            {"entity_id": "lock.porta", "state": "unlocked", "attributes": {"friendly_name": "Fechadura da frente"}},
+            {"entity_id": "binary_sensor.janela", "state": "on", "attributes": {"friendly_name": "Janela do quarto", "device_class": "window"}},
+            {"entity_id": "binary_sensor.porta_fechada", "state": "off", "attributes": {"friendly_name": "Porta dos fundos", "device_class": "door"}},
+            {"entity_id": "sensor.bat_porta", "state": "12", "attributes": {"friendly_name": "Bateria da porta", "device_class": "battery", "unit_of_measurement": "%"}},
+            {"entity_id": "sensor.bat_ok", "state": "90", "attributes": {"friendly_name": "Bateria do controle", "device_class": "battery", "unit_of_measurement": "%"}},
+            {"entity_id": "binary_sensor.bat_baixa", "state": "on", "attributes": {"friendly_name": "Sensor do banheiro", "device_class": "battery"}},
+            {"entity_id": "light.varanda", "state": "unavailable", "attributes": {"friendly_name": "Luz da varanda"}},
+            {"entity_id": "scene.cinema", "state": "unavailable", "attributes": {"friendly_name": "Cinema"}},
+        ]
+        areas = "sensor.t_sala|Sala\nsensor.u_sala|Sala\nclimate.ar|Quarto\nlight.sala|Sala\nsensor.geladeira|Cozinha\nbinary_sensor.janela|Quarto\n"
+        c = C.Casa(lambda caminho: E, self.post, print, lambda modelo: areas)
+        en = c.usar("estado", {"tipo": "energia"}).splitlines()
+        self.assertEqual(en, ["- Chuveiro: 5500 W (sensor.chuveiro)", "- Geladeira: 120 W (sensor.geladeira) · Cozinha"])
+        t = c.usar("estado", {"tipo": "temperatura"})
+        self.assertIn("- Sala: 24,5 °C · umidade 58%", t)
+        self.assertIn("- Quarto: Ar do quarto: esfriando, 25° agora, alvo 23°", t)
+        self.assertIn("- Temperatura lá fora: 19 °C (sensor.t_fora)", t)
+        self.assertEqual(c.usar("estado", {"tipo": "temperatura", "comodo": "sala"}), "- Sala: 24,5 °C · umidade 58%")
+        lz = c.usar("estado", {"tipo": "luzes"})
+        self.assertIn("- Luz da sala: acesa, 50%, branca quente (light.sala) · Sala", lz)
+        self.assertIn("- Fita: acesa, azul (light.fita)", lz)
+        self.assertIn("- Abajur: acesa, vermelha (light.abajur)", lz)
+        self.assertNotIn("Corredor", lz)
+        sg = c.usar("estado", {"tipo": "seguranca"})
+        self.assertIn("- Fechadura da frente: destrancado (lock.porta)", sg)
+        self.assertIn("- Janela do quarto: aberto (binary_sensor.janela) · Quarto", sg)
+        self.assertNotIn("Porta dos fundos", sg)
+        self.assertEqual(c.usar("estado", {"tipo": "baterias"}).splitlines(),
+                         ["- Sensor do banheiro: fraca (binary_sensor.bat_baixa)", "- Bateria da porta: 12% (sensor.bat_porta)"])
+        self.assertEqual(c.usar("estado", {"tipo": "sem_resposta"}), "- Luz da varanda (light.varanda)")
+        # sem nada, a frase do vazio; o cômodo sem área vai pelo nome; um tipo que não existe é erro
+        self.assertEqual(c.usar("estado", {"tipo": "luzes", "comodo": "Quarto"}), "Nenhuma luz acesa em «Quarto».")
+        sem = C.Casa(lambda caminho: E, self.post, print)
+        self.assertEqual(sem.usar("estado", {"tipo": "energia", "comodo": "chuveiro"}), "- Chuveiro: 5500 W (sensor.chuveiro)")
+        self.assertEqual(C.Casa(lambda caminho: [], self.post, print).usar("estado", {"tipo": "baterias"}), "Nenhuma bateria fraca (20% ou menos).")
+        self.assertEqual(C.Casa(lambda caminho: [], self.post, print).usar("estado", {"tipo": "energia"}),
+                         "Nada gastando agora (nenhum sensor de consumo, em watts, acima de zero).")
+        for t in ("temperatura", "seguranca", "sem_resposta"):
+            self.assertTrue(C.Casa(lambda caminho: [], self.post, print).usar("estado", {"tipo": t}).endswith("."))
+        with self.assertRaises(C.ErroCasa):
+            c.usar("estado", {"tipo": "tudo"})
+        # as cores: branca (pouca saturação), fria e neutra pela temperatura, e sem nada
+        self.assertEqual((C.cor_da_luz({"hs_color": [30, 5]}), C.cor_da_luz({"color_mode": "color_temp", "color_temp_kelvin": 6000}),
+                          C.cor_da_luz({"color_temp": 250}), C.cor_da_luz({}), C.cor_da_luz({"color_mode": "color_temp"}),
+                          C.cor_da_luz({"rgb_color": [1, "x", 3]}), C.cor_da_luz({"hs_color": [300, 90]})),
+                         ("branca", "branca fria", "branca neutra", "", "branca", "", "rosa"))
+        self.assertIsNone(C._num("nan"))
+        # a busca acha as cenas pelo nome do tipo
+        self.assertIn("Cinema", c.usar("estado", {"busca": "cena"}))
+
+
 class TestCasaNasFerramentas(unittest.TestCase):
     def setUp(self):
         self.share = pasta_temp()

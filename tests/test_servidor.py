@@ -355,7 +355,7 @@ class TestResponder(Base):
         self.configurar()
         self.midia("AUD1", b"OggS-audio", "audio/ogg; codecs=opus")
         ouvidos = []
-        fala_falsa = mock.Mock(texto=lambda b: ouvidos.append(b) or "Quanto gastei com mercado?", status=lambda: {"pronta": True, "nome": "Teste"})
+        fala_falsa = mock.Mock(texto=lambda b, *a: ouvidos.append(b) or "Quanto gastei com mercado?", status=lambda *a: {"pronta": True, "nome": "Teste"})
         with mock.patch.object(S, "FALA", fala_falsa):
             self.mandar({"from": ANA_WA, "id": "wamid.a", "type": "audio", "audio": {"id": "AUD1", "mime_type": "audio/ogg; codecs=opus", "voice": True}})
         self.assertEqual(ouvidos, [b"OggS-audio"])
@@ -410,7 +410,18 @@ class TestResponder(Base):
         self.assertTrue(any(t == "erro" and q == "CorrerIA" for t, q, _ in self.registro()))
 
     def test_fala_simulada_no_computador(self):
-        self.assertEqual(S.estado()["fala"], {"pronta": True, "nome": "Fala simulada (teste)"})
+        self.assertEqual({k: S.estado()["fala"][k] for k in ("pronta", "nome")}, {"pronta": True, "nome": "Fala simulada (teste)"})
+
+    def test_escolher_a_fala_para_texto(self):
+        """1.38.0 (o padrão da família): Integrações › Falar escolhe a fala para texto, a do microfone e a do WhatsApp."""
+        S.salvar_config({"fala": "stt.outra_simulada"})
+        e = S.estado()
+        self.assertEqual((e["fala_escolha"], e["fala_tela"]["nome"], e["fala"]["nome"], e["fala_tela"]["automatico"]),
+                         ("stt.outra_simulada", "Outra fala simulada", "Outra fala simulada", "Fala simulada (teste)"))
+        with self.assertRaises(ValueError):
+            S.salvar_config({"fala": "conversation.x"})
+        S.salvar_config({"fala": ""})
+        self.assertEqual(S.estado()["fala_tela"]["nome"], "Fala simulada (teste)")
 
     def test_registro_guarda_so_as_ultimas(self):
         for n in range(S.MAX_REGISTRO + 5):
@@ -1388,7 +1399,7 @@ class TestTela(Base):
     def test_fala_da_tela(self):
         """O microfone da conversa: o áudio (PCM de 16 kHz) vira texto pela fala para texto; a tela manda o texto depois."""
         st, r = pedir(self.url + "/api/estado")
-        self.assertEqual(json.loads(r)["fala_tela"], {"pronta": True, "nome": "Fala simulada (teste)"})
+        self.assertEqual({k: json.loads(r)["fala_tela"][k] for k in ("pronta", "nome")}, {"pronta": True, "nome": "Fala simulada (teste)"})
         st, r = pedir(self.url + "/api/fala", "POST", bytes(16000 * 2), {"Content-Type": "application/octet-stream"})
         self.assertEqual((st, json.loads(r)), (200, {"texto": "O que tem na agenda amanhã?"}))
         st, r = pedir(self.url + "/api/fala", "POST", bytes(800), {"Content-Type": "application/octet-stream"})

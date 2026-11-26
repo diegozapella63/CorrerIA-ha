@@ -156,6 +156,8 @@ def ler_config():
            "ia_entidade": str(c.get("ia_entidade") or "") if IA_RE.match(str(c.get("ia_entidade") or "")) else "",
            # 1.6.0: a IA que pesquisa na internet (a da conversa da tela); vazio: a mesma de conversar
            "ia_pesquisa": str(c.get("ia_pesquisa") or "") if IA_RE.match(str(c.get("ia_pesquisa") or "")) else "",
+           # 1.38.0: a fala para texto (Integrações › Falar), a do WhatsApp e a do microfone; vazio: a automática
+           "fala": str(c.get("fala") or "") if STT_RE.match(str(c.get("fala") or "")) else "",
            # a cor do app, da casa toda (como nos outros apps): uma das 12 da família; a Cor do dia, ligada até desligar
            "cor": c.get("cor") if c.get("cor") in CORES else "", "cor_dia": c.get("cor_dia") is not False,
            "pessoas": {k: whatsapp.so_digitos(v) for k, v in (c.get("pessoas") or {}).items() if PESSOA_RE.match(str(k)) and whatsapp.so_digitos(v)}}
@@ -166,6 +168,7 @@ def ler_config():
 
 
 IA_RE = re.compile(r"^(ai_task\.[a-z0-9_]+)?$")
+STT_RE = re.compile(r"^(stt\.[a-z0-9_]{1,80})?$")
 RECOLHER = (1, 3, 5, 10)
 APAGAR_DIAS = (7, 30, 90, 0)  # 1.7.0: Apagar as conversas paradas há mais de (0: nunca)
 def wa_ligado(c):
@@ -228,6 +231,10 @@ def salvar_config(corpo):
             c["sensores"] = corpo.get("sensores") is True
         if "casa" in corpo:
             c["casa"] = corpo.get("casa") is not False
+        if "fala" in corpo:  # 1.38.0: a Fala para texto (vazio: a automática)
+            if not isinstance(corpo.get("fala"), str) or not STT_RE.match(corpo["fala"]):
+                raise ValueError("Essa fala para texto não existe.")
+            c["fala"] = corpo["fala"]
         if "recolher" in corpo:
             if corpo.get("recolher") not in RECOLHER:
                 raise ValueError("Tempo desconhecido.")
@@ -986,7 +993,7 @@ def tratar(m, nome_perfil, c):
         if tipo == "audio":
             try:
                 bruto, _ = wa.midia((m.get("audio") or {}).get("id"))
-                texto = FALA.texto(bruto)
+                texto = FALA.texto(bruto, "ogg", ler_config()["fala"])
             except (whatsapp.ErroWhatsApp, fala.ErroFala) as e:
                 registrar("recebida", pessoa["nome"], "[áudio]")
                 return enviar(wa, de, pessoa, f"Não consegui ouvir o áudio: {str(e).rstrip('.')}. Escreva a pergunta, por favor.")
@@ -1581,8 +1588,10 @@ def estado():
         "pessoas": pessoas,
         "apps": lista,
         "apps_desligados": APPS.desligados(),  # 1.15.0: os da família sem a opção CorrerIA ligada
-        "fala": FALA.status(),
-        "fala_tela": FALA.status("wav"),
+        # 1.38.0: o Falar de Integrações: a escolhida (ou a automática) para o microfone e para os áudios do WhatsApp
+        "fala": FALA.status("ogg", c["fala"]),
+        "fala_tela": FALA.status("wav", c["fala"]),
+        "fala_escolha": c["fala"],
         "registro": [r for r in reg if canal_de(r) == "whatsapp"][:30],
         "registro_mcp": [r for r in reg if canal_de(r) == "mcp"][:30],
         "aparencia": {"cor": c["cor"], "cor_dia": c["cor_dia"]},
@@ -2401,7 +2410,7 @@ class Tela(BaseHTTPRequestHandler):
             return self.enviar(413, {"erro": "Fale até 2 minutos de cada vez."})
         audio = self.rfile.read(n) if n > 0 else b""
         try:
-            return self.enviar(200, {"texto": FALA.texto(audio, "wav")})
+            return self.enviar(200, {"texto": FALA.texto(audio, "wav", ler_config()["fala"])})
         except fala.ErroFala as e:
             return self.enviar(400, {"erro": str(e)})
 
@@ -2482,6 +2491,9 @@ class Tela(BaseHTTPRequestHandler):
             if p == "/api/ia/verificar":  # 0.16.1: as IAs do Home Assistant de novo; o erro da última chamada sai
                 _ias_cache.update(t=0.0, v=None)
                 ESTADO["ia"] = None
+                return self.enviar(200, estado())
+            if p == "/api/fala/verificar":  # 1.38.0: o Verificar de novo do Falar: os motores de fala para texto de novo
+                FALA.cache.clear()
                 return self.enviar(200, estado())
             if p == "/api/registro/limpar":  # 0.15.0: só o da aba (WhatsApp ou MCP)
                 canal = "mcp" if c.get("canal") == "mcp" else "whatsapp"

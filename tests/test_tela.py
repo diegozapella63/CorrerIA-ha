@@ -223,7 +223,10 @@ class Tela(unittest.TestCase):
         with mock.patch.object(S.FALA, "status", return_value={"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}):
             self.abrir()
             self.opcoes("apps")
-            self.assertEqual(self.texto("#apps .status"), "Falar na conversa: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
+            # 1.38.0: o Falar diz, no cartão dele (no dos apps, não mais), com o Como configurar
+            self.assertEqual(self.texto("#falar .status"), "Sem fala para texto · O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).")
+            self.assertEqual(self.pg.locator("#apps .status").count(), 0)
+            self.assertEqual(self.texto("#falar .como"), "Como configurar")
             self.pg.click('.abas [data-v="whatsapp"]')
             st = self.pg.locator("#whatsapp .status.manual").all_inner_texts()
             self.assertIn("Áudios do WhatsApp não viram texto. O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).", st)
@@ -271,6 +274,29 @@ class Tela(unittest.TestCase):
         self.opcoes()
         self.assertEqual(self.texto(".abas .on"), "Integrações", "a aba fica guardada")
         self.assertEqual(self.texto("#apps .app-l .le"), "O CronologIA recusou a chave. Confira se a opção do CorrerIA está ligada nele.")
+
+    def test_falar_em_integracoes(self):
+        """1.38.0 (o padrão da família): o cartão Falar depois da Memória da IA: Pronto para ouvir, a Fala para texto
+        (Automático: nome) e o Verificar de novo; a Casa, integração própria, depois do Uso da IA."""
+        app = AppFalso("CronologIA")
+        self.addCleanup(app.fechar)
+        app.publicar(S.SHARE_DIR, "cronologia")
+        self.abrir()
+        self.opcoes("apps")
+        ordem = self.pg.evaluate("[...document.querySelectorAll('#app section.card')].map(c => c.id)")
+        self.assertEqual([x for x in ordem if x in ("apps", "ia", "memoria-ia", "falar", "uso", "casa", "sensores")],
+                         ["apps", "ia", "memoria-ia", "falar", "uso", "casa", "sensores"], ordem)
+        self.assertEqual(self.texto("#falar .status b"), "Pronto para ouvir")
+        self.assertIn("Transcreve com Fala simulada (teste).", self.texto("#falar .status"))
+        self.assertEqual([t.strip() for t in self.pg.locator("#f-fala option").all_inner_texts()],
+                         ["Automático: Fala simulada (teste)", "Fala simulada (teste)", "Outra fala simulada"])
+        self.assertEqual(self.pg.locator("#falar .como").count(), 0, "pronta: sem o Como configurar")
+        self.pg.locator("#f-fala").evaluate("s => { s.value = 'stt.outra_simulada'; s.dispatchEvent(new Event('change', { bubbles: true })); }")
+        self.pg.wait_for_function("document.querySelector('#falar .status') && document.querySelector('#falar .status').textContent.includes('Outra fala simulada')")
+        self.assertEqual(S.ler_config()["fala"], "stt.outra_simulada")
+        self.pg.locator("#falar [data-a='fala-verificar']").click()
+        self.aviso("Verificado")
+        S.salvar_config({"fala": ""})
 
     # ---- 0.16.0: a IA para conversar, como nos outros apps (fora do Home Assistant, duas de exemplo)
     def test_ia_para_conversar(self):
@@ -1469,12 +1495,12 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertFalse(self.pg.is_disabled("#ch-txt"))
         # sem fala para texto no Home Assistant: o botão é só o Enviar, e as Opções dizem por quê
         motivo = {"pronta": False, "motivo": "O Home Assistant não tem fala para texto (Configurações › Assistentes de voz)."}
-        with mock.patch.object(S.FALA, "status", side_effect=lambda formato="ogg": motivo):
+        with mock.patch.object(S.FALA, "status", side_effect=lambda *a: motivo):
             self.recarregar()
             self.pg.wait_for_selector('.ch-sug .chip')
             self.assertEqual(self.pg.get_attribute("#ch-pri", "data-a"), "ch-enviar")
             self.opcoes("apps")
-            self.assertIn("Falar na conversa: O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).", self.texto("#apps"))
+            self.assertIn("O Home Assistant não tem fala para texto (Configurações › Assistentes de voz).", self.texto("#falar"))
 
     def test_sugestao_e_conversa_guardada(self):
         self.abrir_conversa()
@@ -2159,11 +2185,11 @@ window.modo = (dark, bg, card) => { document.querySelector("home-assistant").has
         self.assertEqual(self.pg.eval_on_selector("#whatsapp .lead a", "a => a.href"), meta, "desligado também")
 
     def test_sensores(self):
-        """0.14.0: Sensores no Home Assistant, depois do Uso da IA, desligado até ligar."""
+        """0.14.0: Sensores no Home Assistant, por último (1.38.0: depois do Uso da IA e da Casa, a integração própria)."""
         self.abrir()
         self.opcoes("apps")
         ids = self.pg.evaluate("[...document.querySelectorAll('.card')].map(c => c.id)")
-        self.assertEqual(ids[ids.index("uso") + 1], "sensores", ids)
+        self.assertEqual(ids[-1], "sensores", ids)
         self.assertIn("Desligado: nenhum sensor no Home Assistant.", self.texto("#sensores"))
         self.pg.click('#sensores [data-a="sensores"]')
         self.pg.wait_for_selector('#sensores .sw.on')

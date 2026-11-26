@@ -697,3 +697,7 @@ ul.ronda-hist li:last-child { border-bottom: 0; }
 .ronda-ult { margin-top: 10px; }
 .ronda-ult li { justify-content: space-between; }
 .ronda-ult li span { font-size: 13px; white-space: nowrap; }
+
+/* 1.38.0: o Como configurar do Falar (o título da linha com o ícone, os passos embaixo) */
+.como { margin: 14px 0 8px; }
+.como b { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }

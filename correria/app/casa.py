@@ -10,8 +10,8 @@ ID = "casa"
 APP = {"app": ID, "nome": "Casa", "assunto": "o Home Assistant: luzes, tomadas, cortinas, ar, cenas e o que mais estiver exposto ao Assist",
        "ferramentas": "/interno", "rota": None, "anexos": [], "versao": ""}
 INSTRUCOES = ("para mudar algo da casa, casa_comando com o pedido em português, como a pessoa falou (\"liga a luz da "
-              "entrada\"); para saber como algo está, casa_estado com o nome (\"luz da sala\", \"temperatura\"). Só vale o que "
-              "está exposto ao Assist do Home Assistant.")
+              "entrada\"); para saber como algo está, casa_estado com o nome (\"luz da sala\", \"temperatura\") ou com o tipo "
+              "(energia, temperatura, luzes, seguranca, baterias, sem_resposta). Só vale o que está exposto ao Assist do Home Assistant.")
 AGENTE = "conversation.home_assistant"
 # o que dá para ver pelo casa_estado (sem a localização das pessoas)
 DOMINIOS = ("light", "switch", "fan", "cover", "climate", "lock", "sensor", "binary_sensor", "media_player", "vacuum", "input_boolean",
@@ -26,7 +26,8 @@ MAX = 40
 # o nome de cada tipo, para achar "as luzes" mesmo num abajur
 PALAVRAS = {"light": "luz lampada", "switch": "tomada interruptor", "fan": "ventilador", "cover": "cortina persiana portao",
             "climate": "ar condicionado clima", "lock": "fechadura tranca porta", "media_player": "tv som caixa",
-            "vacuum": "aspirador robo", "sensor": "sensor", "binary_sensor": "sensor"}
+            "vacuum": "aspirador robo", "sensor": "sensor", "binary_sensor": "sensor", "scene": "cena", "script": "script rotina",
+            "alarm_control_panel": "alarme"}
 
 FERRAMENTAS = [
     {"nome": "comando", "titulo": "Mexer na casa",
@@ -42,10 +43,15 @@ FERRAMENTAS = [
                   "portas…): o nome, o estado e o id. busca: palavras do nome (\"luz da sala\", \"temperatura\", \"porta\"); "
                   "sem busca, as luzes, tomadas, cortinas e o ar. ligados: true, só o que está ligado, aberto ou destrancado "
                   "(também as portas e janelas com sensor). comodo: só o que está nesse cômodo (a área do Home Assistant com esse "
-                  "nome). Não mexe em nada.",
+                  "nome). tipo: energia (o que gasta agora, em watts, do maior para o menor), temperatura (a temperatura e a umidade "
+                  "de cada cômodo e o ar), luzes (as acesas, com o brilho e a cor), seguranca (as fechaduras, o alarme e as portas e "
+                  "janelas abertas), baterias (as fracas, 20% ou menos) ou "
+                  "sem_resposta (o que o Home Assistant não alcança); cada linha diz o cômodo. Não mexe em nada.",
      "entrada": {"type": "object", "properties": {"busca": {"type": "string"},
                                                   "ligados": {"type": "boolean", "description": "Só o que está ligado, aberto ou destrancado."},
-                                                  "comodo": {"type": "string", "description": "O cômodo (a área do Home Assistant)."}},
+                                                  "comodo": {"type": "string", "description": "O cômodo (a área do Home Assistant)."},
+                                                  "tipo": {"type": "string", "enum": ["energia", "temperatura", "luzes", "seguranca", "baterias", "sem_resposta"],
+                                                           "description": "Uma visão pronta da casa."}},
                  "additionalProperties": False},
      "grava": False, "apaga": False},
 ]
@@ -110,8 +116,11 @@ class Casa:
         if nome == "comando":
             return self.comando(str(args.get("pedido") or "").strip())
         if nome == "estado":
+            tipo = str(args.get("tipo") or "").strip()
+            if tipo and tipo not in TIPOS:
+                raise ErroCasa(f"tipo vale {', '.join(TIPOS)}.")
             return self.estado(str(args.get("busca") or "").strip(), ligados=args.get("ligados") is True,
-                               comodo=str(args.get("comodo") or "").strip())
+                               comodo=str(args.get("comodo") or "").strip(), tipo=tipo)
         raise ErroCasa(f"Ferramenta desconhecida: {nome}.")
 
     def comando(self, pedido):
@@ -133,9 +142,8 @@ class Casa:
         feitos = [x.get("name") or x.get("id") for x in dados.get("success") or [] if isinstance(x, dict) and x.get("type") == "entity"]
         return (fala or "Feito.") + (f" ({', '.join(map(str, feitos[:8]))})" if feitos and not any(str(n) in fala for n in feitos) else "")
 
-    def area_de(self, comodo):
-        """{id: área} das coisas na área com o nome do cômodo (sem acento nem maiúsculas; o nome inteiro, ou a área que
-        começa por ele), ou None: sem o /api/template ou sem essa área (aí vale o cômodo no nome de cada coisa)."""
+    def areas(self):
+        """{id: área} de tudo o que tem área no Home Assistant, ou None sem o /api/template."""
         if not self.texto:
             return None
         try:
@@ -148,6 +156,14 @@ class Casa:
             eid, _, area = l.strip().partition("|")
             if eid and area:
                 mapa[eid] = area
+        return mapa
+
+    def area_de(self, comodo, mapa=False):
+        """{id: área} das coisas na área com o nome do cômodo (sem acento nem maiúsculas; o nome inteiro, ou a área que
+        começa por ele), ou None: sem o /api/template ou sem essa área (aí vale o cômodo no nome de cada coisa)."""
+        mapa = self.areas() if mapa is False else mapa
+        if not mapa:
+            return None
         alvo = dobrar(comodo).strip()
         nomes = {dobrar(a).strip() for a in mapa.values()}
         quais = {alvo} if alvo in nomes else {n for n in nomes if n.startswith(alvo) or alvo.startswith(n)}
@@ -155,12 +171,15 @@ class Casa:
             return None
         return {e: a for e, a in mapa.items() if dobrar(a).strip() in quais}
 
-    def estado(self, busca, ligados=False, comodo=""):
+    def estado(self, busca, ligados=False, comodo="", tipo=""):
         try:
             todos = self.get("/states")
         except Exception as e:  # noqa: BLE001
             raise ErroCasa(f"O Home Assistant não respondeu ({str(e).rstrip('.')}).") from e
-        area = self.area_de(comodo) if comodo else None
+        mapa = self.areas() if (comodo or tipo) else None
+        area = self.area_de(comodo, mapa) if comodo else None
+        if tipo:
+            return por_tipo(tipo, todos if isinstance(todos, list) else [], mapa or {}, area, comodo)
         # sem a área no Home Assistant, o cômodo vai na busca (pelo nome de cada coisa: «Luz da sala»)
         if comodo and area is None:
             busca = f"{busca} {comodo}".strip()
@@ -194,3 +213,140 @@ class Casa:
             return f"Nada com “{busca}” no Home Assistant." if busca else f"Nenhuma luz, tomada, cortina ou ar{onde} no Home Assistant."
         mais = len(achados) - MAX
         return "\n".join(achados[:MAX]) + (f"\n… e mais {mais}." if mais > 0 else "")
+
+
+# 1.38.0 (o dono: "cria mais para a casa, energia, cores da luz talvez, temperatura cômodos?"): as visões prontas do
+# casa_estado, para as etapas das rondas. Cada linha diz o cômodo (a área do Home Assistant), quando há.
+TIPOS = ("energia", "temperatura", "luzes", "seguranca", "baterias", "sem_resposta")
+BATERIA_FRACA = 20
+# o nome da cor de uma luz pelo matiz (0 a 360) do hs_color; pouca saturação é branca
+MATIZES = ((15, "vermelha"), (40, "laranja"), (70, "amarela"), (160, "verde"), (200, "ciano"), (250, "azul"), (290, "roxa"),
+           (345, "rosa"), (361, "vermelha"))
+
+
+def _num(v):
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n and abs(n) != float("inf") else None
+
+
+def _br(n, casas=1):
+    t = f"{n:.{casas}f}".replace(".", ",")
+    return t[:-2] if casas == 1 and t.endswith(",0") else t
+
+
+def cor_da_luz(a):
+    """A cor de uma luz acesa, em português: «branca quente», «azul»… ("" sem cor)."""
+    modo = str(a.get("color_mode") or "")
+    k = _num(a.get("color_temp_kelvin")) or (1e6 / m if (m := _num(a.get("color_temp"))) else None)
+    if modo == "color_temp" or (k and not a.get("hs_color")):
+        if not k:
+            return "branca"
+        return "branca quente" if k <= 3300 else "branca neutra" if k <= 4600 else "branca fria"
+    hs = a.get("hs_color")
+    if not (isinstance(hs, (list, tuple)) and len(hs) == 2 and _num(hs[0]) is not None and _num(hs[1]) is not None):
+        rgb = a.get("rgb_color")
+        if not (isinstance(rgb, (list, tuple)) and len(rgb) == 3 and all(_num(x) is not None for x in rgb)):
+            return ""
+        import colorsys
+        h, _l, sat = colorsys.rgb_to_hls(*(float(x) / 255 for x in rgb))
+        hs = (h * 360, sat * 100)
+    h, sat = float(hs[0]) % 360, float(hs[1])
+    if sat < 20:
+        return "branca"
+    return next(nome for ate, nome in MATIZES if h < ate)
+
+
+def por_tipo(tipo, todos, mapa, area, comodo):
+    """O texto de uma visão pronta (tipo) da casa; area: {id: área} do cômodo pedido (None: o cômodo no nome)."""
+    def vale(s):
+        eid = str(s.get("entity_id", ""))
+        if area is not None:
+            return eid in area
+        if comodo:
+            nome = (s.get("attributes") or {}).get("friendly_name") or eid
+            return all(p in dobrar(f"{nome} {eid.replace('_', ' ')}") for p in re.findall(r"[a-z0-9]{2,}", dobrar(comodo)))
+        return True
+    estados = [s for s in todos if isinstance(s, dict) and s.get("entity_id") and vale(s)]
+    onde = f" em «{comodo}»" if comodo else ""
+    nome = lambda s: (s.get("attributes") or {}).get("friendly_name") or s["entity_id"]  # noqa: E731
+    cls = lambda s: (s.get("attributes") or {}).get("device_class")  # noqa: E731
+    dom = lambda s: s["entity_id"].split(".")[0]  # noqa: E731
+    lugar = lambda s: f" · {mapa[s['entity_id']]}" if mapa.get(s["entity_id"]) else ""  # noqa: E731
+    linhas = []
+    if tipo == "energia":
+        achados = []
+        for s in estados:
+            un = str((s.get("attributes") or {}).get("unit_of_measurement") or "")
+            w = _num(s.get("state"))
+            if dom(s) != "sensor" or cls(s) != "power" or w is None or un not in ("W", "kW"):
+                continue
+            w = w * 1000 if un == "kW" else w
+            if w > 0:
+                achados.append((w, s))
+        linhas = [f"- {nome(s)}: {_br(w, 0)} W ({s['entity_id']}){lugar(s)}" for w, s in sorted(achados, key=lambda x: -x[0])]
+        vazio = f"Nada gastando agora{onde} (nenhum sensor de consumo, em watts, acima de zero)."
+    elif tipo == "temperatura":
+        grupos, soltos = {}, []
+        for s in estados:
+            a = s.get("attributes") or {}
+            if dom(s) == "sensor" and cls(s) in ("temperature", "humidity") and _num(s.get("state")) is not None:
+                v = _num(s["state"])
+                txt = f"{_br(v)} {a.get('unit_of_measurement') or ('°C' if cls(s) == 'temperature' else '%')}"
+                txt = txt if cls(s) == "temperature" else f"umidade {_br(v, 0)}%"
+            elif dom(s) == "climate" and s.get("state") not in ("unavailable", "unknown"):
+                txt = f"{nome(s)}: {estado_txt(s)}"
+            else:
+                continue
+            ar = mapa.get(s["entity_id"])
+            if ar:
+                grupos.setdefault(ar, []).append((cls(s) or "climate", txt))
+            else:
+                soltos.append(f"- {nome(s)}: {txt if dom(s) != 'climate' else estado_txt(s)} ({s['entity_id']})")
+        ordem = {"temperature": 0, "humidity": 1, "climate": 2}
+        for ar in sorted(grupos, key=dobrar):
+            partes = [t for _c, t in sorted(grupos[ar], key=lambda x: ordem.get(x[0], 3))]
+            linhas.append(f"- {ar}: {' · '.join(dict.fromkeys(partes))}")
+        linhas += soltos
+        vazio = f"Nenhum sensor de temperatura nem ar{onde} no Home Assistant."
+    elif tipo == "luzes":
+        for s in estados:
+            if dom(s) != "light" or s.get("state") != "on":
+                continue
+            a = s.get("attributes") or {}
+            partes = [f"{round(a['brightness'] / 255 * 100)}%"] if isinstance(a.get("brightness"), (int, float)) else []
+            if cor_da_luz(a):
+                partes.append(cor_da_luz(a))
+            linhas.append(f"- {nome(s)}: acesa{''.join(', ' + p for p in partes)} ({s['entity_id']}){lugar(s)}")
+        vazio = f"Nenhuma luz acesa{onde}."
+    elif tipo == "seguranca":
+        for s in estados:
+            d, st = dom(s), str(s.get("state", ""))
+            if d in ("lock", "alarm_control_panel") and st not in ("unknown", ""):
+                linhas.append(f"- {nome(s)}: {estado_txt(s)} ({s['entity_id']}){lugar(s)}")
+            elif (d == "binary_sensor" and cls(s) in ABRE and st == "on") or (d == "cover" and cls(s) in ("garage", "gate", "door") and st in LIGADO["cover"]):
+                linhas.append(f"- {nome(s)}: aberto ({s['entity_id']}){lugar(s)}")
+        vazio = f"Nenhuma fechadura, alarme nem porta aberta{onde} no Home Assistant."
+    elif tipo == "baterias":
+        achados = []
+        for s in estados:
+            if cls(s) != "battery":
+                continue
+            v = _num(s.get("state"))
+            if dom(s) == "sensor" and v is not None and v <= BATERIA_FRACA:
+                achados.append((v, f"- {nome(s)}: {_br(v, 0)}% ({s['entity_id']}){lugar(s)}"))
+            elif dom(s) == "binary_sensor" and s.get("state") == "on":
+                achados.append((-1, f"- {nome(s)}: fraca ({s['entity_id']}){lugar(s)}"))
+        linhas = [t for _v, t in sorted(achados, key=lambda x: x[0])]
+        vazio = f"Nenhuma bateria fraca{onde} ({BATERIA_FRACA}% ou menos)."
+    else:  # sem_resposta
+        fora = ("scene", "script", "button", "weather", "input_boolean")
+        linhas = [f"- {nome(s)} ({s['entity_id']}){lugar(s)}" for s in estados
+                  if dom(s) in DOMINIOS and dom(s) not in fora and s.get("state") == "unavailable"]
+        vazio = f"Tudo{onde} responde no Home Assistant."
+    if not linhas:
+        return vazio
+    mais = len(linhas) - MAX
+    return "\n".join(linhas[:MAX]) + (f"\n… e mais {mais}." if mais > 0 else "")
