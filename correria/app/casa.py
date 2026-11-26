@@ -40,8 +40,13 @@ FERRAMENTAS = [
     {"nome": "estado", "titulo": "Ver como está a casa",
      "descricao": "Como estão as coisas da casa no Home Assistant (luzes, tomadas, cortinas, ar, sensores de temperatura, "
                   "portas…): o nome, o estado e o id. busca: palavras do nome (\"luz da sala\", \"temperatura\", \"porta\"); "
-                  "sem busca, as luzes, tomadas, cortinas e o ar. Não mexe em nada.",
-     "entrada": {"type": "object", "properties": {"busca": {"type": "string"}}, "additionalProperties": False},
+                  "sem busca, as luzes, tomadas, cortinas e o ar. ligados: true, só o que está ligado, aberto ou destrancado "
+                  "(também as portas e janelas com sensor). comodo: só o que está nesse cômodo (a área do Home Assistant com esse "
+                  "nome). Não mexe em nada.",
+     "entrada": {"type": "object", "properties": {"busca": {"type": "string"},
+                                                  "ligados": {"type": "boolean", "description": "Só o que está ligado, aberto ou destrancado."},
+                                                  "comodo": {"type": "string", "description": "O cômodo (a área do Home Assistant)."}},
+                 "additionalProperties": False},
      "grava": False, "apaga": False},
 ]
 
@@ -74,16 +79,39 @@ def estado_txt(s):
     return txt
 
 
+# 1.37.0 (o dono, nas rondas: "ficou algo ligado?"): o que conta como ligado ou aberto em cada tipo, e as portas e janelas
+# (os sensores de abrir: o device_class)
+LIGADO = {"light": ("on",), "switch": ("on",), "fan": ("on",), "input_boolean": ("on",), "cover": ("open", "opening", "closing"),
+          "lock": ("unlocked", "open", "opening"), "media_player": ("on", "playing", "paused", "idle", "buffering"),
+          "valve": ("open", "opening"), "humidifier": ("on",), "vacuum": ("cleaning", "returning")}
+ABRE = ("door", "window", "garage_door", "opening")
+# as áreas do Home Assistant e o que está em cada uma (uma linha por coisa: «id|área»)
+AREAS = ("{% for a in areas() %}{% for e in area_entities(a) %}{{ e }}|{{ area_name(a) }}\n{% endfor %}{% endfor %}")
+
+
+def ligado(s):
+    """Está ligado, aberto ou destrancado? (o ar: fora do desligado; uma porta ou janela: o sensor dela marcando aberta)"""
+    eid, st = str(s.get("entity_id", "")), str(s.get("state", ""))
+    dom = eid.split(".")[0]
+    if dom == "climate":
+        return st not in ("off", "unavailable", "unknown", "")
+    if dom == "binary_sensor":
+        return st == "on" and (s.get("attributes") or {}).get("device_class") in ABRE
+    return st in LIGADO.get(dom, ())
+
+
 class Casa:
-    def __init__(self, get, post, log):
+    def __init__(self, get, post, log, texto=None):
         self.get, self.post, self.log = get, post, log  # get(caminho) e post(caminho, corpo): a API do Home Assistant
+        self.texto = texto  # texto(modelo): o que o /api/template responde (as áreas, para o cômodo)
 
     def usar(self, nome, args):
         args = args if isinstance(args, dict) else {}
         if nome == "comando":
             return self.comando(str(args.get("pedido") or "").strip())
         if nome == "estado":
-            return self.estado(str(args.get("busca") or "").strip())
+            return self.estado(str(args.get("busca") or "").strip(), ligados=args.get("ligados") is True,
+                               comodo=str(args.get("comodo") or "").strip())
         raise ErroCasa(f"Ferramenta desconhecida: {nome}.")
 
     def comando(self, pedido):
@@ -105,11 +133,37 @@ class Casa:
         feitos = [x.get("name") or x.get("id") for x in dados.get("success") or [] if isinstance(x, dict) and x.get("type") == "entity"]
         return (fala or "Feito.") + (f" ({', '.join(map(str, feitos[:8]))})" if feitos and not any(str(n) in fala for n in feitos) else "")
 
-    def estado(self, busca):
+    def area_de(self, comodo):
+        """{id: área} das coisas na área com o nome do cômodo (sem acento nem maiúsculas; o nome inteiro, ou a área que
+        começa por ele), ou None: sem o /api/template ou sem essa área (aí vale o cômodo no nome de cada coisa)."""
+        if not self.texto:
+            return None
+        try:
+            linhas = str(self.texto(AREAS) or "")
+        except Exception as e:  # noqa: BLE001 (um Home Assistant antigo, sem areas())
+            self.log(f"Casa: as áreas não vieram ({e})")
+            return None
+        mapa = {}
+        for l in linhas.splitlines():
+            eid, _, area = l.strip().partition("|")
+            if eid and area:
+                mapa[eid] = area
+        alvo = dobrar(comodo).strip()
+        nomes = {dobrar(a).strip() for a in mapa.values()}
+        quais = {alvo} if alvo in nomes else {n for n in nomes if n.startswith(alvo) or alvo.startswith(n)}
+        if not quais:
+            return None
+        return {e: a for e, a in mapa.items() if dobrar(a).strip() in quais}
+
+    def estado(self, busca, ligados=False, comodo=""):
         try:
             todos = self.get("/states")
         except Exception as e:  # noqa: BLE001
             raise ErroCasa(f"O Home Assistant não respondeu ({str(e).rstrip('.')}).") from e
+        area = self.area_de(comodo) if comodo else None
+        # sem a área no Home Assistant, o cômodo vai na busca (pelo nome de cada coisa: «Luz da sala»)
+        if comodo and area is None:
+            busca = f"{busca} {comodo}".strip()
         palavras = [p for p in re.findall(r"[a-z0-9]+", dobrar(busca)) if len(p) > 1 and p not in ("da", "do", "de", "das", "dos", "na", "no", "a", "o", "e")]
         achados = []
         for s in todos if isinstance(todos, list) else []:
@@ -117,16 +171,26 @@ class Casa:
             dom = eid.split(".")[0]
             if dom not in DOMINIOS:
                 continue
+            if area is not None and eid not in area:
+                continue
             nome = (s.get("attributes") or {}).get("friendly_name") or eid
             toks = re.findall(r"[a-z0-9]+", dobrar(f"{nome} {eid.replace('_', ' ')} {PALAVRAS.get(dom, '')}"))
             if palavras:
                 # cada palavra no começo de uma palavra do nome (luzes: luz; persiana não é "ana")
                 if not all(any(t.startswith(x) for t in toks for x in (p, p[:-1] if p.endswith("s") else "", p[:-2] if p.endswith("es") else "") if x) for p in palavras):
                     continue
+            elif ligados:
+                if dom not in LIGADO and dom not in ("climate", "binary_sensor"):
+                    continue
             elif dom not in ("light", "switch", "cover", "climate", "fan", "lock"):
+                continue
+            if ligados and not ligado(s):
                 continue
             achados.append(f"- {nome}: {estado_txt(s)} ({eid})")
         if not achados:
-            return f"Nada com “{busca}” no Home Assistant." if busca else "Nenhuma luz, tomada, cortina ou ar no Home Assistant."
+            onde = f" em «{comodo}»" if comodo else ""
+            if ligados:
+                return f"Nada ligado ou aberto{onde}."
+            return f"Nada com “{busca}” no Home Assistant." if busca else f"Nenhuma luz, tomada, cortina ou ar{onde} no Home Assistant."
         mais = len(achados) - MAX
         return "\n".join(achados[:MAX]) + (f"\n… e mais {mais}." if mais > 0 else "")

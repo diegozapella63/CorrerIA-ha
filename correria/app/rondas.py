@@ -64,10 +64,12 @@ RONDAS = {
     # 1.20.0: as rondas sem cômodo (onde: None): começam direto
     "compras": {
         "nome": "Ronda de compras", "onde": None,
-        "resumo": "Antes de sair para comprar: a lista, a reposição, as ofertas e onde ir.",
+        "resumo": "Antes de sair para comprar: a lista, a reposição, as ofertas, os cupons e onde ir.",
         "etapas": [
             _e("lista", "Lista", "O que falta", "economia", "EconomIA", "economia_lista", "Falta algo na lista de compras?",
                "Use economia_lista e conte o que está na lista de compras (o nome de cada item)."),
+            # 1.37.0: o que já não precisa sai da lista (a mesma leitura de cima; vazia, a pergunta nem aparece)
+            _e("limpar", "Lista", "Pode sair", "economia", "EconomIA", "economia_tirar_da_lista", "Algum item pode sair da lista?", se_tem=True),
             _e("repor", "Reposição", "Na hora de repor", "economia", "EconomIA", "economia_reposicao", "Quer pôr na lista o que está na hora de repor?",
                "Use economia_reposicao e conte o que está na hora de repor ou perto disso.", se_tem=True),
             _e("acabando", "Consumíveis", "Acabando", "inventario", "InventarIA", "inventario_buscar_itens", "Quer pôr na lista algum consumível que está acabando?",
@@ -94,7 +96,7 @@ RONDAS = {
     },
     "mes": {
         "nome": "Ronda do mês", "onde": None,
-        "resumo": "Uma vez por mês: as finanças, as contas, a agenda, as tarefas e a casa.",
+        "resumo": "Uma vez por mês: as finanças, as faturas, a agenda, as tarefas, a casa e as anotações.",
         "etapas": [
             _e("gastos", "Finanças", "Gastos do mês", "gerencia", "GerencIA", "gerencia_resumo", "Falta lançar algum gasto do mês?",
                "Use gerencia_resumo e conte o mês: quanto entrou, quanto saiu e quanto sobrou."),
@@ -209,6 +211,39 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
        "Use economia_lista e conte os itens da lista de compras (o nome de cada um; até 10).", se_tem=True),
     _e("pular", "Agenda", "Pular hoje", "cronologia", "CronologIA", "cronologia_pular", "Alguma coisa de hoje não vai acontecer?",
        "Use cronologia_agenda só de hoje e conte o que ainda falta fazer hoje (o nome e o horário).", se_tem=True),
+    # 1.37.0 (o dono: "revisa se mais etapas ou ferramentas devem ser integradas nas rondas… as etapas e a ronda devem ficar
+    # completíssimas para o modo manual"): toda leitura dos apps que ainda não tinha etapa, e as das ferramentas novas
+    # (gerencia_beneficios e gerencia_oportunidades no GerencIA 1.90.0; o casa_estado com ligados e comodo). tambem: outra
+    # ferramenta que precisa existir (a etapa lê um app e muda outro).
+    _e("comece", "Tarefas", "Comece por aqui", "resolvia", "ResolvIA", "resolvia_comece_por_aqui", "Quer começar por alguma destas?",
+       "Use resolvia_comece_por_aqui e conte as tarefas escolhidas para começar agora (o nome e o porquê de cada uma; até 5).", se_tem=True),
+    _e("amanha", "Agenda", "Amanhã", "cronologia", "CronologIA", "cronologia_agenda", "Algum compromisso de amanhã precisa mudar?",
+       "Use cronologia_agenda só de amanhã e conte os compromissos (sem as rotinas e os remédios de todo dia), com o horário de cada um.", se_tem=True),
+    _e("faturas_email", "Faturas", "Faturas do e-mail", "gerencia", "GerencIA", "gerencia_faturas_do_email", "Quer lançar alguma dessas faturas?",
+       "Use gerencia_faturas_do_email e conte as faturas e as contas que esperam a conferência (de quem é, o total e quando chegou).", se_tem=True),
+    _e("beneficios", "Benefícios", "Usados", "gerencia", "GerencIA", "gerencia_beneficios", "Usou algum desses benefícios?",
+       "Use gerencia_beneficios e conte os benefícios (sem as milhas) com o que sobra no período de cada um e quando renova (até 8).", se_tem=True),
+    _e("milhas", "Milhas", "Saldo", "gerencia", "GerencIA", "gerencia_beneficios", "O saldo das milhas está certo?",
+       "Use gerencia_beneficios e conte só as milhas: o programa, de quem é, o saldo de hoje e o que vence nos próximos 90 dias.", se_tem=True),
+    _e("oportunidades", "Investimentos", "Oportunidades", "gerencia", "GerencIA", "gerencia_oportunidades", "Quer aproveitar alguma dessas oportunidades?",
+       "Use gerencia_oportunidades e conte as oportunidades de investimento (o que é, a taxa e por que vale; até 5; sem as assinaturas).", se_tem=True),
+    _e("assinaturas", "Assinaturas", "Em promoção", "gerencia", "GerencIA", "gerencia_oportunidades", "Quer mudar de plano em alguma dessas assinaturas?",
+       "Use gerencia_oportunidades e conte só as assinaturas em promoção (o serviço, o preço e até quando).", se_tem=True),
+    _e("contas_viagem", "Contas", "Contas do período", "gerencia", "GerencIA", "gerencia_marcar_pago", "Quer pagar alguma dessas contas antes de viajar?",
+       "Use gerencia_contas_a_pagar dos próximos 30 dias e conte as contas (o nome, o valor e o dia).", se_tem=True),
+    _e("avaliar", "Consumíveis", "Avaliação", "inventario", "InventarIA", "inventario_avaliar", "Quer a avaliação de algum desses consumíveis?",
+       "Use inventario_buscar_itens com o cômodo «Consumíveis» e conte os consumíveis (o nome de cada um; até 10).", so_com="consumiveis", se_tem=True),
+    _e("estreias", "Sugestões", "Estreias", "odisseia", "OdisseIA", "odisseia_lista_pronta", "Quer pôr alguma dessas estreias na lista?",
+       "Use odisseia_lista_pronta com lista estreias e conte os títulos que ainda não estão na lista da casa (o nome e o tipo; até 8)."),
+    _e("lancamentos", "Lançamentos", "Vão sair", "cronologia", "CronologIA", "cronologia_criar_compromisso", "Quer um lembrete na agenda de algum desses lançamentos?",
+       "Use odisseia_resumo e conte os episódios e os jogos que vão sair (o nome, o episódio e o dia).", se_tem=True, tambem=("odisseia_resumo",)),
+    _e("ferias", "Agenda", "Férias", "cronologia", "CronologIA", "cronologia_ferias", "Quer ligar o modo férias para a viagem?",
+       "Use cronologia_agenda de hoje a 30 dias e conte os compromissos (sem as rotinas e os remédios de todo dia), com o dia de cada um."),
+    _e("remedios_levar", "Remédios", "Para a viagem", "economia", "EconomIA", "economia_por_na_lista", "Precisa comprar algum desses remédios antes de viajar?",
+       "Use cronologia_cadastros e conte só os remédios (o nome e a dose de cada um).", se_tem=True, tambem=("cronologia_cadastros",)),
+    _e("lista_viagem", "Viagem", "Compras", "economia", "EconomIA", "economia_por_na_lista", "Precisa comprar algo para a viagem?"),
+    _e("ligado", "Ligados", "Ligado ou aberto", "casa", "Casa", "casa_estado", "Quer mexer em algum desses?",
+       "Use casa_estado com ligados true{do_comodo} e conte o que está ligado ou aberto (o nome e o estado; até 8).", se_tem=True),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -220,22 +255,51 @@ def _ronda_de_mais(nome, resumo, ids):
     return {"nome": nome, "onde": None, "resumo": resumo, "de_mais": True, "etapas": [dict(copy.deepcopy(por_id[i]), de=f"mais.{i}") for i in ids]}
 
 
-for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, os bens, os itens de valor e as novidades dos equipamentos.",
-                                               ["invest", "invest_vence", "invest_novo", "bens", "bem_novo", "valiosos", "sem_valor", "novidades"])),
-                 ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, a agenda, as manutenções, os remédios e as contas atrasadas.",
-                                           ["hoje", "semana", "agenda_semana", "manut", "remedios", "atrasadas"])),
+for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, as oportunidades, as milhas, os bens, os itens de valor e as novidades dos equipamentos.",
+                                               ["invest", "invest_vence", "invest_novo", "oportunidades", "milhas", "bens", "bem_novo", "valiosos", "sem_valor", "sem_foto", "novidades"])),
+                 ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, a agenda, as manutenções, os remédios, as contas atrasadas e o placar.",
+                                           ["hoje", "comece", "semana", "agenda_semana", "manut", "remedios", "atrasadas", "placar"])),
                  # 1.36.0: a do OdisseIA, sem cômodo
-                 ("lazer", _ronda_de_mais("Ronda do lazer", "As séries em andamento, o que a casa quer ver e jogar e o que está em alta.",
-                                          ["continuar", "quero_ver", "quero_jogar", "em_alta"]))):
+                 ("lazer", _ronda_de_mais("Ronda do lazer", "As séries em andamento, o que vai sair, o que a casa quer ver e jogar e as sugestões.",
+                                          ["continuar", "lancamentos", "quero_ver", "quero_jogar", "em_alta", "estreias"])),
+                 # 1.37.0: cinco rondas novas, todas com as etapas do MAIS
+                 ("dia", _ronda_de_mais("Ronda do dia", "De manhã: a agenda, os remédios e as tarefas de hoje, e por onde começar.",
+                                        ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular"])),
+                 ("noite", _ronda_de_mais("Ronda da noite", "Antes de dormir: o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã.",
+                                          ["ligado", "remedio_hoje", "agenda_hoje", "amanha"])),
+                 ("financas", _ronda_de_mais("Ronda das finanças", "As faturas do e-mail, as contas atrasadas, os lançamentos, o saldo, os benefícios e as milhas.",
+                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas"])),
+                 ("anotacoes", _ronda_de_mais("Ronda das anotações", "Os blocos, as últimas folhas e os blocos parados.",
+                                              ["blocos", "folhas", "parados"])),
+                 ("viagem", _ronda_de_mais("Ronda da viagem", "Antes de viajar: as férias, as contas do período, os remédios, as compras e a casa.",
+                                           ["ferias", "contas_viagem", "remedios_levar", "lista_viagem", "ligado"]))):
     RONDAS[_rid] = _r
     PADRAO[_rid] = copy.deepcopy(_r)
 
 
+# 1.37.0: e etapas do MAIS também nas rondas daqui que não são feitas só delas: (ronda, depois de qual etapa, [as do MAIS])
+for _rid, _depois, _ids in (("casa", "rotina_sai", ["manut"]), ("casa", "item_mudou", ["sem_foto"]), ("casa", "pet", ["ligado"]),
+                            ("compras", "ofertas", ["cupons"]),
+                            ("chegada", "fora", ["reposto"]),
+                            ("mes", "contas", ["recebidos", "fixos", "saldo", "faturas_email"]), ("mes", "tarefas", ["repete"]),
+                            ("mes", "repor", ["parados"])):
+    _por_id = {e["id"]: e for e in MAIS["mais"]["etapas"]}
+    for _r in (RONDAS[_rid], PADRAO[_rid]):
+        _k = next(i for i, e in enumerate(_r["etapas"]) if e["id"] == _depois) + 1
+        _r["etapas"][_k:_k] = [dict(copy.deepcopy(_por_id[i]), de=f"mais.{i}") for i in _ids]
+
+
+def precisa_todas(e):
+    """As ferramentas que a etapa usa e que precisam existir: a dela e as de tambem (a que lê outro app)."""
+    return (e["precisa"], *e.get("tambem", ()))
+
+
 def catalogo():
-    """As etapas prontas, para escolher numa ronda: [{de, app, nome_app, grupo, titulo, pergunta, le, precisa, ronda}]."""
+    """As etapas prontas, para escolher numa ronda: [{de, app, nome_app, grupo, titulo, pergunta, le, precisa, tambem, ronda}].
+    Uma etapa do MAIS numa ronda daqui aparece uma vez só, pelo MAIS."""
     return [{"de": f"{rid}.{e['id']}", "app": e["app"], "nome_app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"],
-             "pergunta": _mostrar(e["pergunta"]), "le": bool(e.get("pedido")), "precisa": e["precisa"], "ronda": r["nome"]}
-            for rid, r in {**PADRAO, **MAIS}.items() if not r.get("de_mais") for e in r["etapas"]]
+             "pergunta": _mostrar(e["pergunta"]), "le": bool(e.get("pedido")), "precisa": e["precisa"], "tambem": list(e.get("tambem", ())), "ronda": r["nome"]}
+            for rid, r in {**PADRAO, **MAIS}.items() if not r.get("de_mais") for e in r["etapas"] if rid == "mais" or not e.get("de")]
 
 
 def _pronta(de):
@@ -413,7 +477,8 @@ def para_editor(ids_ligados=None):
     return [{"id": rid, "nome": r["nome"], "onde": bool(r["onde"]), "minha": bool(r.get("minha")), "mudada": bool(r.get("mudada")),
              "etapas": [{"id": e["id"], **({"de": e["de"]} if e.get("de") else {"de": f"{rid}.{e['id']}"} if not e.get("livre") else {"ferramenta": e["precisa"]}),
                          "app": e["nome_app"], "grupo": e["grupo"], "titulo": e["titulo"], "pergunta": _mostrar(e["pergunta"]),
-                         "pedido": _mostrar(e.get("pedido_meu") or ""), "quando": e.get("quando") or "", "le": bool(e.get("pedido")), "ligada": ok(e["precisa"])} for e in r["etapas"]]}
+                         "pedido": _mostrar(e.get("pedido_meu") or ""), "quando": e.get("quando") or "", "le": bool(e.get("pedido")),
+                         "ligada": all(ok(f) for f in precisa_todas(e))} for e in r["etapas"]]}
             for rid, r in RONDAS.items()]
 
 
@@ -442,7 +507,7 @@ def disponiveis(ferr, pessoa=None):
     comodos = [str(c.get("nome")) for c in inv.get("comodos") or [] if isinstance(c, dict) and c.get("nome")][:60]
     out = []
     for rid, r in RONDAS.items():
-        etapas = [e for e in r["etapas"] if e["precisa"] in ids and (not e.get("so_com") or e["so_com"] in ligado)]
+        etapas = [e for e in r["etapas"] if all(f in ids for f in precisa_todas(e)) and (not e.get("so_com") or e["so_com"] in ligado)]
         if etapas:
             onde = comodos if r["onde"] else []
             out.append({"id": rid, "nome": r["nome"], "resumo": r["resumo"],
@@ -572,7 +637,14 @@ def abrir(rid, eid, onde, paineis):
         # a uma tela que já estava aberta) e o ?aba= (lido quando a tela carrega)
         base += f"/buscar/comodo/{q}?aba=buscar&comodo={q}" if onde else "?aba=prazos"
     elif e["app"] == "cronologia":
-        base += "/calendario?aba=calendario" if e.get("orig", e["id"]) == "agenda" else (f"/mais/rotinas/comodo/{q}?aba=rotinas&comodo={q}" if onde else "/mais/rotinas?aba=rotinas")
+        # 1.37.0: pelo que a etapa lê: a agenda no Calendário, o resumo de hoje no Agora, o placar nas Recompensas
+        le = e.get("pedido") or ""
+        if e.get("orig", e["id"]) == "agenda" or "cronologia_agenda" in le:
+            base += "/calendario?aba=calendario"
+        elif "cronologia_placar" in le:
+            base += "/mais/recompensas"
+        elif "cronologia_resumo" not in le:
+            base += f"/mais/rotinas/comodo/{q}?aba=rotinas&comodo={q}" if onde else "/mais/rotinas?aba=rotinas"
     return {"texto": f"Abrir no {e['nome_app']}", "href": base}
 
 
@@ -635,7 +707,12 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Novidades": ("Nenhuma novidade encontrada.", "novidade", "novidades"),
          "Séries": ("Nenhuma série em andamento.", "série", "séries"), "Filmes e séries": ("Nada em Quero ver.", "título", "títulos"),
          "Jogos": ("Nenhum jogo em Quero jogar.", "jogo", "jogos"), "Sugestões": ("Nada em alta agora.", "título", "títulos"),
-         "Reposição": ("Nada na hora de repor.", "item", "itens")}
+         "Reposição": ("Nada na hora de repor.", "item", "itens"),
+         # 1.37.0
+         "Benefícios": ("Nenhum benefício encontrado.", "benefício", "benefícios"), "Milhas": ("Nenhum programa de milhas.", "programa", "programas"),
+         "Assinaturas": ("Nenhuma assinatura em promoção.", "assinatura", "assinaturas"), "Lançamentos": ("Nada vai sair nos próximos dias.", "lançamento", "lançamentos"),
+         "Ligados": ("Nada ligado ou aberto.", "coisa ligada ou aberta", "coisas ligadas ou abertas"),
+         "Faturas": ("Nenhuma fatura para conferir.", "fatura", "faturas"), "Contas": ("Nenhuma conta a pagar.", "conta", "contas")}
 
 
 def vazio(rid, eid, achou):

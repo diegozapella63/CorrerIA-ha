@@ -78,6 +78,39 @@ class TestCasa(unittest.TestCase):
             C.Casa(falha, self.post, print).estado("luz")
 
 
+    def test_ligados_e_por_comodo(self):
+        """1.37.0 (as rondas: "ficou algo ligado?"): ligados só o que está ligado, aberto ou destrancado (e as portas e janelas
+        abertas, pelo sensor); comodo, o que está na área do Home Assistant com esse nome (sem ela, o cômodo no nome)."""
+        mais = ESTADOS + [{"entity_id": "binary_sensor.porta_da_varanda", "state": "on", "attributes": {"friendly_name": "Porta da varanda", "device_class": "door"}},
+                          {"entity_id": "binary_sensor.movimento", "state": "on", "attributes": {"friendly_name": "Movimento", "device_class": "motion"}},
+                          {"entity_id": "lock.porta", "state": "locked", "attributes": {"friendly_name": "Fechadura"}}]
+        areas = "light.sala|Sala de estar\nsensor.temperatura_da_sala|Sala de estar\nclimate.ar_do_quarto|Quarto\ncover.cortina|Quarto\n"
+        c = C.Casa(lambda caminho: mais, self.post, print, lambda modelo: areas)
+        t = c.usar("estado", {"ligados": True})
+        self.assertIn("Luz da sala: ligado", t)
+        self.assertIn("Ar do quarto", t)
+        self.assertIn("Cortina: aberto", t)
+        self.assertIn("Porta da varanda", t)
+        for fora in ("Luz da entrada", "Movimento", "Fechadura", "Temperatura"):
+            self.assertNotIn(fora, t)
+        q = c.usar("estado", {"ligados": True, "comodo": "quarto"})
+        self.assertIn("Ar do quarto", q)
+        self.assertIn("Cortina", q)
+        self.assertNotIn("Luz da sala", q)
+        self.assertIn("Luz da sala", c.usar("estado", {"comodo": "Sala de Estar"}))
+        self.assertIn("Luz da sala", c.usar("estado", {"comodo": "Sala"}))  # a área que começa pelo nome do cômodo
+        self.assertEqual(c.usar("estado", {"ligados": True, "comodo": "escritório"}), "Nada ligado ou aberto em «escritório».")
+        # sem a área no Home Assistant (ou sem o /api/template), o cômodo vale no nome de cada coisa
+        sem = C.Casa(lambda caminho: mais, self.post, print)
+        self.assertIn("Luz da sala", sem.usar("estado", {"comodo": "sala"}))
+        self.assertNotIn("Ar do quarto", sem.usar("estado", {"comodo": "sala"}))
+
+        def quebra(m):
+            raise RuntimeError("sem areas()")
+        self.assertIn("Luz da sala", C.Casa(lambda caminho: mais, self.post, lambda *a: None, quebra).usar("estado", {"comodo": "sala"}))
+        self.assertEqual(sem.usar("estado", {"comodo": "garagem"}), "Nada com “garagem” no Home Assistant.")
+        self.assertTrue(C.ligado({"entity_id": "climate.x", "state": "heat"}) and not C.ligado({"entity_id": "climate.x", "state": "off"}))
+
 class TestCasaNasFerramentas(unittest.TestCase):
     def setUp(self):
         self.share = pasta_temp()

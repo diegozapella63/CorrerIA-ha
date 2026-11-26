@@ -1,5 +1,13 @@
 # Mudanças
 
+## 1.37.0
+
+- **Cinco rondas novas**, prontas: **Ronda do dia** (de manhã: a agenda, os remédios e as tarefas de hoje e por onde começar), **Ronda da noite** (o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã), **Ronda das finanças** (as faturas do e-mail, as contas, os lançamentos, o saldo, os benefícios e as milhas), **Ronda das anotações** (os blocos e as folhas do MemorIA) e **Ronda da viagem** (as férias, as contas do período, os remédios, as compras e a casa).
+- As rondas de sempre ficaram mais completas: na **Ronda da casa**, as manutenções do cômodo, os itens sem foto e o que está ligado ou aberto ali; na **de compras**, o que pode sair da lista e os cupons; na **da chegada**, o que já foi reposto; na **do mês**, os recebimentos, os fixos, o saldo, as faturas do e-mail, as repetições e os blocos parados; na **do patrimônio**, as oportunidades, as milhas e os itens sem foto; na **da semana**, o Comece por aqui e o placar; na **do lazer**, as estreias e o que vai sair.
+- **Mais etapas prontas** no Adicionar etapa (53 ao todo): o Comece por aqui, a agenda de amanhã, as faturas do e-mail, os benefícios, as milhas, as oportunidades, as assinaturas em promoção, a avaliação dos consumíveis, as estreias, o que vai sair, as férias e o que está ligado ou aberto em casa. Cada uma só aparece com o app dela ligado.
+- A Casa responde também o que está **ligado ou aberto** (as luzes, as tomadas, as portas, as janelas), na casa toda ou num cômodo (a área do Home Assistant com o mesmo nome).
+- O **Abrir no CronologIA** de uma etapa leva ao lugar dela: a agenda no Calendário, o que é de hoje no Agora e o placar nas Recompensas.
+
 ## 1.36.3
 
 - O ícone das **Rondas** agora é uma bússola. O de antes tinha um círculo no canto e, com o ponto amarelo dos cômodos

@@ -1171,7 +1171,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector(".ch-ronda-onde .btn")
         self.assertEqual(self.texto(".ch-ronda-op:first-child > b"), "Ronda da casa")
         self.assertEqual(self.pg.locator(".ch-ronda-op:first-child > b svg").count(), 1, "o ícone antes do título")
-        self.assertEqual(self.texto(".ch-ronda-op:first-child .ch-ronda-res"), "Tarefas › Itens · 5 perguntas", "só as etapas dos apps ligados")
+        self.assertEqual(self.texto(".ch-ronda-op:first-child .ch-ronda-res"), "Tarefas › Itens · 6 perguntas", "só as etapas dos apps ligados")
         self.assertEqual(self.pg.locator(".ch-ronda-op:first-child .ch-ronda-onde .btn").all_inner_texts(), ["Sala de jantar", "Cozinha"])
         # 1.31.3: o Voltar do celular fecha a escolha (ela ocupa uma entrada do histórico), em vez de sair do app; fechada
         # pelo botão, a entrada sai junto, e o Voltar seguinte não cai nela
@@ -1189,7 +1189,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector(".ch-ronda-onde .btn")
         self.pg.click(".ch-ronda-onde .btn >> text=Sala de jantar")
         self.pg.wait_for_selector(".ch-msg.ia >> text=Alguma dessas tarefas já foi feita?")
-        self.assertEqual(self.texto(".ch-msg.eu.ronda .ch-bolha"), "Sala de jantar · Tarefas: Concluir (1 de 5)", "o cômodo uma vez só, sem o nome da ronda")
+        self.assertEqual(self.texto(".ch-msg.eu.ronda .ch-bolha"), "Sala de jantar · Tarefas: Concluir (1 de 6)", "o cômodo uma vez só, sem o nome da ronda")
         self.assertEqual(self.pg.locator(".ch-msg.ia").last.inner_text().count("Sala de jantar"), 0, "a pergunta não repete o cômodo")
         # 1.22.0: o link do app da etapa, embaixo da mensagem (um botão com ícone, que abre o ResolvIA no cômodo)
         link = self.pg.locator(".ch-msg.ia").last.locator("a.ch-abrir")
@@ -1198,17 +1198,18 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.assertEqual(link.get_attribute("target"), "_top")
         self.assertEqual(link.locator("svg").count(), 1)
         self.assertEqual(self.texto(".ch-ronda-t b"), "Sala de jantar")
-        self.assertEqual(self.texto(".ch-ronda-t span"), "Tarefas: Concluir · 1 de 5")
+        self.assertEqual(self.texto(".ch-ronda-t span"), "Tarefas: Concluir · 1 de 6")
         self.assertEqual(self.pg.locator(".ch-ronda-bts .btn").all_inner_texts(), ["Voltar", "Próxima"])
         self.assertTrue(self.pg.locator('[data-a="ronda-voltar"]').is_disabled(), "na primeira etapa, sem voltar")
         caixas = self.pg.evaluate("[...document.querySelectorAll('.ch-ronda-bts .btn')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.top)]; })")
         self.assertEqual(caixas[0], caixas[1], "do mesmo tamanho, lado a lado")
         self.assertEqual(self.pg.locator(".ch-ronda-bts .btn svg").count(), 2, "todo botão com texto tem ícone")
         self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
-        for fim in ("Tem algo novo para arrumar?", "Chegou algum item novo?", "Algum item foi descartado?", "Algum item foi transferido de cômodo?"):
+        for fim in ("Tem algo novo para arrumar?", "Chegou algum item novo?", "Algum item foi descartado?", "Algum item foi transferido de cômodo?",
+                    "Quer mandar a foto de algum desses itens?"):
             self.pg.click('[data-a="ronda-proxima"]:not([disabled])')
             self.pg.wait_for_selector(f".ch-msg.ia >> text={fim}")
-        self.assertEqual(self.pg.locator(".ch-msg.ia .ch-bolha b").last.inner_text(), "Algum item foi transferido de cômodo?", "a pergunta à parte, em negrito")
+        self.assertEqual(self.pg.locator(".ch-msg.ia .ch-bolha b").last.inner_text(), "Quer mandar a foto de algum desses itens?", "a pergunta à parte, em negrito")
         # a última mensagem fica toda à vista, acima do pé (a faixa da ronda aumenta o pé)
         fim, pe = self.pg.evaluate("[[...document.querySelectorAll('.ch-msg')].pop().getBoundingClientRect().bottom, document.querySelector('.ch-pe').getBoundingClientRect().top]")
         self.assertLessEqual(fim, pe, "nada atrás da faixa da ronda")
@@ -1267,7 +1268,7 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector("#ronda-casa")
         self.assertEqual(self.texto("h1"), "Rondas")
         self.assertEqual(self.texto("#ronda-casa h2"), "Ronda da casa")
-        self.assertEqual(self.texto("#ronda-casa .ronda-grupos"), "Itens · 3 perguntas")
+        self.assertEqual(self.texto("#ronda-casa .ronda-grupos"), "Itens · 4 perguntas")
         self.assertEqual(self.texto("#ronda-casa .btn.pri"), "Escolher o cômodo")
         # 1.32.0 (o dono: "os dias de avisos devem estar configurados em cada ronda, dentro do grupo da ronda"): a chave e o
         # prazo ficam no cartão de cada ronda; o cartão Aviso fica com o que vale para todas (o horário, quem recebe, o Testar)

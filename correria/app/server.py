@@ -476,7 +476,7 @@ SO_TEXTO = "Por enquanto eu entendo texto, áudio, foto e PDF."
 NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
 ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
-CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log)
+CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log, lambda m: ha_texto("/template", {"template": m}))
 # 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Integrações › Casa)
 FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None)  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
@@ -1952,7 +1952,7 @@ def editor_rondas():
     m, todas = ler_minhas(), FERR.todas()
     ids = {f["id"] for f in todas}
     return {"avancado": m["avancado"], "rondas": rondas.para_editor(ids), "comodos": comodos_da_casa(),
-            "catalogo": [dict(c, ligada=c["precisa"] in ids) for c in rondas.catalogo()],
+            "catalogo": [dict(c, ligada=all(f in ids for f in (c["precisa"], *c["tambem"]))) for c in rondas.catalogo()],
             "leituras": [dict(v, id=k) for k, v in sorted(_leituras().items(), key=lambda kv: (kv[1]["nome_app"], kv[1]["titulo"]))] if m["avancado"] else [],
             "max": {"etapas": rondas.MAX_ETAPAS, "pergunta": rondas.MAX_PERGUNTA, "pedido": rondas.MAX_PEDIDO, "quando": rondas.MAX_QUANDO}}
 

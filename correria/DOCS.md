@@ -81,7 +81,7 @@ actions:
 
 - Recebeu, o CorrerIA marca como lida, mostra "digitando…" e passa a pergunta para a IA do Home Assistant, com as ferramentas dos apps: ela lê o que precisa nos apps e responde. A resposta volta no jeito do WhatsApp (negrito com *asterisco*), em partes se for longa.
 - **Para mudar algo** ("lança 32,50 de feira", "paguei a internet"), o CorrerIA responde o que vai fazer ("Vou fazer isto: Lançar R$ 32,50 de Feira hoje"), com os botões **Sim** e **Não** embaixo (na conversa e no WhatsApp), e só faz depois do **Sim** (escrever "sim", "pode", "ok" ou "confirmo" também vale). **Não** cancela; outra pergunta também. O pedido espera até 30 minutos.
-- **A casa** (1.5.0): "liga a luz da entrada", "fecha a cortina da sala", "põe o ar em 23 graus" vão para o Assist do Home Assistant, que só mexe no que está exposto a ele (no Home Assistant, **Configurações › Assistentes de voz › Expor**). Também dá para perguntar como algo está ("a luz da sala está ligada?", "qual a temperatura da sala?"). As mudanças esperam o **sim**, como as dos apps. Funciona também no Claude e nas outras IAs pelo conector MCP. Liga e desliga em **Configurações › Integrações › Casa** (vem ligada).
+- **A casa** (1.5.0): "liga a luz da entrada", "fecha a cortina da sala", "põe o ar em 23 graus" vão para o Assist do Home Assistant, que só mexe no que está exposto a ele (no Home Assistant, **Configurações › Assistentes de voz › Expor**). Também dá para perguntar como algo está ("a luz da sala está ligada?", "qual a temperatura da sala?", "o que ficou ligado ou aberto?", "o que está ligado na cozinha?": o cômodo é a área com esse nome no Home Assistant). As mudanças esperam o **sim**, como as dos apps. Funciona também no Claude e nas outras IAs pelo conector MCP. Liga e desliga em **Configurações › Integrações › Casa** (vem ligada).
 - A conversa de cada pessoa vai junto com a pergunta (as últimas mensagens de até 12 horas atrás), para a IA lembrar do que se falou. Depois disso, recomeça.
 - **Fotos e PDFs**: mande a foto de uma nota, um print ou a fatura em PDF (com ou sem uma pergunta na legenda). O CorrerIA passa para o app do assunto que lê aquele tipo (na aba **Integrações** aparece o que cada um lê). No GerencIA, a IA lê como no Ler com IA: o que ela achar fica para conferir nos **Avisos do Início** ("Enviado por Ana · Pelo WhatsApp · 4 lançamentos") e a resposta lista o que foi lido; nada é lançado sozinho. A fatura em PDF com senha abre com as **Senhas dos PDFs** do GerencIA; se nenhuma abrir, a resposta pede para cadastrar e mandar de novo. Com uma pergunta junto ("quanto deu essa nota?"), a resposta vem com o que foi lido. Até 20 MB.
 - **Áudio**: o CorrerIA ouve pela fala para texto do Home Assistant (Configurações › Assistentes de voz; a do Home Assistant Cloud primeiro) e manda o texto para o app, como se a pessoa tivesse escrito. O WhatsApp grava em OGG: na aba **WhatsApp**, a linha "Áudios do WhatsApp viram texto pelo …" mostra qual fala para texto é usada (ou por que os áudios não viram texto). Se não aceitar, a resposta pede para escrever.
@@ -184,25 +184,37 @@ Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no a
 
 1. **Tarefas** (ResolvIA): *Alguma dessas tarefas já foi feita?* (com tarefas pendentes) · *Tem algo novo para arrumar?*
 2. **Rotinas** (CronologIA): *Falta alguma rotina?* · *Alguma rotina precisa mudar?* · *Alguma rotina pode sair?*
-3. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item foi descartado?* · *Algum item foi transferido de cômodo?*
-4. **Consumíveis** (InventarIA): *Algum desses consumíveis precisa repor?* (com algum acabando) · *Quer adicionar algum consumível?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
-5. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
+3. **Manutenção** (CronologIA): *Alguma dessas manutenções já foi feita?* (com manutenções no cômodo)
+4. **Itens** (InventarIA): *Chegou algum item novo?* · *Algum item foi descartado?* · *Algum item foi transferido de cômodo?* · *Quer mandar a foto de algum desses itens?* (com itens sem foto)
+5. **Consumíveis** (InventarIA): *Algum desses consumíveis precisa repor?* (com algum acabando) · *Quer adicionar algum consumível?* Com **Consumíveis por cômodo** ligado no InventarIA, aparecem os usados naquele cômodo; sem isso, todos.
+6. **Compras** (EconomIA): *Precisa de algo do mercado?* · *Da farmácia?* · *Do pet shop?*
+7. **Ligado ou aberto** (a casa do Home Assistant): *Quer mexer em algum desses?* (com algo ligado ou aberto na área do Home Assistant com o nome do cômodo)
 
 Depois da última pergunta, escolha o próximo cômodo: o que está em dia (feito hoje ou dentro do prazo do aviso) fica verde e cada um mostra há quantos dias foi a última ronda.
 
-**Ronda de compras** (antes de sair): a lista, o que está na hora de repor, os consumíveis acabando, as ofertas e em qual loja a lista sai mais em conta.
+**Ronda de compras** (antes de sair): a lista (e o que pode sair dela), o que está na hora de repor, os consumíveis acabando, as ofertas, os cupons e em qual loja a lista sai mais em conta.
 
-**Ronda da chegada das compras**: o que da lista foi comprado (e por quanto tempo vai durar, para a reposição e para o InventarIA), o que veio fora da lista, os consumíveis e os itens novos para cadastrar e o gasto para lançar no GerencIA.
+**Ronda da chegada das compras**: o que da lista foi comprado (e por quanto tempo vai durar, para a reposição e para o InventarIA), o que veio fora da lista, o que já foi reposto, os consumíveis e os itens novos para cadastrar e o gasto para lançar no GerencIA.
 
-**Ronda do mês**: os gastos e as contas a pagar (GerencIA), os compromissos e as rotinas (CronologIA), as tarefas atrasadas (ResolvIA), os itens que saíram (InventarIA) e a reposição (EconomIA).
+**Ronda do mês**: os gastos, as contas a pagar, os recebimentos, os fixos, o saldo do caixa e as faturas do e-mail (GerencIA), os compromissos e as rotinas (CronologIA), as tarefas atrasadas e as que se repetem (ResolvIA), os itens que saíram (InventarIA), a reposição (EconomIA) e os blocos parados (MemorIA).
 
-**Ronda do patrimônio**: os investimentos (conferir, os que vencem, um novo), os bens, os itens mais valiosos, os sem valor e as novidades dos equipamentos (GerencIA e InventarIA).
+**Ronda do patrimônio**: os investimentos (conferir, os que vencem, um novo), as oportunidades de investimento e as milhas (GerencIA), os bens, os itens mais valiosos, os sem valor, os sem foto e as novidades dos equipamentos (InventarIA).
 
-**Ronda da semana**: as tarefas de hoje e dos próximos 7 dias (ResolvIA), a agenda da semana, as manutenções e os remédios (CronologIA) e as contas atrasadas (GerencIA).
+**Ronda da semana**: as tarefas de hoje, por onde começar e as dos próximos 7 dias (ResolvIA), a agenda da semana, as manutenções, os remédios e o placar (CronologIA) e as contas atrasadas (GerencIA).
 
-**Ronda do lazer** (OdisseIA): as séries em andamento (*Viu algum episódio novo?*), o que a casa quer ver (*Já viu algum desses?*) e jogar (*Já jogou algum desses?*) e o que está em alta (*Quer pôr algum desses na lista?*).
+**Ronda do lazer** (OdisseIA): as séries em andamento (*Viu algum episódio novo?*), os episódios e os jogos que vão sair (um lembrete no CronologIA), o que a casa quer ver (*Já viu algum desses?*) e jogar (*Já jogou algum desses?*), o que está em alta (*Quer pôr algum desses na lista?*) e as estreias.
 
-No **Adicionar etapa** do editor também há etapas prontas soltas, de todos os apps: os investimentos, os fixos, os lançamentos, o saldo do caixa e os recebimentos (GerencIA); os bens, os itens mais valiosos, sem valor e sem foto e as novidades (InventarIA); as repetições, as tarefas de hoje, sem prazo e dos próximos 7 dias (ResolvIA); a agenda de hoje e da semana, **Pular hoje**, os remédios, as manutenções e o placar (CronologIA); os cupons, limpar a lista, **Já repôs** e **Preços** (EconomIA); os blocos, as últimas folhas e os blocos parados (MemorIA); e as do OdisseIA.
+**Ronda do dia** (de manhã): a agenda e os remédios de hoje (CronologIA), as tarefas de hoje e por onde começar (ResolvIA) e o que não vai acontecer hoje (**Pular hoje**).
+
+**Ronda da noite** (antes de dormir): o que ficou ligado ou aberto na casa (as luzes, as tomadas, as portas e as janelas, pelo Home Assistant), os remédios que faltam, o que ficou sem marcar hoje e os compromissos de amanhã.
+
+**Ronda das finanças**: as faturas do e-mail para conferir, as contas atrasadas, os lançamentos e os recebimentos do mês, o saldo do caixa, os benefícios, as milhas e as assinaturas em promoção (GerencIA).
+
+**Ronda das anotações** (MemorIA): os blocos, as últimas folhas e os blocos parados há mais de 60 dias.
+
+**Ronda da viagem**: o modo férias (CronologIA), as contas do período (GerencIA), os remédios para levar e as compras para a viagem (EconomIA) e o que ficou ligado ou aberto em casa.
+
+No **Adicionar etapa** do editor também há etapas prontas soltas, de todos os apps: os investimentos, as oportunidades, os fixos, os lançamentos, o saldo do caixa, os recebimentos, as faturas do e-mail, os benefícios, as milhas e as assinaturas em promoção (GerencIA); os bens, os itens mais valiosos, sem valor e sem foto, as novidades e a **Avaliação** dos consumíveis (InventarIA); as repetições, as tarefas de hoje, sem prazo e dos próximos 7 dias e o **Comece por aqui** (ResolvIA); a agenda de hoje, de amanhã e da semana, **Pular hoje**, os remédios, as manutenções, o placar e as férias (CronologIA); os cupons, limpar a lista, **Já repôs** e **Preços** (EconomIA); os blocos, as últimas folhas e os blocos parados (MemorIA); as do OdisseIA (as estreias e o que vai sair); e o que está ligado ou aberto na casa (o Home Assistant).
 
 Cada ronda só mostra as etapas que dá para fazer: o app precisa estar com a opção **CorrerIA** ligada (Mais › Configurações › Integrações, em cada app), e a etapa dos consumíveis pede **Usar consumíveis** ligado no InventarIA. Os cômodos vêm do InventarIA; sem ele, você escreve o nome do cômodo. Sem **Usar cômodos** no ResolvIA, a etapa das tarefas procura o cômodo no nome das tarefas.
 
