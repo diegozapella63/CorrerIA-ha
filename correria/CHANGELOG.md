@@ -1,5 +1,16 @@
 # Mudanças
 
+## 1.39.0
+
+- **Etapas novas** nas rondas (e no Adicionar etapa, 88 ao todo):
+  - **Acabam esta semana**: os consumíveis do InventarIA que acabam nos próximos 7 dias. *Ponho na lista de compras algum desses?* (Ronda da semana).
+  - **Assinaturas em uso**: cada assinatura de vídeo paga no GerencIA, com quantos títulos a casa quer ver nela no OdisseIA. *Alguma assinatura pode ser cancelada?* (Ronda das finanças e do lazer).
+  - **Recursos novos**: os recursos dos eletrônicos e quantos ainda não têm. *Quer que eu busque os recursos dos que ainda não têm?* (Ronda do patrimônio e dos aparelhos).
+  - **Equipamentos sem manutenção**: os equipamentos do InventarIA que não aparecem em nenhuma manutenção da CronologIA. *Algum desses precisa de manutenção?* (Ronda da casa, da semana e dos aparelhos).
+  - **Prêmio do período** e **Prêmio entregue** (CronologIA): *Qual vai ser o prêmio do placar?* e *O prêmio já foi entregue?* (Ronda da semana).
+- Os consumíveis que estão acabando (na Ronda da casa e na de compras) agora são achados pelo próprio InventarIA, pelo Dura até, sem a IA fazer a conta das datas.
+- Pedem o InventarIA 1.111.0, a CronologIA 1.118.0 e o OdisseIA 0.13.0 (ou mais novos).
+
 ## 1.38.0
 
 - **Mais etapas prontas** no Adicionar etapa das rondas (82 ao todo), para todos os apps:

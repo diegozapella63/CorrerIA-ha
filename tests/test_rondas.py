@@ -159,10 +159,10 @@ class TestEditor(Base):
         self.assertEqual(len(ids), len(set(ids)))
         # 1.33.0: toda etapa pronta usa uma ferramenta que o app tem de verdade (os nomes conferidos nos repositórios dos apps)
         tem = {"gerencia": "resumo lancamentos contas_a_pagar investimentos cadastros lancar novo_investimento novo_fixo ajustar_saldo marcar_pago"
-                           " faturas_do_email beneficios oportunidades",
-               "inventario": "resumo buscar_itens novidades cadastrar_itens avaliar", "economia": "lista reposicao ofertas roteiro cupons comprei por_na_lista tirar_da_lista",
+                           " faturas_do_email beneficios oportunidades encerrar_fixo",
+               "inventario": "resumo buscar_itens novidades cadastrar_itens avaliar recursos buscar_recursos", "economia": "lista reposicao ofertas roteiro cupons comprei por_na_lista tirar_da_lista",
                "resolvia": "resumo tarefas repeticoes comece_por_aqui pontos editar_lista concluir_tarefa",
-               "cronologia": "resumo agenda cadastros placar criar_compromisso pular ferias",
+               "cronologia": "resumo agenda cadastros placar criar_compromisso pular ferias definir_premio premio_entregue",
                "memoria": "resumo buscar editar_bloco acrescentar editar_categoria nova_folha",
                "odisseia": "resumo buscar marcar lista_pronta proximo_episodio adicionar adicionar_colecao marcar_varios", "casa": "estado comando"}
         tem["economia"] += " reposto preco"
@@ -170,7 +170,7 @@ class TestEditor(Base):
             for f in (c["precisa"], *c["tambem"]):
                 app, _, nome = f.partition("_")
                 self.assertIn(nome, tem[app].split(), c["de"])
-        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 82))
+        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 88))
         for e in rondas.MAIS["mais"]["etapas"]:  # o que a IA lê também é de uma ferramenta que o app tem
             for f in re.findall(r"Use ([a-z]+)_([a-z_]+)", e["pedido"] or ""):
                 self.assertIn(f[1], tem[f[0]].split(), e["id"])
@@ -195,7 +195,8 @@ class TestEditor(Base):
         self.assertEqual((L["patrimonio"]["nome"], L["patrimonio"]["sem_onde"], [e["id"] for e in L["patrimonio"]["etapas"]]),
                          ("Ronda do patrimônio", True, ["invest", "invest_vence", "invest_novo", "valiosos", "sem_valor", "sem_foto"]), "sem os bens e as novidades, desligados na casa de teste")
         self.assertEqual((L["semana"]["nome"], [e["id"] for e in L["semana"]["etapas"]]), ("Ronda da semana", ["hoje", "externos", "atrasadas"]), "só as etapas dos apps ligados (aqui, o ResolvIA e o GerencIA)")
-        self.assertEqual([e["id"] for e in rondas.PADRAO["semana"]["etapas"]], ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "remedios", "atrasadas", "placar"])
+        self.assertEqual([e["id"] for e in rondas.PADRAO["semana"]["etapas"]], ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "equip_sem_manut",
+                                                                         "remedios", "consumiveis_semana", "atrasadas", "placar", "premio", "premio_entregue"])
         ed = self.j("/api/rondas/editor")[1]
         pat = next(r for r in ed["rondas"] if r["id"] == "patrimonio")
         self.assertEqual((pat["minha"], pat["mudada"], [e["de"] for e in pat["etapas"]][:2]), (False, False, ["mais.invest", "mais.invest_vence"]))
@@ -209,7 +210,7 @@ class TestEditor(Base):
         sem = next(r for r in ed["rondas"] if r["id"] == "semana")
         self.assertEqual((st, sem["nome"], sem["mudada"]), (200, "Minha semana", True))
         ed = self.j("/api/rondas/editor", {"acao": "restaurar", "id": "semana"})[1]
-        self.assertEqual(len(next(r for r in ed["rondas"] if r["id"] == "semana")["etapas"]), 10)
+        self.assertEqual(len(next(r for r in ed["rondas"] if r["id"] == "semana")["etapas"]), 14)
 
     def test_ronda_do_lazer(self):
         """1.36.0 (o dono: "veja mais quais etapas e ferramentas podem ficar nas rondas como templates"): a Ronda do lazer, com
@@ -238,7 +239,7 @@ class TestEditor(Base):
             self.assertGreaterEqual(por_app[app], n, app)
         ap = rondas.PADRAO["aparelhos"]
         self.assertEqual((ap["nome"], ap["onde"], [e["id"] for e in ap["etapas"]]),
-                         ("Ronda dos aparelhos", None, ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador"]))
+                         ("Ronda dos aparelhos", None, ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador", "equip_sem_manut", "recursos"]))
         self.assertIn("Use casa_estado com tipo temperatura e conte", rondas.pedido("aparelhos", "temperatura", "", [], 1, 1))
         self.assertIn("Use memoria_resumo e conte os blocos que abrem sozinhos", rondas.etapa_de("anotacoes", "horarios")["pedido"])
         self.assertEqual(rondas.precisa_todas(rondas.etapa_de("aparelhos", "aspirador")), ("casa_comando", "casa_estado"))
@@ -708,7 +709,7 @@ class TestRondas(Base):
             if etapa == "Novo":
                 self.assertEqual(self.inventario.feitos[-1]["argumentos"], {"comodo": "Sala"})
             if etapa == "Acabando":
-                self.assertEqual(self.inventario.feitos[-1]["argumentos"], {"comodo": "Consumíveis"}, "os consumíveis não têm cômodo: a área deles")
+                self.assertEqual(self.inventario.feitos[-1]["argumentos"], {}, "os consumíveis não têm cômodo (1.39.0: pelo acaba_em_dias, que a IA simulada não lê)")
             if etapa == "Mercado":
                 self.assertIn("Café", r["mensagens"][-1]["texto"])
         r = self.j("/api/ronda", {"acao": "proxima"})[1]  # a última: concluída, e a escolha do próximo cômodo
@@ -1161,3 +1162,33 @@ class TestAvisoNoCelular(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEtapas139(unittest.TestCase):
+    """1.39.0 (o dono, às etapas e ferramentas que faltavam: "pode colocar todas"): as etapas com as ferramentas novas dos apps."""
+
+    def test_as_etapas_novas_e_onde_ficam(self):
+        E = {e["id"]: e for e in rondas.MAIS["mais"]["etapas"]}
+        for eid in ("consumiveis_semana", "assinaturas_uso", "recursos", "equip_sem_manut", "premio", "premio_entregue"):
+            self.assertIn(eid, E)
+        self.assertEqual(rondas.precisa_todas(E["consumiveis_semana"]), ("inventario_buscar_itens", "economia_por_na_lista"))
+        self.assertIn("acaba_em_dias 7", E["consumiveis_semana"]["pedido"])
+        self.assertEqual(rondas.precisa_todas(E["assinaturas_uso"]), ("gerencia_encerrar_fixo", "gerencia_cadastros", "odisseia_buscar"))
+        self.assertIn("por_servico true", E["assinaturas_uso"]["pedido"])
+        self.assertEqual(rondas.precisa_todas(E["recursos"]), ("inventario_buscar_recursos", "inventario_recursos"))
+        self.assertNotEqual(E["premio"]["grupo"], E["premio_entregue"]["grupo"], "o prêmio já definido (TOTAL 0) não tira a pergunta do Entregue")
+        P = {r: [e["id"] for e in rondas.PADRAO[r]["etapas"]] for r in rondas.PADRAO}
+        self.assertEqual(P["casa"][P["casa"].index("manut") + 1], "equip_sem_manut")
+        self.assertIn("assinaturas_uso", P["financas"])
+        self.assertIn("assinaturas_uso", P["lazer"])
+        self.assertEqual(P["patrimonio"][-1], "recursos")
+        # numa ronda por cômodo, a etapa que lê dois apps passa o cômodo aos dois (o criar_compromisso não filtra)
+        p = rondas.pedido("casa", "equip_sem_manut", "Sala", [], 7, 17)
+        self.assertEqual(p.count("do cômodo «Sala» (o campo comodo)"), 2)
+        self.assertNotIn("cômodo «»", rondas.pedido("aparelhos", "equip_sem_manut", "", [], 9, 10))
+        self.assertIn("/mais/recompensas", rondas.abrir("semana", "premio", "", {"cronologia": "/app/x"})["href"])
+        self.assertEqual((rondas.vazio("semana", "premio", 0), rondas.vazio("semana", "premio_entregue", 2)),
+                         ("O prêmio do período já está definido.", "2 prêmios para entregar no CronologIA."))
+        # os que acabam, pelo acaba_em_dias (o app faz a conta)
+        self.assertIn("acaba_em_dias 30", rondas.etapa_de("casa", "cons_acabando")["pedido"])
+        self.assertIn("acaba_em_dias 15", rondas.etapa_de("compras", "acabando")["pedido"])

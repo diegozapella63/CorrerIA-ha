@@ -49,11 +49,12 @@ RONDAS = {
             _e("item_saiu", "Itens", "Descartado", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item foi descartado?", se_tem=True),
             _e("item_mudou", "Itens", "Transferido", "inventario", "InventarIA", "inventario_buscar_itens", "Algum item foi transferido de cômodo?", se_tem=True),
             _e("cons_acabando", "Consumíveis", "Acabando", "inventario", "InventarIA", "inventario_buscar_itens", "Algum desses consumíveis precisa repor?",
-               "Os consumíveis não têm cômodo. Use inventario_buscar_itens com o cômodo «Consumíveis» e conte os que já passaram do dura_ate "
-               "ou acabam nos próximos 30 dias (se nenhum, diga quantos há; o TOTAL é só o dos que estão acabando).", so_com="consumiveis", se_tem=True,
+               # 1.39.0: pelo acaba_em_dias do InventarIA 1.111.0 (o app faz a conta do Dura até, não a IA)
+               "Os consumíveis não têm cômodo. Use inventario_buscar_itens com acaba_em_dias 30 e conte os consumíveis que acabam até lá "
+               "(o nome e o dia; os que já acabaram também; o TOTAL é só o dos que estão acabando).", so_com="consumiveis", se_tem=True,
                # 1.20.0: com Consumíveis por cômodo ligado no InventarIA (1.88.0), só os usados neste cômodo
-               pedido_com={"consumiveis_por_comodo": "Use inventario_buscar_itens com o cômodo «Consumíveis» e usado_em «{onde}»: conte os consumíveis usados em «{onde}», "
-                                                     "primeiro os que já passaram do dura_ate ou acabam nos próximos 30 dias (se nenhum for de lá, diga que não há; o TOTAL é só o dos que estão acabando)."}),
+               pedido_com={"consumiveis_por_comodo": "Use inventario_buscar_itens com acaba_em_dias 30 e usado_em «{onde}»: conte os consumíveis usados em «{onde}» "
+                                                     "que acabam até lá (o nome e o dia; os que já acabaram também; se nenhum for de lá, diga que não há; o TOTAL é só o dos que estão acabando)."}),
             _e("cons_novo", "Consumíveis", "Novo", "inventario", "InventarIA", "inventario_buscar_itens", "Quer adicionar algum consumível?", so_com="consumiveis"),
             _e("mercado", "Compras", "Mercado", "economia", "EconomIA", "economia_lista", "Precisa de algo do mercado?",
                "Use economia_lista (e economia_reposicao, se existir) e conte o que já está na lista de compras e o que está na hora de repor."),
@@ -73,7 +74,7 @@ RONDAS = {
             _e("repor", "Reposição", "Na hora de repor", "economia", "EconomIA", "economia_reposicao", "Quer pôr na lista o que está na hora de repor?",
                "Use economia_reposicao e conte o que está na hora de repor ou perto disso.", se_tem=True),
             _e("acabando", "Consumíveis", "Acabando", "inventario", "InventarIA", "inventario_buscar_itens", "Quer pôr na lista algum consumível que está acabando?",
-               "Use inventario_buscar_itens com o cômodo «Consumíveis» e conte os que já passaram do dura_ate ou acabam nos próximos 15 dias (se nenhum, diga que não há).",
+               "Use inventario_buscar_itens com acaba_em_dias 15 e conte os consumíveis que acabam até lá (o nome e o dia; os que já acabaram também; se nenhum, diga que não há).",
                so_com="consumiveis", se_tem=True),
             _e("ofertas", "Ofertas", "Ofertas", "economia", "EconomIA", "economia_ofertas", "Quer aproveitar alguma dessas ofertas?",
                "Use economia_ofertas e conte as 5 de maior desconto (o produto, a loja e o preço).", se_tem=True),
@@ -304,6 +305,29 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
     _e("novo_titulo", "Filmes e séries", "Começou a ver", "odisseia", "OdisseIA", "odisseia_adicionar", "Começou a ver algo novo?"),
     _e("aniversarios", "Aniversários", "Próximos", "cronologia", "CronologIA", "cronologia_agenda", "Precisa comprar algum presente?",
        "Use cronologia_agenda de hoje a 30 dias com busca aniversário e conte os aniversários (de quem e o dia).", se_tem=True),
+    # 1.39.0 (o dono, às etapas e ferramentas que faltavam: "pode colocar todas"): com as ferramentas novas dos apps (InventarIA
+    # 1.111.0: acaba_em_dias, recursos, buscar_recursos; CronologIA 1.118.0: definir_premio, premio_entregue; OdisseIA 0.13.0:
+    # o por_servico do buscar). As duas do prêmio ficam em grupos diferentes: com o prêmio já definido (TOTAL 0), a do Entregue fica.
+    _e("consumiveis_semana", "Consumíveis", "Acabam esta semana", "inventario", "InventarIA", "inventario_buscar_itens", "Ponho na lista de compras algum desses?",
+       "Use inventario_buscar_itens com acaba_em_dias 7 e conte os consumíveis que acabam até lá (o nome e o dia em que acaba; os que já acabaram também).",
+       so_com="consumiveis", se_tem=True, tambem=("economia_por_na_lista",)),
+    _e("assinaturas_uso", "Streaming", "Assinaturas em uso", "gerencia", "GerencIA", "gerencia_encerrar_fixo", "Alguma assinatura pode ser cancelada?",
+       "Use gerencia_cadastros e veja os fixos das assinaturas de vídeo (o nome e o valor); depois use odisseia_buscar com situacao quero e por_servico true. "
+       "Conte cada assinatura paga com quantos títulos a casa quer ver nela (as sem nenhum primeiro; o TOTAL é o das assinaturas pagas).",
+       se_tem=True, tambem=("gerencia_cadastros", "odisseia_buscar")),
+    _e("recursos", "Recursos", "Recursos novos", "inventario", "InventarIA", "inventario_buscar_recursos", "Quer que eu busque os recursos dos que ainda não têm?",
+       "Use inventario_recursos e conte, de cada eletrônico com os recursos guardados, até dois recursos (o equipamento e o recurso; até 6 linhas); "
+       "diga também quantos eletrônicos ainda não têm. O TOTAL é o dos que ainda não têm.", se_tem=True, tambem=("inventario_recursos",)),
+    _e("equip_sem_manut", "Equipamentos", "Sem manutenção", "cronologia", "CronologIA", "cronologia_criar_compromisso", "Algum desses precisa de manutenção?",
+       "Use cronologia_cadastros{do_comodo} e veja as manutenções (os equipamentos de cada uma); depois use inventario_buscar_itens{do_comodo} e conte os "
+       "eletrônicos, os eletrodomésticos e as utilidades que não aparecem em nenhuma manutenção (o nome e o cômodo; até 8; o TOTAL é o desses).",
+       pedido_sem_filtro=" do cômodo «{onde}» (o campo comodo)", se_tem=True, tambem=("cronologia_cadastros", "inventario_buscar_itens")),
+    _e("premio", "Prêmio", "Do período", "cronologia", "CronologIA", "cronologia_definir_premio", "Qual vai ser o prêmio do placar?",
+       "Use cronologia_placar e diga o prêmio deste período (quem vencer ganha o quê) e o do próximo, se já tiver. O TOTAL é 1 se este período ainda não tem prêmio e 0 se já tem.",
+       se_tem=True, tambem=("cronologia_placar",)),
+    _e("premio_entregue", "Entrega", "Prêmio entregue", "cronologia", "CronologIA", "cronologia_premio_entregue", "O prêmio já foi entregue?",
+       "Use cronologia_placar e conte os períodos anteriores com vencedor e prêmio ainda não entregue (quem venceu, o prêmio e o período). O TOTAL é o desses.",
+       se_tem=True, tambem=("cronologia_placar",)),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -316,24 +340,27 @@ def _ronda_de_mais(nome, resumo, ids):
 
 
 for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, as oportunidades, as milhas, os bens, os itens de valor e as novidades dos equipamentos.",
-                                               ["invest", "invest_vence", "invest_novo", "oportunidades", "milhas", "bens", "bem_novo", "valiosos", "sem_valor", "sem_foto", "novidades"])),
-                 ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, os serviços externos, a agenda, os aniversários, as manutenções, os remédios, as contas atrasadas e o placar.",
-                                           ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "remedios", "atrasadas", "placar"])),
+                                               ["invest", "invest_vence", "invest_novo", "oportunidades", "milhas", "bens", "bem_novo", "valiosos", "sem_valor", "sem_foto", "novidades",
+                                                "recursos"])),
+                 ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, os serviços externos, a agenda, os aniversários, as manutenções, os remédios, "
+                                           "os consumíveis que acabam, as contas atrasadas, o placar e o prêmio.",
+                                           ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "equip_sem_manut", "remedios",
+                                            "consumiveis_semana", "atrasadas", "placar", "premio", "premio_entregue"])),
                  # 1.36.0: a do OdisseIA, sem cômodo
                  ("lazer", _ronda_de_mais("Ronda do lazer", "As séries em andamento, o que vai sair, o que a casa quer ver e jogar, quem viu e as sugestões.",
-                                          ["continuar", "quem_viu", "lancamentos", "quero_ver", "quero_jogar", "em_alta", "estreias", "colecoes"])),
+                                          ["continuar", "quem_viu", "lancamentos", "quero_ver", "quero_jogar", "em_alta", "estreias", "colecoes", "assinaturas_uso"])),
                  # 1.37.0: cinco rondas novas, todas com as etapas do MAIS
                  ("dia", _ronda_de_mais("Ronda do dia", "De manhã: a agenda, os remédios e as tarefas de hoje, e por onde começar.",
                                         ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular"])),
                  ("noite", _ronda_de_mais("Ronda da noite", "Antes de dormir: o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã.",
                                           ["ligado", "remedio_hoje", "agenda_hoje", "amanha"])),
                  ("financas", _ronda_de_mais("Ronda das finanças", "As faturas do e-mail, as contas atrasadas, os lançamentos, o saldo, os benefícios e as milhas.",
-                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas"])),
+                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas", "assinaturas_uso"])),
                  ("anotacoes", _ronda_de_mais("Ronda das anotações", "Os blocos, as últimas folhas, os horários, as categorias, os parados e os arquivados.",
                                               ["blocos", "folhas", "horarios", "sem_horario", "sem_categoria", "parados", "arquivados"])),
                  # 1.38.0: a casa no Home Assistant, sem cômodo
                  ("aparelhos", _ronda_de_mais("Ronda dos aparelhos", "A casa no Home Assistant: o que ficou ligado, o consumo, as luzes, a temperatura, as portas, as baterias e o que não responde.",
-                                              ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador"])),
+                                              ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador", "equip_sem_manut", "recursos"])),
                  ("viagem", _ronda_de_mais("Ronda da viagem", "Antes de viajar: as férias, as contas do período, os remédios, as compras e a casa.",
                                            ["ferias", "contas_viagem", "remedios_levar", "lista_viagem", "ligado"]))):
     RONDAS[_rid] = _r
@@ -341,7 +368,7 @@ for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os inves
 
 
 # 1.37.0: e etapas do MAIS também nas rondas daqui que não são feitas só delas: (ronda, depois de qual etapa, [as do MAIS])
-for _rid, _depois, _ids in (("casa", "rotina_sai", ["manut"]), ("casa", "item_mudou", ["sem_foto"]), ("casa", "pet", ["ligado"]),
+for _rid, _depois, _ids in (("casa", "rotina_sai", ["manut"]), ("casa", "manut", ["equip_sem_manut"]), ("casa", "item_mudou", ["sem_foto"]), ("casa", "pet", ["ligado"]),
                             ("compras", "ofertas", ["cupons"]),
                             ("chegada", "fora", ["reposto"]),
                             ("mes", "contas", ["recebidos", "fixos", "saldo", "faturas_email"]), ("mes", "tarefas", ["repete"]),
@@ -786,7 +813,13 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Horários": ("Nenhum bloco encontrado.", "bloco", "blocos"), "Categorias": ("Nenhuma categoria.", "categoria", "categorias"),
          "Sem categoria": ("Tudo tem categoria.", "sem categoria", "sem categoria"), "Arquivados": ("Nenhum bloco arquivado.", "bloco arquivado", "blocos arquivados"),
          "Coleções": ("Nenhuma coleção para completar.", "coleção", "coleções"), "Concluídos": ("Nada concluído ainda.", "título", "títulos"),
-         "Aniversários": ("Nenhum aniversário nos próximos 30 dias.", "aniversário", "aniversários")}
+         "Aniversários": ("Nenhum aniversário nos próximos 30 dias.", "aniversário", "aniversários"),
+         # 1.39.0
+         "Streaming": ("Nenhuma assinatura de vídeo paga.", "assinatura paga", "assinaturas pagas"),
+         "Recursos": ("Todos os eletrônicos já têm os recursos.", "eletrônico sem os recursos", "eletrônicos sem os recursos"),
+         "Equipamentos": ("Todos os equipamentos têm manutenção.", "equipamento sem manutenção", "equipamentos sem manutenção"),
+         "Prêmio": ("O prêmio do período já está definido.", "período sem prêmio", "períodos sem prêmio"),
+         "Entrega": ("Nenhum prêmio esperando a entrega.", "prêmio para entregar", "prêmios para entregar")}
 
 
 def vazio(rid, eid, achou):
