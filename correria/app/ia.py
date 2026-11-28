@@ -183,6 +183,13 @@ class Agente:
                           "pessoa não disse o que fazer com o arquivo nem de que app é, pergunte. Nunca descreva o arquivo sem tê-lo lido "
                           "por uma ferramenta. Este arquivo é outro, não o de antes na conversa: não suponha que é a mesma coisa (nem por um "
                           "«também», que fala do que fazer, não do que é), e não use o nome nem o que foi lido de um arquivo anterior.")
+            if {"economia_ler_arquivo", "economia_comprei"} <= {f["id"] for f in lista}:
+                # 1.42.0 (o dono, à nota de compra numa foto só: "faz primeiro o lote 1")
+                partes.append("Se o arquivo é uma nota ou cupom de compra (a pessoa diz nota, notinha, cupom fiscal ou recibo da compra): chame "
+                              "economia_ler_arquivo com nota true e, com o que ela devolver, proponha juntas, num pedido só: "
+                              + ("o gasto no gerencia_lancar (uma despesa com o total, a loja na descrição e a data da nota) e " if "gerencia_lancar" in {f["id"] for f in lista} else "")
+                              + "um economia_comprei para cada item marcado «na lista», com o nome da lista, preco_pago, loja e a data da nota. "
+                                "Os itens que não estão na lista não entram. Não mude nenhum valor da nota.")
         fatos = [str(x).strip() for x in (self.lembrancas() if self.lembrancas else []) if str(x).strip()]
         if fatos:
             partes.append("O que a casa pediu para você lembrar (vale em toda conversa; a pessoa vê e apaga em Configurações › Integrações › Memória da IA):\n"

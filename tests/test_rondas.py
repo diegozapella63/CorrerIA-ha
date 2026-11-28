@@ -159,7 +159,7 @@ class TestEditor(Base):
         self.assertEqual(len(ids), len(set(ids)))
         # 1.33.0: toda etapa pronta usa uma ferramenta que o app tem de verdade (os nomes conferidos nos repositórios dos apps)
         tem = {"gerencia": "resumo lancamentos contas_a_pagar investimentos cadastros lancar novo_investimento novo_fixo ajustar_saldo marcar_pago"
-                           " faturas_do_email beneficios oportunidades encerrar_fixo dicas comparar_meses projecao",
+                           " faturas_do_email beneficios oportunidades encerrar_fixo dicas comparar_meses projecao fora_do_padrao",
                "inventario": "resumo buscar_itens novidades cadastrar_itens avaliar recursos buscar_recursos conferir_novidades", "economia": "lista reposicao ofertas roteiro cupons comprei por_na_lista tirar_da_lista historico_precos buscar_agora",
                "resolvia": "resumo tarefas repeticoes comece_por_aqui pontos editar_lista concluir_tarefa criar_tarefa editar_tarefa relatorio",
                "cronologia": "resumo agenda cadastros placar criar_compromisso editar_compromisso pular ferias definir_premio premio_entregue",
@@ -171,7 +171,7 @@ class TestEditor(Base):
             for f in (c["precisa"], *c["tambem"]):
                 app, _, nome = f.partition("_")
                 self.assertIn(nome, tem[app].split(), c["de"])
-        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 104))
+        self.assertEqual((cat["mais.novidades"]["nome_app"], cat["mais.manut"]["grupo"], len([c for c in rondas.catalogo() if c["de"].startswith("mais.")])), ("InventarIA", "Manutenção", 105))
         for e in rondas.MAIS["mais"]["etapas"]:  # o que a IA lê também é de uma ferramenta que o app tem
             for f in re.findall(r"Use ([a-z]+)_([a-z_]+)", e["pedido"] or ""):
                 self.assertIn(f[1], tem[f[0]].split(), e["id"])
@@ -1259,6 +1259,130 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestResumo(TestAvisoNoCelular):
+    """1.42.0 (o dono, às ideias com a IA: "faz primeiro o lote 1"): o Resumo do dia e o da semana no celular e na Conversa."""
+
+    def preparar(self, resposta="- 09:00 Dentista\n- **Luz** vence hoje", pendente=None, erro=None):
+        from datetime import datetime
+        self.ha()
+        self.casa()
+        self.pedidos = []
+        for arq in (S.RESUMOS_ARQ,):
+            if os.path.exists(arq):
+                os.remove(arq)
+        self.addCleanup(lambda: os.path.exists(S.RESUMOS_ARQ) and os.remove(S.RESUMOS_ARQ))
+        S.ESTADO["resumo_dia"] = None
+        self.addCleanup(S._gravar_tela, "u-beto", [])
+
+        def responder(hist, pessoa, canal, cliente, **k):
+            self.pedidos.append((hist[-1]["texto"], pessoa, canal, cliente))
+            if erro:
+                raise S.ia.ErroIA(erro)
+            return {"resposta": resposta, "pendente": pendente or [], "apps": ["CronologIA"]}
+        p = mock.patch.object(S.AGENTE, "responder", responder)
+        p.start()
+        self.addCleanup(p.stop)
+        self.segunda, self.domingo = datetime(2026, 11, 30, 7, 31), datetime(2026, 11, 29, 8, 0)
+
+    def test_desligado_de_inicio_e_o_que_vale(self):
+        self.preparar()
+        c = S.ler_config()
+        self.assertEqual((c["resumo"], c["resumo_semana"], c["resumo_hora"], c["resumo_para"]), (False, False, "07:30", []))
+        self.assertIsNone(S.avisar_resumo(self.segunda))
+        for corpo, erro in (({"resumo": "sim"}, "liga ou desliga"), ({"resumo_semana": 1}, "liga ou desliga"), ({"resumo_hora": "7:10"}, "meia em meia hora"),
+                            ({"resumo_para": ["ana"]}, "Quem recebe"), ({"resumo_para": "person.ana"}, "Quem recebe")):
+            with self.assertRaisesRegex(ValueError, erro):
+                S.salvar_config(corpo)
+        S.salvar_config({"resumo": True, "resumo_hora": "08:00", "resumo_para": ["person.ana", "person.ana"]})
+        st, e = self.j("/api/estado")
+        self.assertEqual(e["resumo"], {"dia": True, "semana": False, "hora": "08:00", "para": ["person.ana"]})
+        self.assertIsNone(S.avisar_resumo(self.segunda), "07:31: ainda não é a hora")
+        self.assertEqual(self.pedidos, [])
+
+    def test_o_resumo_do_dia_vai_para_o_celular_e_para_a_conversa(self):
+        self.preparar()
+        S.salvar_config({"resumo": True, "resumo_semana": True, "resumo_para": ["person.ana", "person.caio"]})
+        self.assertEqual(S.avisar_resumo(self.segunda), 1)
+        self.assertEqual(len(self.pedidos), 1, "segunda: só o do dia; um pedido para a casa")
+        texto, pessoa, canal, cliente = self.pedidos[0]
+        self.assertTrue(texto.startswith("Monte o resumo de hoje da casa"))
+        self.assertIn("não proponha mudança nenhuma", texto)
+        self.assertEqual((pessoa["nome"], canal, cliente), ("a casa", "correria", "CorrerIA"))
+        (caminho, corpo), = self.avisos_idos()
+        self.assertEqual(caminho, "/services/notify/mobile_app_moto_g_exemplo")
+        self.assertEqual((corpo["title"], corpo["message"]), ("CorrerIA · ☀️ Resumo do dia", "- 09:00 Dentista\n- Luz vence hoje"))
+        self.assertEqual((corpo["data"]["tag"], corpo["data"]["channel"], corpo["data"]["group"]), ("correria-resumo-dia", "Resumo", "correria-resumo"))
+        m = S.conversa_tela("u-ana")[-1]
+        self.assertEqual((m["papel"], m["texto"], m["resumo"]), ("ia", "*Resumo do dia*\n- 09:00 Dentista\n- *Luz* vence hoje", "dia"))
+        self.assertEqual(S.conversa_tela("u-caio")[-1]["resumo"], "dia", "sem celular, o resumo fica na Conversa dele")
+        self.assertIsNone(S.avisar_resumo(self.segunda), "uma vez por dia")
+        S.ESTADO["resumo_dia"] = None
+        self.assertIsNone(S.avisar_resumo(self.segunda), "o app reiniciou: o arquivo diz que já foi")
+        self.assertEqual(len(self.pedidos), 1)
+
+    def test_no_domingo_vai_tambem_o_da_semana(self):
+        self.preparar()
+        S.salvar_config({"resumo_semana": True, "resumo_para": ["person.ana"]})
+        self.assertIsNone(S.avisar_resumo(self.segunda), "só o da semana ligado: segunda não tem")
+        S.salvar_config({"resumo": True})
+        self.assertEqual(S.avisar_resumo(self.domingo), 2)
+        self.assertEqual([p[0][:26] for p in self.pedidos], ["Monte o resumo de hoje da ", "Monte o resumo da semana d"])
+        self.assertEqual([c["title"] for _, c in self.avisos_idos()], ["CorrerIA · ☀️ Resumo do dia", "CorrerIA · 🗓️ Resumo da semana"])
+        self.assertEqual([m["resumo"] for m in S.conversa_tela("u-ana")], ["dia", "semana"])
+
+    def test_a_resposta_que_nao_serve_nao_vira_aviso(self):
+        for k in ({"pendente": [{"ferramenta": "resolvia_criar_tarefa"}]}, {"resposta": ""}, {"resposta": S.ia.NAO_DEU[0]}, {"erro": "fora do ar"}):
+            self.preparar(**k)
+            S.salvar_config({"resumo": True, "resumo_para": ["person.ana"]})
+            self.assertEqual(S.avisar_resumo(self.segunda), 0, k)
+            self.assertEqual(self.avisos_idos(), [], k)
+            self.assertEqual(S.conversa_tela("u-ana"), [], k)
+        self.preparar()
+        S.salvar_config({"resumo": True, "resumo_para": ["person.dora"]})
+        self.assertEqual(S.avisar_resumo(self.segunda), 0, "quem recebe não é mais da casa: nem chama a IA")
+        self.assertEqual(self.pedidos, [])
+        with mock.patch.object(S.FERR, "tem", lambda: False):
+            self.assertIsNone(S.gerar_resumo("dia"), "sem app com ferramentas")
+
+    def test_testar_no_meu_celular(self):
+        self.preparar()
+        st, r = self.j("/api/resumo/testar", {})
+        self.assertEqual((st, r["ok"], r["celulares"], r["texto"]), (200, True, 1, "- 09:00 Dentista\n- *Luz* vence hoje"))
+        self.assertEqual(len(self.avisos_idos()), 1)
+        self.assertEqual(S.conversa_tela("u-ana")[-1]["resumo"], "dia")
+        with mock.patch.object(S, "gerar_resumo", lambda t: None):
+            self.assertEqual(self.j("/api/resumo/testar", {}), (400, {"erro": "A IA não montou o resumo agora. Confira se há um app ligado e a IA do Home Assistant, e tente de novo."}))
+        self.ha(recusa=("moto_g",))
+        self.assertEqual(self.j("/api/resumo/testar", {})[1], {"erro": "O Home Assistant não aceitou o aviso."})
+        for cab, erro in (({"X-Remote-User-Id": "u-caio"}, "Sem celular"), ({"X-Remote-User-Id": "u-x"}, "não é uma pessoa da casa")):
+            st, r = pedir(self.url + "/api/resumo/testar", "POST", {}, cab)
+            self.assertEqual(st, 400)
+            self.assertIn(erro, json.loads(r)["erro"])
+
+
+class TestNotaDeCompra(Base):
+    """1.42.0: a foto de uma nota de compra vai para a IA com as ferramentas (o gasto no GerencIA e os itens no EconomIA)."""
+
+    def test_a_nota_vai_para_a_ia_com_as_ferramentas(self):
+        foto = dict(ferr("ler_arquivo"), anexo=["image/jpeg"])
+        self.ligar("economia", "EconomIA", [foto, ferr("comprei", grava=True)], {})
+        g = self.ligar("gerencia", "GerencIA", [ferr("lancar", grava=True)], {})
+        with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        d.update(rota="/api/integracao/conversa", anexos=["image/jpeg"])
+        with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        self.assertTrue(g)
+        self.assertTrue(S.foto_para_ferramenta("Nota fiscal do mercado, lança o gasto", "image/jpeg"))
+        self.assertTrue(S.foto_para_ferramenta("a notinha de hoje", "image/jpeg"))
+        self.assertFalse(S.foto_para_ferramenta("fatura do cartão para pagar", "image/jpeg"), "a fatura continua com quem lê")
+        partes = []
+        with mock.patch.object(S.AGENTE, "chamar_ia", lambda instr, *a, **k: partes.append(instr) or {"resposta": "ok"}), mock.patch.object(S.AGENTE, "simulada", False):
+            S.AGENTE.responder([{"papel": "eu", "texto": "a nota do mercado"}], {"id": "", "nome": "Ana"}, "correria", "CorrerIA", foto="nota.jpg, foto")
+        self.assertIn("economia_ler_arquivo com nota true", partes[0])
+        self.assertIn("gerencia_lancar (uma despesa com o total", partes[0])
+
+
 class TestEtapas139(unittest.TestCase):
     """1.39.0 (o dono, às etapas e ferramentas que faltavam: "pode colocar todas"): as etapas com as ferramentas novas dos apps."""
 
@@ -1319,6 +1443,10 @@ class TestEtapas141(unittest.TestCase):
             self.assertNotEqual(rondas.vazio(ronda, eid, 0), "", eid)
         self.assertEqual(len({E[x]["grupo"] for x in self.NOVAS}), len(self.NOVAS), "cada uma no seu grupo: o TOTAL 0 de uma não tira outra")
         self.assertIn("subiu", P["mes"])
+        # 1.42.0: a etapa Fora do padrão (GerencIA 1.97.0), no grupo dela, antes do O que mais subiu
+        self.assertEqual((rondas.precisa_todas(E["fora_do_padrao"]), E["fora_do_padrao"]["grupo"], E["fora_do_padrao"]["se_tem"]), (("gerencia_fora_do_padrao",), "Fora do padrão", True))
+        self.assertEqual(P["financas"][P["financas"].index("fora_do_padrao") + 1], "subiu")
+        self.assertEqual(rondas.vazio("financas", "fora_do_padrao", 0), "Nenhum gasto fora do padrão neste mês.")
         self.assertIn("ver_hoje", P["noite"])
         self.assertEqual(P["compras"][P["compras"].index("ofertas") + 1:][:3], ["promocao", "cupons", "precos_hoje"])
         self.assertEqual(rondas.vazio("patrimonio", "garantias", 0), "Nenhuma garantia acaba nos próximos dois meses.")

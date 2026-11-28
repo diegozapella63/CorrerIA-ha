@@ -1256,6 +1256,51 @@ parent.postMessage({painel: 'pronto'}, location.origin);
         self.pg.wait_for_selector("#ch-txt")
         self.assertEqual(self.pg.locator(".ch-ronda").count(), 0)
 
+    def test_resumo_do_dia_e_da_semana(self):
+        """1.42.0: Configurações › Opções › Resumo: as duas chaves (desligadas de início) e, com uma ligada, o Horário, o Quem
+        recebe e o Testar no meu celular num quadro recuado."""
+        from tests.test_rondas import AppDaRonda, ferr
+        a = AppDaRonda("ResolvIA", [ferr("tarefas")], {"tarefas": "1 tarefa."})
+        self.addCleanup(a.fechar)
+        a.publicar(S.SHARE_DIR, "resolvia")
+        gente = {"pessoas": [{"id": "person.ana", "nome": "Ana", "celular": True, "eu": True}, {"id": "person.beto", "nome": "Beto", "celular": False, "eu": False}]}
+        testes = []
+        for nome, v in (("pessoas_do_aviso", lambda u: gente), ("testar_resumo", lambda u: testes.append(u) or {"ok": True, "celulares": 1, "texto": "x"})):
+            p = mock.patch.object(S, nome, v)
+            p.start()
+            self.addCleanup(p.stop)
+        self.addCleanup(S.salvar_config, {"resumo": False, "resumo_semana": False, "resumo_para": [], "resumo_hora": "07:30"})
+        self.abrir()
+        self.pg.click('[data-a="mais"]')
+        self.pg.click('[data-a="opcoes"]')
+        self.pg.click('[data-a="aba"][data-v="opcoes"]')
+        self.pg.wait_for_selector("#resumo")
+        self.assertEqual(self.pg.locator("#resumo .linha-sw b, #resumo .linha-sw .tit-l").first.inner_text().strip(), "Resumo do dia")
+        self.assertEqual(self.pg.locator("#resumo .sw.on").count(), 0, "desligados de início")
+        self.assertEqual(self.pg.locator("#resumo-aviso").count(), 0)
+        self.pg.click('[data-a="resumo-dia"]')
+        self.pg.wait_for_selector("#resumo-aviso #resumo-hora")
+        self.assertTrue(S.ler_config()["resumo"])
+        self.assertEqual(self.pg.input_value("#resumo-hora"), "07:30")
+        self.assertEqual(self.pg.locator("#resumo-aviso .quem-p b").all_inner_texts(), ["Ana", "Beto"])
+        self.pg.click('#resumo-aviso [data-a="resumo-pessoa"][data-v="person.ana"]')
+        self.pg.wait_for_selector("#resumo-aviso .quem-p.on")
+        self.assertEqual(S.ler_config()["resumo_para"], ["person.ana"])
+        self.assertEqual(S.ler_config()["ronda_para"], [], "o Quem recebe do resumo não mexe no das rondas")
+        self.pg.evaluate("(() => { const s = document.querySelector('#resumo-hora'); s.value = '06:30'; s.dispatchEvent(new Event('change', { bubbles: true })); })()")
+        self.pg.wait_for_function("document.querySelector('#resumo-hora').value === '06:30'")
+        self.pg.wait_for_timeout(300)
+        self.assertEqual(S.ler_config()["resumo_hora"], "06:30")
+        self.pg.click('[data-a="resumo-testar"]')
+        self.pg.wait_for_function("document.body.innerText.includes('Resumo enviado para o seu celular')")
+        self.assertEqual(len(testes), 1)
+        self.pg.click('[data-a="resumo-semana"]')
+        self.pg.wait_for_selector('[data-a="resumo-semana"].on')
+        self.assertTrue(S.ler_config()["resumo_semana"])
+        caixa = self.pg.locator("#resumo-aviso .op-testar").bounding_box()
+        self.assertEqual(round(caixa["height"]), 50)
+        self.assertFalse(self.pg.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
     def test_rondas_historico_e_aviso(self):
         """1.20.0: Mais › Rondas: o aviso de cômodo sem ronda (uma chave e o prazo: 15, 30, 45 ou Outro) e as últimas
         rondas; o cômodo atrasado ganha o ponto no botão das Rondas e a marca na escolha, com há quantos dias foi."""

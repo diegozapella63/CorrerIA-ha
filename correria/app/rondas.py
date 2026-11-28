@@ -352,6 +352,10 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
     _e("casa_em_dia", "Casa em dia", "Casa em dia", "casa", "Casa", "casa_manutencao", "Quer criar uma tarefa para cuidar de algum desses?",
        "Use casa_manutencao e conte as atualizações pendentes (com a versão), as automações desligadas e o último backup. O TOTAL é o das "
        "atualizações mais o das automações desligadas, mais 1 se o backup tem mais de uma semana.", se_tem=True, tambem=("resolvia_criar_tarefa",)),
+    # 1.42.0 (o dono, ao «Algo estranho»: "faz primeiro o lote 1"): o GerencIA 1.97.0 faz a conta, sem a IA dele
+    _e("fora_do_padrao", "Fora do padrão", "Gastos fora do padrão", "gerencia", "GerencIA", "gerencia_fora_do_padrao", "Quer corrigir algum desses lançamentos?",
+       "Use gerencia_fora_do_padrao e conte o que foge do costume nos gastos do mês: o que veio mais caro, o que parece repetido e a compra grande "
+       "(até 8; o TOTAL é o número da primeira linha, e 0 se ela diz que não há nada).", se_tem=True),
     _e("subiu", "Gastos", "O que mais subiu", "gerencia", "GerencIA", "gerencia_comparar_meses", "Quer rever algum desses gastos?",
        "Use gerencia_comparar_meses e conte o total dos dois meses e as categorias que subiram (até 6; o TOTAL é só o das que subiram).", se_tem=True),
     _e("projecao", "Projeção", "Projeção dos investimentos", "gerencia", "GerencIA", "gerencia_projecao", "Quer simular com um aporte por mês?",
@@ -400,7 +404,7 @@ for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os inves
                  ("noite", _ronda_de_mais("Ronda da noite", "Antes de dormir: o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã.",
                                           ["ligado", "remedio_hoje", "agenda_hoje", "sai_hoje", "ver_hoje", "amanha"])),
                  ("financas", _ronda_de_mais("Ronda das finanças", "As faturas do e-mail, as contas atrasadas, os lançamentos, o saldo, os benefícios e as milhas.",
-                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "subiu", "projecao", "milhas", "assinaturas", "assinaturas_uso", "dicas"])),
+                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "fora_do_padrao", "subiu", "projecao", "milhas", "assinaturas", "assinaturas_uso", "dicas"])),
                  ("anotacoes", _ronda_de_mais("Ronda das anotações", "Os blocos, as últimas folhas, os horários, as categorias, os parados e os arquivados.",
                                               ["blocos", "folhas", "horarios", "sem_horario", "sem_categoria", "parados", "arquivados"])),
                  # 1.38.0: a casa no Home Assistant, sem cômodo
@@ -870,6 +874,7 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Estreias de hoje": ("Nada sai hoje.", "lançamento hoje", "lançamentos hoje"),
          "Consumo": ("Nenhum medidor de energia com histórico de ontem.", "medidor de energia", "medidores de energia"),
          "Dicas": ("Nenhuma dica de economia agora.", "dica de economia", "dicas de economia"),
+         "Fora do padrão": ("Nenhum gasto fora do padrão neste mês.", "gasto fora do padrão", "gastos fora do padrão"),
          "Conferência": ("As novidades foram conferidas há pouco.", "conferência atrasada", "conferências atrasadas"),
          # 1.41.0
          "Tempo": ("O tempo de hoje não atrapalha.", "aviso do tempo", "avisos do tempo"),

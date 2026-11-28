@@ -161,6 +161,17 @@ Embaixo de um «Feito!» aparece o **Desfazer**, por 10 minutos: a IA propõe o 
 
 Enquanto a IA trabalha, ao lado dos pontinhos aparece o que ela está fazendo. A resposta chega inteira (a IA do Home Assistant não manda o texto aos poucos).
 
+## Resumo do dia e da semana
+
+Em **Mais › Configurações › Opções › Resumo** há duas chaves, desligadas de início:
+
+- **Resumo do dia**: todo dia, no **Horário** escolhido (de meia em meia hora; 07:30 de início), a IA do Home Assistant lê os apps ligados e manda um aviso curto para o celular de **Quem recebe**: os compromissos e os remédios de hoje, as tarefas que vencem ou estão atrasadas, as contas de hoje e dos próximos 3 dias, o tempo, os consumíveis que acabam na semana e os gastos fora do padrão. O que não tem nada fica de fora.
+- **Resumo da semana**: aos domingos, no mesmo horário: os gastos do mês contra o anterior, as contas e os compromissos dos próximos 7 dias, as tarefas atrasadas e paradas, o placar e a energia.
+
+O texto inteiro fica também na Conversa de cada pessoa, e dali dá para seguir perguntando. O resumo é um para a casa: uma chamada à IA por dia (duas aos domingos, com os dois ligados), que aparece no Uso da IA como **Resumo**. Ele só lê: nada muda nos apps. Vai pelo aviso do app Home Assistant, não pelo WhatsApp. **Testar no meu celular** monta o resumo de hoje na hora e manda só para você.
+
+**Nota de compra**: mande na Conversa a foto da nota ou do cupom dizendo que é a nota ("a nota do mercado", "nota fiscal da farmácia"). Com o EconomIA 1.62.0, a IA lê a loja, o dia, o total e os preços e propõe, num pedido só, lançar o gasto no GerencIA e anotar a compra dos itens da sua lista com o preço pago. Você confere e responde Sim.
+
 ## Rondas
 
 ### Criar e mudar rondas

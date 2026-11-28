@@ -1,5 +1,12 @@
 # Mudanças
 
+## 1.42.0
+
+- **Resumo do dia** (Configurações › Opções › Resumo, desligado de início): no horário que você escolher, a IA lê os apps e manda para o seu celular o que importa hoje: a agenda e os remédios, as tarefas que vencem, as contas, o tempo, os consumíveis acabando e os gastos fora do padrão. O texto inteiro fica também na Conversa. Você escolhe quem recebe e pode **Testar no meu celular**.
+- **Resumo da semana**: aos domingos, no mesmo horário: os gastos, o que ficou parado, as contas e os compromissos da semana.
+- **Nota de compra numa foto só**: mande a foto da nota ou do cupom dizendo que é a nota ("a nota do mercado"). A IA lê pelo EconomIA (1.62.0) e propõe, junto, lançar o gasto no GerencIA e anotar a compra dos itens da sua lista com o preço pago. Nada é feito antes do seu Sim.
+- **Gastos fora do padrão**: etapa nova na Ronda das finanças e nas etapas prontas, com o GerencIA 1.97.0: o que veio mais caro que o costume, o que parece lançado duas vezes e a compra grande que não é de costume.
+
 ## 1.41.0
 
 - **Ronda pelo WhatsApp**: mande **ronda** e escolha qual (ou mande direto «ronda da noite», «ronda da casa cozinha»). Cada etapa chega com os botões **Próxima** e **Sair da ronda**; «voltar» volta uma. O que você responde é da etapa, e as mudanças esperam o Sim, como na tela.

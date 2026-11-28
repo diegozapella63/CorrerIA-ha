@@ -425,7 +425,7 @@
   function opcoes(e) {
     const aba = abasDe(e).some(([k]) => k === S.aba) ? S.aba : 'apps';
     const corpo = aba === 'whatsapp' ? cardWhatsApp(e) + (e.config.whatsapp ? cardWebhook(e) + cardPessoas(e) + cardMensagens(e) : '') : aba === 'mcp' ? cardMcp(e)
-      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardRondas(e) + cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardFalar(e) + cardUso(e) + cardCasa(e) + cardSensores(e);
+      : aba === 'dados' ? cardDados() : aba === 'aparencia' ? cardTema() + cardCor(e) : aba === 'opcoes' ? cardResumo(e) + cardRondas(e) + cardConversas(e) + cardTelaCheia(e) + cardAtalho(e) : cardApps(e) + cardIA(e) + cardMemoria() + cardFalar(e) + cardUso(e) + cardCasa(e) + cardSensores(e);
     // 0.15.0: o estado do WhatsApp só na aba dele (o MCP funciona sem o WhatsApp)
     return `${topoTela('Configurações', 'Mais')}
       ${pendentes(e)}
@@ -509,7 +509,7 @@
 
   /* ---------- Configurações › Integrações › Uso da IA: as chamadas da IA do WhatsApp e da conversa da tela (tokens estimados), no
      padrão dos outros apps (0.15.0): Hoje, 7 dias e Este mês; uma barra por dia (tocar mostra o dia); os tipos; Últimas chamadas recolhidas */
-  const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa', pesquisa: 'Pesquisa na internet' };
+  const TIPO_USO = { whatsapp: 'WhatsApp', conversa: 'Conversa', pesquisa: 'Pesquisa na internet', resumo: 'Resumo' };
   const RES_USO = { cota: 'sem cota', formato: 'resposta fora do formato', erro: 'erro' };
   const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
   const chamadas = n => `${n} ${n === 1 ? 'chamada' : 'chamadas'}`;
@@ -599,7 +599,7 @@
   // 1.21.0: o aviso no celular, como nos outros apps: o Horário (de meia em meia hora, sem AM/PM), o Quem recebe (um
   // botão por pessoa da casa; o app olha para a pessoa, nunca para um aparelho) e o Testar no meu celular
   const HORAS = Array.from({ length: 48 }, (_, i) => `${String(i >> 1).padStart(2, '0')}:${i % 2 ? '30' : '00'}`);
-  function quemRecebe(R) {
+  function quemRecebe(R, aPessoa = 'ronda-pessoa', aTestar = 'ronda-testar') {
     const P = S.avisoPessoas, para = new Set(R.para || []);
     const eu = P && P.pessoas ? P.pessoas.find(p => p.eu) : null;
     const porque = !P || !P.pessoas ? (P && P.erro) || '' : !eu ? 'Você não é uma pessoa da casa no Home Assistant.' : !eu.celular ? 'Sem celular ligado a você no Home Assistant.' : '';
@@ -608,12 +608,12 @@
     else if (!P || !P.pessoas) h += `<span class="dica">${esc((P && P.erro) || 'Não consegui ver as pessoas da casa.')}</span>`;
     else if (!P.pessoas.length) h += '<span class="dica">Nenhuma pessoa da casa no Home Assistant.</span>';
     else {
-      h += `<div class="quem">${P.pessoas.map(p => `<button class="quem-p${para.has(p.id) ? ' on' : ''}" data-a="ronda-pessoa" data-v="${esc(p.id)}" aria-pressed="${para.has(p.id)}">${ic('user', 'ic-s')}<b>${esc(p.nome)}</b>${p.celular ? '' : '<span>sem celular</span>'}</button>`).join('')}</div>`;
+      h += `<div class="quem">${P.pessoas.map(p => `<button class="quem-p${para.has(p.id) ? ' on' : ''}" data-a="${aPessoa}" data-v="${esc(p.id)}" aria-pressed="${para.has(p.id)}">${ic('user', 'ic-s')}<b>${esc(p.nome)}</b>${p.celular ? '' : '<span>sem celular</span>'}</button>`).join('')}</div>`;
       const sem = P.pessoas.filter(p => para.has(p.id) && !p.celular).map(p => p.nome);
       if (sem.length) h += `<span class="dica">Sem celular para ${esc(sem.join(', '))}: ligue o celular à pessoa no Home Assistant.</span>`;
       else if (!para.size) h += '<span class="dica">Escolha quem recebe.</span>';
     }
-    return h + `</div><button class="btn out op-testar" data-a="ronda-testar"${eu && eu.celular ? '' : ' disabled'}${porque ? ` title="${esc(porque)}"` : ''}>${ic('send', 'ic-s')}Testar no meu celular</button>`;
+    return h + `</div><button class="btn out op-testar" data-a="${aTestar}"${eu && eu.celular ? '' : ' disabled'}${porque ? ` title="${esc(porque)}"` : ''}>${ic('send', 'ic-s')}Testar no meu celular</button>`;
   }
   // 1.28.0 (o dono: "deve ficar dentro das opções, nas seções de integrações, chamando de Memória da IA"): o cartão em
   // Configurações › Integrações, depois do IA: o que a casa pediu para a IA lembrar, em toda conversa e em todos os apps
@@ -740,6 +740,21 @@
   // também deve ficar lá dentro"; "últimas rondas deve ficar num tamanho menor, igual o últimas chamadas do uso da IA"):
   // em Configurações › Opções, o cartão Rondas: o Modo avançado, o aviso (o que vale para todas: o horário, quem recebe e
   // o Testar; a chave e o prazo de cada uma ficam no cartão dela, em Mais › Rondas) e as Últimas rondas, recolhidas
+  /* 1.42.0: o Resumo do dia e o da semana no celular (a IA lê os apps no horário); desligados de início */
+  function cardResumo(e) {
+    if (!e.apps.length) return '';
+    if (S.rondas == null && !S.rondasPedidas) { S.rondasPedidas = true; carregarRondas(); }
+    const R = e.resumo || {}, on = !!(R.dia || R.semana);
+    return `<section class="card" id="resumo">${cab('sun', 'Resumo')}
+      <div class="linha-sw"><div>${tituloLinha('sun', 'Resumo do dia')}<span>Todo dia, no celular: a agenda, as tarefas, as contas, o tempo e o que foge do costume.</span></div>
+        <button class="sw${R.dia ? ' on' : ''}" data-a="resumo-dia" role="switch" aria-checked="${!!R.dia}" aria-label="Resumo do dia"></button></div>
+      <div class="linha-sw"><div>${tituloLinha('calendar', 'Resumo da semana')}<span>Aos domingos: os gastos, o que ficou parado e a semana que vem.</span></div>
+        <button class="sw${R.semana ? ' on' : ''}" data-a="resumo-semana" role="switch" aria-checked="${!!R.semana}" aria-label="Resumo da semana"></button></div>
+      ${on ? `<div class="sub-op"><div class="sub-box" id="resumo-aviso">
+        <div class="campo">${rotulo('resumo-hora', 'clock', 'Horário')}<select id="resumo-hora" class="inp" data-resumo-hora aria-label="Horário do resumo">${HORAS.map(h => `<option value="${h}"${h === R.hora ? ' selected' : ''}>${h}</option>`).join('')}</select></div>
+        ${quemRecebe(R, 'resumo-pessoa', 'resumo-testar')}</div></div>` : ''}
+    </section>`;
+  }
   function cardRondas(e) {
     if (!e.apps.length) return '';
     if (S.rondas == null && !S.rondasPedidas) { S.rondasPedidas = true; carregarRondas(); }
@@ -1630,6 +1645,18 @@
       const para = new Set(S.e.rondas.para || []);
       if (para.has(el.dataset.v)) para.delete(el.dataset.v); else para.add(el.dataset.v);
       await acao('config', { ronda_para: [...para] });
+    } else if (a === 'resumo-dia' || a === 'resumo-semana') {  // 1.42.0
+      const k = a === 'resumo-dia' ? 'dia' : 'semana', on = !!(S.e.resumo || {})[k];
+      await acao('config', { [k === 'dia' ? 'resumo' : 'resumo_semana']: !on }, (k === 'dia' ? 'Resumo do dia ' : 'Resumo da semana ') + (on ? 'desligado' : 'ligado'));
+    } else if (a === 'resumo-pessoa') {
+      const para = new Set((S.e.resumo || {}).para || []);
+      if (para.has(el.dataset.v)) para.delete(el.dataset.v); else para.add(el.dataset.v);
+      await acao('config', { resumo_para: [...para] });
+    } else if (a === 'resumo-testar') {
+      el.disabled = true;
+      toast('Montando o resumo…');
+      try { await api.post('resumo/testar', {}); toast('Resumo enviado para o seu celular'); carregarConversa(); } catch (err) { toast(err.message); }
+      el.disabled = false;
     } else if (a === 'ronda-testar') {
       try { await api.post('ronda/testar', {}); toast('Aviso enviado para o seu celular'); } catch (err) { toast(err.message); }
     } else if (a === 'ronda-dias') {  // 1.19.0
@@ -1948,6 +1975,10 @@
       const b64 = await new Promise((ok2, erro) => { const r = new FileReader(); r.onload = () => ok2(r.result); r.onerror = erro; r.readAsDataURL(f); });
       S.importar = { nome: f.name || 'backup.zip', b64 };
       render();
+      return;
+    }
+    if (el.matches('[data-resumo-hora]')) {  // 1.42.0
+      acao('config', { resumo_hora: el.value }, `Resumo às ${el.value}`);
       return;
     }
     if (el.matches('[data-ronda-hora]')) {  // 1.21.0: o horário do aviso das rondas

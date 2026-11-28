@@ -150,6 +150,10 @@ def ler_config():
            "ronda_hora": c["ronda_hora"] if HORA_RE.match(str(c.get("ronda_hora") or "")) else "09:00",
            "ronda_para": [p for p in c.get("ronda_para") or [] if isinstance(p, str) and PESSOA_RE.match(p)][:30] if isinstance(c.get("ronda_para"), list) else [],
            "ronda_dias": _prazos_de(c).get("casa", 0), "ronda_prazos": _prazos_de(c),
+           # 1.42.0: o Resumo do dia e o da semana (aos domingos) no celular, desligados de início; o horário e quem recebe
+           "resumo": c.get("resumo") is True, "resumo_semana": c.get("resumo_semana") is True,
+           "resumo_hora": c["resumo_hora"] if HORA_RE.match(str(c.get("resumo_hora") or "")) else "07:30",
+           "resumo_para": [p for p in c.get("resumo_para") or [] if isinstance(p, str) and PESSOA_RE.match(p)][:30] if isinstance(c.get("resumo_para"), list) else [],
            # 0.17.0: o WhatsApp liga e desliga como o conector MCP; quem já tinha configurado continua ligado
            "whatsapp": c["whatsapp"] if isinstance(c.get("whatsapp"), bool) else None,  # None: ligado se já está configurado (wa_ligado)
            # a IA que conversa (uma entidade ai_task do Home Assistant); vazio: a padrão de lá (Configurações › Sistema › IA)
@@ -243,6 +247,20 @@ def salvar_config(corpo):
             if corpo.get("apagar_dias") not in APAGAR_DIAS or isinstance(corpo.get("apagar_dias"), bool):
                 raise ValueError("Escolha 7, 30 ou 90 dias, ou nunca.")
             c["apagar_dias"] = corpo.get("apagar_dias")
+        for k in ("resumo", "resumo_semana"):  # 1.42.0
+            if k in corpo:
+                if not isinstance(corpo.get(k), bool):
+                    raise ValueError("O resumo liga ou desliga.")
+                c[k] = corpo[k]
+        if "resumo_hora" in corpo:
+            if not HORA_RE.match(str(corpo.get("resumo_hora") or "")):
+                raise ValueError("O horário vale de meia em meia hora (07:00, 07:30…).")
+            c["resumo_hora"] = corpo["resumo_hora"]
+        if "resumo_para" in corpo:
+            para = corpo.get("resumo_para")
+            if not isinstance(para, list) or not all(isinstance(p, str) and PESSOA_RE.match(p) for p in para) or len(para) > 30:
+                raise ValueError("Quem recebe: as pessoas da casa (person.*).")
+            c["resumo_para"] = list(dict.fromkeys(para))
         if "ronda_hora" in corpo:  # 1.21.0
             if not HORA_RE.match(str(corpo.get("ronda_hora") or "")):
                 raise ValueError("O horário vale de meia em meia hora (09:00, 09:30…).")
@@ -854,6 +872,9 @@ def foto_de(chave):
     return v["anexo"] if v and time.time() - v["em"] <= FOTO_SEG else None
 
 
+NOTA_RE = re.compile(r"\b(nota fiscal|notinha|nota d[aeo] (compra|mercado|supermercado|farmacia|loja|pet ?shop)|cupom fiscal|recibo d[aeo] (compra|mercado))\b")
+
+
 def foto_para_ferramenta(texto, tipo, ultimo=None, recentes=()):
     """Uma foto que chegou vai para a IA com as ferramentas (para guardar numa tarefa) quando algum app tem ferramenta
     que recebe esse tipo e: nenhum app lê esse tipo com a IA dele, ou a legenda fala mais do assunto do app da
@@ -861,6 +882,9 @@ def foto_para_ferramenta(texto, tipo, ultimo=None, recentes=()):
     donos = FERR.recebem(tipo) if FERR.tem() else set()
     if not donos:
         return False
+    # 1.42.0: a nota de compra é dos dois (o gasto no GerencIA e os itens no EconomIA): com o EconomIA lendo a nota, vai para a IA
+    if "economia" in donos and NOTA_RE.search(casa.dobrar(texto)) and any(f["id"] == "economia_comprei" for f in FERR.todas()):
+        return True
     leitor = APPS.escolher(texto, ultimo, tipo=tipo)
     if not leitor:
         return True
@@ -1449,6 +1473,10 @@ def laco_sensores():
             avisar_rondas()
         except Exception as e:  # noqa: BLE001
             log("Aviso das rondas:", e)
+        try:  # 1.42.0: o Resumo do dia e o da semana, no horário deles
+            avisar_resumo()
+        except Exception as e:  # noqa: BLE001
+            log("Resumo:", e)
         if volta % 60 == 0:  # 1.19.0: de hora em hora, os cômodos sem ronda há tempo demais
             try:
                 conferir_rondas()
@@ -1759,6 +1787,7 @@ def estado():
         "rondas": {"avisar_dias": c["ronda_dias"], "prazos": c["ronda_prazos"], "hora": c["ronda_hora"], "para": c["ronda_para"],
                    **_atrasados_para_tela(ESTADO.get("rondas_atrasadas")),
                    "historico": [{"ronda": rondas.RONDAS[x["ronda"]]["nome"], "onde": x.get("onde") or "", "em": x["em"], "pessoa": x.get("pessoa") or "", "perguntas": x.get("perguntas") or 0} for x in historico_rondas()[-30:][::-1]]},
+        "resumo": {"dia": c["resumo"], "semana": c["resumo_semana"], "hora": c["resumo_hora"], "para": c["resumo_para"]},  # 1.42.0
         "pronto": bool(c["numero_id"] and c["token"] and c["segredo"]),
         "conta": ESTADO["conta"],
         "webhook": {"https": bool(cc), "certificado": os.path.basename(cc[0]) if cc else "", "porta": PORTA_WEBHOOK,
@@ -2351,17 +2380,100 @@ def ha_texto(caminho, corpo, timeout=15):
         return r.read().decode("utf-8", "replace")
 
 
-def mandar_aviso(alvos, titulo, mensagem, tag):
+def mandar_aviso(alvos, titulo, mensagem, tag, grupo="correria-rondas", canal="Rondas"):
     """Manda para estes celulares; devolve quantos o Home Assistant aceitou. O toque abre o app (/app/<slug>)."""
     n = 0
     for alvo in alvos:
         try:
-            ha_post(f"/services/notify/{alvo}", avisos.corpo(titulo, mensagem, tag, atalho()))
+            ha_post(f"/services/notify/{alvo}", avisos.corpo(titulo, mensagem, tag, atalho(), grupo=grupo, canal=canal))
             n += 1
-            log(f"Aviso (Rondas) para {alvo}")
+            log(f"Aviso ({canal}) para {alvo}")
         except Exception as e:  # noqa: BLE001
-            log(f"Aviso (Rondas) para {alvo}:", e)
+            log(f"Aviso ({canal}) para {alvo}:", e)
     return n
+
+
+# 1.42.0 (o dono, às ideias com a IA: "pode fazer todos"; "faz primeiro o lote 1"): o Resumo do dia e o da semana. No horário
+# escolhido, a IA lê os apps pelas ferramentas (só as de leitura contam: uma mudança proposta joga o resumo fora) e o texto vai
+# para os celulares de quem recebe (o aviso do app Home Assistant; pelo WhatsApp não, pela regra das 24 horas da Meta) e para a
+# Conversa da tela de cada um, inteiro. Um resumo para a casa: uma chamada à IA por dia (e mais uma aos domingos).
+RESUMOS_ARQ = os.path.join(DATA_DIR, "resumos.json")
+_SO_LER = ("Só leia: não proponha mudança nenhuma e não faça pergunta. Pule o assunto sem nada e o app que não respondeu, sem dizer que pulou. "
+           "Sem saudação. Uma linha curta por assunto, começando pelo que pede uma ação.")
+PEDIDOS_RESUMO = {
+    "dia": ("Monte o resumo de hoje da casa, com as ferramentas que houver: os compromissos e os remédios de hoje, as tarefas que vencem hoje ou estão "
+            "atrasadas, as contas que vencem hoje ou nos próximos 3 dias, a previsão do tempo de hoje, os consumíveis que acabam nos próximos 7 dias e "
+            "os gastos fora do padrão do mês. " + _SO_LER + " Até 8 linhas. Sem nada em nenhum assunto, responda só «Dia livre: nada para hoje.»"),
+    "semana": ("Monte o resumo da semana da casa, com as ferramentas que houver: os gastos do mês contra o mês anterior e o que está fora do padrão, as "
+               "contas dos próximos 7 dias, as tarefas atrasadas e as paradas há mais de 30 dias, os compromissos dos próximos 7 dias, o placar das "
+               "rotinas, os consumíveis que acabam nos próximos 7 dias e a energia de ontem contra o dia anterior. " + _SO_LER
+               + " Até 10 linhas. Sem nada em nenhum assunto, responda só «Semana tranquila: nada pendente.»")}
+TITULOS_RESUMO = {"dia": "☀️ Resumo do dia", "semana": "🗓️ Resumo da semana"}
+
+
+def gerar_resumo(tipo):
+    """O texto do resumo, pela IA com as ferramentas; None sem app com ferramentas, sem a IA ou sem uma resposta que sirva."""
+    if not FERR.tem():
+        return None
+    CANAL.tipo = "resumo"
+    try:
+        r = AGENTE.responder([{"papel": "eu", "texto": PEDIDOS_RESUMO[tipo]}], {"id": "", "nome": "a casa"}, "correria", "CorrerIA")
+    except ia.ErroIA as e:
+        log(f"Resumo ({tipo}): a IA não respondeu:", e)
+        return None
+    texto = whatsapp.para_whatsapp(str(r.get("resposta") or "")).strip()
+    if r.get("pendente") or not texto or texto in ia.NAO_DEU:
+        log(f"Resumo ({tipo}): a resposta da IA não serve (propôs uma mudança ou veio vazia).")
+        return None
+    return texto[:1500]
+
+
+def entregar_resumo(tipo, texto, gente):
+    """O resumo na Conversa da tela de cada pessoa (a que está aberta) e nos celulares dela; quantos avisos saíram."""
+    n = 0
+    for p in gente:
+        if p.get("usuario"):
+            _gravar_tela(p["usuario"], conversa_tela(p["usuario"]) + [{"papel": "ia", "texto": f"*{TITULOS_RESUMO[tipo].split(' ', 1)[1]}*\n{texto}", "em": agora_iso(),
+                                                                        "app": "CorrerIA", "app_id": "_ia", "resumo": tipo}])
+        n += mandar_aviso(p["celulares"], TITULOS_RESUMO[tipo], texto.replace("*", ""), "correria-resumo-" + tipo, grupo="correria-resumo", canal="Resumo")
+    return n
+
+
+def avisar_resumo(agora=None):
+    """Uma vez por dia, a partir do horário escolhido: o Resumo do dia (ligado) e, aos domingos, o da semana (ligado), para
+    quem recebe. Devolve quantos avisos saíram (None: desligado, não era a hora ou já foi hoje)."""
+    c = ler_config()
+    agora = agora or datetime.now()
+    hoje = agora.strftime("%Y-%m-%d")
+    tipos = (["dia"] if c["resumo"] else []) + (["semana"] if c["resumo_semana"] and agora.weekday() == 6 else [])
+    if not TOKEN or not tipos or not c["resumo_para"] or agora.strftime("%H:%M") < c["resumo_hora"] or ESTADO.get("resumo_dia") == hoje:
+        return None
+    ESTADO["resumo_dia"] = hoje
+    if ler_json(RESUMOS_ARQ).get("dia") == hoje:  # o app reiniciou depois de mandar
+        return None
+    gravar_arquivo(RESUMOS_ARQ, json.dumps({"dia": hoje}))
+    gente = [p for p in pessoas_com_celular(True) if p["id"] in c["resumo_para"]]
+    n = 0
+    for tipo in tipos:
+        texto = gerar_resumo(tipo) if gente else None
+        if texto:
+            n += entregar_resumo(tipo, texto, gente)
+    return n
+
+
+def testar_resumo(usuario):
+    """O Testar no meu celular: o resumo de hoje, montado agora, só para quem está na tela."""
+    eu = next((p for p in pessoas_com_celular(True) if usuario and p["usuario"] == usuario), None)
+    if not eu:
+        raise ValueError("Você não é uma pessoa da casa no Home Assistant.")
+    if not eu["celulares"]:
+        raise ValueError("Sem celular ligado a você no Home Assistant.")
+    texto = gerar_resumo("dia")
+    if not texto:
+        raise ValueError("A IA não montou o resumo agora. Confira se há um app ligado e a IA do Home Assistant, e tente de novo.")
+    if not entregar_resumo("dia", texto, [eu]):
+        raise ValueError("O Home Assistant não aceitou o aviso.")
+    return {"ok": True, "celulares": len(eu["celulares"]), "texto": texto}
 
 
 TODOS_RE = re.compile(r"^(todos|todas|todo mundo|a casa toda|a casa|geral)$")
@@ -2713,6 +2825,8 @@ class Tela(BaseHTTPRequestHandler):
                 return self.enviar(200, {"lembrancas": lembrancas(), "max": MAX_LEMBRANCAS})
             if p == "/api/rondas/editor":  # 1.30.0: salvar, apagar, voltar ao original, o modo avançado
                 return self.enviar(200, editar_rondas(c))
+            if p == "/api/resumo/testar":  # 1.42.0: o resumo de hoje, agora, só para quem está na tela
+                return self.enviar(200, testar_resumo(self.headers.get("X-Remote-User-Id") or ""))
             if p == "/api/ronda/testar":  # 1.21.0: o Testar no meu celular
                 return self.enviar(200, testar_aviso_ronda(self.headers.get("X-Remote-User-Id") or ""))
             if p == "/api/ronda":  # 1.18.0: começar, próxima etapa, voltar ou sair
