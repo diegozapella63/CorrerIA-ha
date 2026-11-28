@@ -5,6 +5,8 @@ Assistant (o agente de conversa dele, conversation.home_assistant), que só mexe
 em nada. Liga e desliga em Configurações › Integrações › Casa (ligada de início). Só biblioteca padrão."""
 import re
 import unicodedata
+import urllib.parse
+from datetime import datetime, timedelta, time as hora_do_dia
 
 ID = "casa"
 APP = {"app": ID, "nome": "Casa", "assunto": "o Home Assistant: luzes, tomadas, cortinas, ar, cenas e o que mais estiver exposto ao Assist",
@@ -52,6 +54,18 @@ FERRAMENTAS = [
                                                   "comodo": {"type": "string", "description": "O cômodo (a área do Home Assistant)."},
                                                   "tipo": {"type": "string", "enum": ["energia", "temperatura", "luzes", "seguranca", "baterias", "sem_resposta"],
                                                            "description": "Uma visão pronta da casa."}},
+                 "additionalProperties": False},
+     "grava": False, "apaga": False},
+    # 1.40.0 (o dono, às ferramentas que faltavam: "pode seguir neles"): o histórico de um dia, pelo /api/history
+    {"nome": "historico", "titulo": "Histórico da casa",
+     "descricao": "O que aconteceu num dia com uma coisa da casa, pelo histórico do Home Assistant: quando ligou e desligou (ou abriu "
+                  "e fechou) e quanto tempo ficou ligada; num sensor de número, a mínima, a máxima e a média (a temperatura do quarto); "
+                  "num medidor de energia, quanto gastou. busca: palavras do nome (\"porta da frente\", \"temperatura do quarto\"). "
+                  "tipo energia (sem busca): o consumo de cada medidor de energia no dia, do maior para o menor, com o do dia anterior "
+                  "para comparar. dia: hoje (padrão), ontem ou AAAA-MM-DD (até 30 dias atrás). Não mexe em nada.",
+     "entrada": {"type": "object", "properties": {"busca": {"type": "string", "description": "Palavras do nome da coisa."},
+                                                  "tipo": {"type": "string", "enum": ["energia"], "description": "O consumo de energia do dia."},
+                                                  "dia": {"type": "string", "description": "hoje, ontem ou AAAA-MM-DD."}},
                  "additionalProperties": False},
      "grava": False, "apaga": False},
 ]
@@ -121,6 +135,8 @@ class Casa:
                 raise ErroCasa(f"tipo vale {', '.join(TIPOS)}.")
             return self.estado(str(args.get("busca") or "").strip(), ligados=args.get("ligados") is True,
                                comodo=str(args.get("comodo") or "").strip(), tipo=tipo)
+        if nome == "historico":
+            return self.historico(str(args.get("busca") or "").strip(), str(args.get("dia") or "").strip(), str(args.get("tipo") or "").strip())
         raise ErroCasa(f"Ferramenta desconhecida: {nome}.")
 
     def comando(self, pedido):
@@ -213,6 +229,155 @@ class Casa:
             return f"Nada com “{busca}” no Home Assistant." if busca else f"Nenhuma luz, tomada, cortina ou ar{onde} no Home Assistant."
         mais = len(achados) - MAX
         return "\n".join(achados[:MAX]) + (f"\n… e mais {mais}." if mais > 0 else "")
+
+
+    # ---------- 1.40.0: o histórico de um dia (GET /api/history/period)
+    def _dia(self, dia, agora):
+        d = dobrar(dia)
+        hoje = agora.date()
+        if d in ("", "hoje"):
+            return hoje
+        if d == "ontem":
+            return hoje - timedelta(days=1)
+        if d == "anteontem":
+            return hoje - timedelta(days=2)
+        try:
+            v = datetime.strptime(dia, "%Y-%m-%d").date()
+        except ValueError:
+            raise ErroCasa("dia: hoje, ontem ou AAAA-MM-DD.") from None
+        if v > hoje or (hoje - v).days > 30:
+            raise ErroCasa("dia: de hoje até 30 dias atrás.")
+        return v
+
+    def _periodo(self, ini, fim, ids):
+        q = urllib.parse.urlencode({"end_time": fim.isoformat(), "filter_entity_id": ",".join(ids)})
+        try:
+            v = self.get(f"/history/period/{urllib.parse.quote(ini.isoformat())}?{q}&minimal_response&no_attributes")
+        except Exception as e:  # noqa: BLE001
+            raise ErroCasa(f"O Home Assistant não respondeu ({str(e).rstrip('.')}).") from e
+        out = {}
+        for linha in v if isinstance(v, list) else []:
+            eid = next((str(x.get("entity_id")) for x in linha if isinstance(x, dict) and x.get("entity_id")), "") if isinstance(linha, list) else ""
+            if eid:
+                out[eid] = [(quando(x.get("last_changed") or x.get("last_updated")), str(x.get("state", ""))) for x in linha if isinstance(x, dict)]
+                out[eid] = [(t, st) for t, st in out[eid] if t is not None]
+        return out
+
+    def historico(self, busca="", dia="", tipo="", agora=None):
+        agora = agora or datetime.now().astimezone()
+        if tipo and tipo != "energia":
+            raise ErroCasa("tipo vale energia.")
+        d = self._dia(dia, agora)
+        ini = datetime.combine(d, hora_do_dia.min).replace(tzinfo=agora.tzinfo)
+        fim = min(ini + timedelta(days=1), agora)
+        nome_dia = "hoje" if d == agora.date() else "ontem" if d == agora.date() - timedelta(days=1) else d.strftime("%d/%m/%Y")
+        try:
+            todos = self.get("/states")
+        except Exception as e:  # noqa: BLE001
+            raise ErroCasa(f"O Home Assistant não respondeu ({str(e).rstrip('.')}).") from e
+        todos = [s for s in (todos if isinstance(todos, list) else []) if isinstance(s, dict)]
+        if tipo == "energia":
+            med = [s for s in todos if str(s.get("entity_id", "")).startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "energy"
+                   and (s.get("attributes") or {}).get("state_class") in ("total_increasing", "total")][:20]
+            if not med:
+                return "Nenhum medidor de energia no Home Assistant (um sensor de energia que soma o consumo, em kWh)."
+            h = self._periodo(ini - timedelta(days=1), fim, [s["entity_id"] for s in med])
+            linhas = []
+            for s in med:
+                a = s.get("attributes") or {}
+                pts = h.get(s["entity_id"]) or []
+                vez = gasto([p for p in pts if p[0] >= ini])
+                antes = gasto([p for p in pts if p[0] < ini])
+                if vez is None:
+                    continue
+                un = str(a.get("unit_of_measurement") or "kWh")
+                linhas.append((vez, f"- {a.get('friendly_name') or s['entity_id']}: {_br(vez, 2)} {un} {nome_dia}"
+                                    + (f" (no dia anterior, {_br(antes, 2)} {un})" if antes is not None else "")))
+            if not linhas:
+                return f"Os medidores de energia não têm histórico de {nome_dia}."
+            linhas.sort(key=lambda x: -x[0])
+            return f"Consumo de energia de {nome_dia}, do maior para o menor:\n" + "\n".join(t for _, t in linhas[:12])
+        palavras = [p for p in re.findall(r"[a-z0-9]+", dobrar(busca)) if len(p) > 1 and p not in ("da", "do", "de", "das", "dos", "na", "no", "a", "o", "e")]
+        if not palavras:
+            raise ErroCasa("Diga a busca (palavras do nome da coisa) ou tipo energia.")
+        achados = []
+        for s in todos:
+            eid = str(s.get("entity_id", ""))
+            dom = eid.split(".")[0]
+            if dom not in DOMINIOS:
+                continue
+            nome = (s.get("attributes") or {}).get("friendly_name") or eid
+            toks = re.findall(r"[a-z0-9]+", dobrar(f"{nome} {eid.replace('_', ' ')} {PALAVRAS.get(dom, '')}"))
+            if all(any(t.startswith(x) for t in toks for x in (p, p[:-1] if p.endswith("s") else "") if x) for p in palavras):
+                achados.append(s)
+        if not achados:
+            return f"Nada com “{busca}” no Home Assistant."
+        if len(achados) > 3:
+            return (f"{len(achados)} coisas com “{busca}”: diga qual. " + "; ".join(str((s.get('attributes') or {}).get('friendly_name') or s['entity_id']) for s in achados[:12])
+                    + ("…" if len(achados) > 12 else "."))
+        h = self._periodo(ini, fim, [s["entity_id"] for s in achados])
+        return "\n".join(linha_do_dia(s, h.get(s["entity_id"]) or [], ini, fim, nome_dia) for s in achados)
+
+
+def quando(t):
+    try:
+        return datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def gasto(pts):
+    """Quanto um medidor que só soma andou: a soma das subidas (uma queda é o medidor recomeçando)."""
+    ns = [n for n in (_num(st) for _, st in pts) if n is not None]
+    if len(ns) < 2:
+        return None
+    return sum(b - a for a, b in zip(ns, ns[1:]) if b > a)
+
+
+def _dura(seg):
+    m = int(round(seg / 60))
+    return f"{m // 60} h {m % 60:02d} min" if m >= 60 else f"{m} min"
+
+
+def linha_do_dia(s, pts, ini, fim, nome_dia):
+    """Uma coisa num dia: o sensor de número (mínima, máxima, média), o medidor de energia (quanto andou), o que liga e
+    desliga (quantas vezes e quanto tempo) ou as mudanças de estado, com a hora."""
+    a = s.get("attributes") or {}
+    nome = a.get("friendly_name") or s["entity_id"]
+    hm = lambda t: t.astimezone(ini.tzinfo).strftime("%H:%M")  # noqa: E731
+    if not pts:
+        return f"- {nome}: sem histórico de {nome_dia}."
+    nums = [(t, n) for t, n in ((t, _num(st)) for t, st in pts) if n is not None]
+    un = str(a.get("unit_of_measurement") or "")
+    if un and len(nums) >= max(1, len(pts) // 2):
+        if a.get("device_class") == "energy" and a.get("state_class") in ("total_increasing", "total"):
+            g = gasto(pts)
+            return f"- {nome}: {_br(g or 0, 2)} {un} {nome_dia}."
+        mn, mx = min(nums, key=lambda x: x[1]), max(nums, key=lambda x: x[1])
+        # a média pelo tempo que cada valor durou
+        total = peso = 0.0
+        for (t, n), (t2, _) in zip(nums, nums[1:] + [(fim, 0)]):
+            seg = max(0.0, (t2 - max(t, ini)).total_seconds())
+            total, peso = total + n * seg, peso + seg
+        media = total / peso if peso else sum(n for _, n in nums) / len(nums)
+        return (f"- {nome}, {nome_dia}: mínima {_br(mn[1])} {un} às {hm(max(mn[0], ini))}, máxima {_br(mx[1])} {un} às {hm(max(mx[0], ini))}, "
+                f"média {_br(media)} {un}; por último, {_br(nums[-1][1])} {un}.")
+    dom = s["entity_id"].split(".")[0]
+    mud = [(t, st) for k, (t, st) in enumerate(pts) if k == 0 or st != pts[k - 1][1]]
+    porta = dom == "binary_sensor" and a.get("device_class") in ABRE
+    txt = lambda st: ({"on": "aberto", "off": "fechado"}.get(st) if porta else None) or estado_txt({"entity_id": s["entity_id"], "state": st, "attributes": {}})  # noqa: E731
+    partes = " · ".join(f"{hm(max(t, ini))} {txt(st)}" for t, st in mud[-12:])
+    if dom in LIGADO or dom == "binary_sensor":
+        ligada = 0.0
+        vezes = 0
+        for k, (t, st) in enumerate(mud):
+            on = st == "on" if dom == "binary_sensor" else ligado({"entity_id": s["entity_id"], "state": st, "attributes": a})
+            if on:
+                ligada += ((mud[k + 1][0] if k + 1 < len(mud) else fim) - max(t, ini)).total_seconds()
+                vezes += 1 if k > 0 else 0
+        resumo = (f"{vezes} {'vez' if vezes == 1 else 'vezes'}, {_dura(ligada)} ao todo" if ligada else "nenhuma vez")
+        return f"- {nome}, {nome_dia}: {resumo}. {partes}" + (" (as 12 últimas mudanças)" if len(mud) > 12 else "")
+    return f"- {nome}, {nome_dia}: {partes}" + (" (as 12 últimas mudanças)" if len(mud) > 12 else "")
 
 
 # 1.38.0 (o dono: "cria mais para a casa, energia, cores da luz talvez, temperatura cômodos?"): as visões prontas do

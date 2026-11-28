@@ -132,7 +132,7 @@ class TestConfig(Base):
         self.addCleanup(ha.fechar)
         with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
             self.assertTrue(S.FERR.tem())
-            self.assertEqual([f["id"] for f in S.FERR.todas()], ["casa_comando", "casa_estado"])
+            self.assertEqual([f["id"] for f in S.FERR.todas()], ["casa_comando", "casa_estado", "casa_historico"])
             texto, nomes = S.executar([{"ferramenta": "casa_comando", "argumentos": {"pedido": "liga a luz da entrada"}, "resumo": "Ligar a luz da entrada"}], {"id": "person.ana", "nome": "Ana"}, "WhatsApp")
             self.assertEqual((texto, nomes), ("Feito!\n- Luz da entrada ligada", ["Casa"]))
             metodo, caminho, cab, corpo = ha.pedidos[-1]
@@ -1187,7 +1187,7 @@ class TestMcpHttp(Base):
         self.assertEqual((st, r["result"]["serverInfo"]["name"]), (200, "correria"))
         self.assertEqual(self.mcp(tok, "notifications/initialized", mid=None)[0], 202)
         st, r = self.mcp(tok, "tools/list")
-        self.assertEqual([t["name"] for t in r["result"]["tools"]], ["gerencia_resumo", "gerencia_lancar", "gerencia_apagar"])
+        self.assertEqual([t["name"] for t in r["result"]["tools"]], ["gerencia_resumo", "gerencia_lancar", "gerencia_apagar", "correria_rondas"])
         st, r = self.mcp(tok, "tools/call", {"name": "gerencia_lancar", "arguments": {"descricao": "Feira", "valor": 12}})
         self.assertEqual(r["result"]["isError"], False)
         self.assertEqual((self.app.feitos[-1]["pessoa"]["nome"], self.app.feitos[-1]["cliente"]), ("Ana", "Claude"))

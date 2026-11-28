@@ -328,6 +328,21 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
     _e("premio_entregue", "Entrega", "Prêmio entregue", "cronologia", "CronologIA", "cronologia_premio_entregue", "O prêmio já foi entregue?",
        "Use cronologia_placar e conte os períodos anteriores com vencedor e prêmio ainda não entregue (quem venceu, o prêmio e o período). O TOTAL é o desses.",
        se_tem=True, tambem=("cronologia_placar",)),
+    # 1.40.0 (o dono, às etapas que faltavam: "pode seguir neles"): com o casa_historico daqui, o gerencia_dicas (GerencIA
+    # 1.95.0) e o inventario_conferir_novidades (InventarIA 1.112.0); cada uma no seu grupo, para o TOTAL 0 de outra não a tirar
+    _e("repor_sozinho", "Repor sozinho", "Fora da reposição", "economia", "EconomIA", "economia_repor", "Quer que o EconomIA lembre de repor algum desses?",
+       "Use economia_reposicao e veja o que já está na reposição; depois use inventario_buscar_itens com o cômodo «Consumíveis» e conte os consumíveis "
+       "com duração que ainda não estão na reposição (o nome e a duração; até 8; o TOTAL é o desses).",
+       so_com="consumiveis", se_tem=True, tambem=("economia_reposicao", "inventario_buscar_itens")),
+    _e("sai_hoje", "Estreias de hoje", "Sai hoje", "odisseia", "OdisseIA", "odisseia_resumo", "Quer ver algum desses hoje?",
+       "Use odisseia_resumo e conte só os episódios e os jogos que saem hoje (o nome e o episódio; o TOTAL é só o dos de hoje).", se_tem=True),
+    _e("energia_ontem", "Consumo", "Energia de ontem", "casa", "Casa", "casa_historico", "Quer ver a que horas algum desses ficou ligado?",
+       "Use casa_historico com tipo energia e dia ontem e conte o consumo de ontem de cada medidor, com o do dia anterior (até 8; do maior para o menor).", se_tem=True),
+    _e("dicas", "Dicas", "Dicas de economia", "gerencia", "GerencIA", "gerencia_dicas", "Quer seguir alguma dessas dicas?",
+       "Use gerencia_dicas e conte as dicas de economia (a assinatura e quanto sobra por ano; até 6; o TOTAL é só o das dicas).", se_tem=True),
+    _e("novidades_conferir", "Conferência", "Conferir novidades", "inventario", "InventarIA", "inventario_conferir_novidades", "Quer que eu confira as novidades agora?",
+       "Use inventario_novidades com limite 1 e diga de quando é a última conferência (conferido_em) e quantas novidades há. O TOTAL é 1 se a última "
+       "conferência tem mais de 30 dias ou nunca foi feita e 0 se é mais nova.", so_com="novidades", se_tem=True, tambem=("inventario_novidades",)),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -341,7 +356,7 @@ def _ronda_de_mais(nome, resumo, ids):
 
 for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, as oportunidades, as milhas, os bens, os itens de valor e as novidades dos equipamentos.",
                                                ["invest", "invest_vence", "invest_novo", "oportunidades", "milhas", "bens", "bem_novo", "valiosos", "sem_valor", "sem_foto", "novidades",
-                                                "recursos"])),
+                                                "novidades_conferir", "recursos"])),
                  ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, os serviços externos, a agenda, os aniversários, as manutenções, os remédios, "
                                            "os consumíveis que acabam, as contas atrasadas, o placar e o prêmio.",
                                            ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "equip_sem_manut", "remedios",
@@ -351,16 +366,16 @@ for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os inves
                                           ["continuar", "quem_viu", "lancamentos", "quero_ver", "quero_jogar", "em_alta", "estreias", "colecoes", "assinaturas_uso"])),
                  # 1.37.0: cinco rondas novas, todas com as etapas do MAIS
                  ("dia", _ronda_de_mais("Ronda do dia", "De manhã: a agenda, os remédios e as tarefas de hoje, e por onde começar.",
-                                        ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular"])),
+                                        ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular", "sai_hoje"])),
                  ("noite", _ronda_de_mais("Ronda da noite", "Antes de dormir: o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã.",
-                                          ["ligado", "remedio_hoje", "agenda_hoje", "amanha"])),
+                                          ["ligado", "remedio_hoje", "agenda_hoje", "sai_hoje", "amanha"])),
                  ("financas", _ronda_de_mais("Ronda das finanças", "As faturas do e-mail, as contas atrasadas, os lançamentos, o saldo, os benefícios e as milhas.",
-                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas", "assinaturas_uso"])),
+                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas", "assinaturas_uso", "dicas"])),
                  ("anotacoes", _ronda_de_mais("Ronda das anotações", "Os blocos, as últimas folhas, os horários, as categorias, os parados e os arquivados.",
                                               ["blocos", "folhas", "horarios", "sem_horario", "sem_categoria", "parados", "arquivados"])),
                  # 1.38.0: a casa no Home Assistant, sem cômodo
                  ("aparelhos", _ronda_de_mais("Ronda dos aparelhos", "A casa no Home Assistant: o que ficou ligado, o consumo, as luzes, a temperatura, as portas, as baterias e o que não responde.",
-                                              ["ligado", "energia", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador", "equip_sem_manut", "recursos"])),
+                                              ["ligado", "energia", "energia_ontem", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador", "equip_sem_manut", "recursos"])),
                  ("viagem", _ronda_de_mais("Ronda da viagem", "Antes de viajar: as férias, as contas do período, os remédios, as compras e a casa.",
                                            ["ferias", "contas_viagem", "remedios_levar", "lista_viagem", "ligado"]))):
     RONDAS[_rid] = _r
@@ -369,7 +384,7 @@ for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os inves
 
 # 1.37.0: e etapas do MAIS também nas rondas daqui que não são feitas só delas: (ronda, depois de qual etapa, [as do MAIS])
 for _rid, _depois, _ids in (("casa", "rotina_sai", ["manut"]), ("casa", "manut", ["equip_sem_manut"]), ("casa", "item_mudou", ["sem_foto"]), ("casa", "pet", ["ligado"]),
-                            ("compras", "ofertas", ["cupons"]),
+                            ("compras", "acabando", ["repor_sozinho"]), ("compras", "ofertas", ["cupons"]),
                             ("chegada", "fora", ["reposto"]),
                             ("mes", "contas", ["recebidos", "fixos", "saldo", "faturas_email"]), ("mes", "tarefas", ["repete"]),
                             ("mes", "repor", ["parados"])):
@@ -819,7 +834,13 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Recursos": ("Todos os eletrônicos já têm os recursos.", "eletrônico sem os recursos", "eletrônicos sem os recursos"),
          "Equipamentos": ("Todos os equipamentos têm manutenção.", "equipamento sem manutenção", "equipamentos sem manutenção"),
          "Prêmio": ("O prêmio do período já está definido.", "período sem prêmio", "períodos sem prêmio"),
-         "Entrega": ("Nenhum prêmio esperando a entrega.", "prêmio para entregar", "prêmios para entregar")}
+         "Entrega": ("Nenhum prêmio esperando a entrega.", "prêmio para entregar", "prêmios para entregar"),
+         # 1.40.0
+         "Repor sozinho": ("Todos os consumíveis com duração já estão na reposição.", "consumível fora da reposição", "consumíveis fora da reposição"),
+         "Estreias de hoje": ("Nada sai hoje.", "lançamento hoje", "lançamentos hoje"),
+         "Consumo": ("Nenhum medidor de energia com histórico de ontem.", "medidor de energia", "medidores de energia"),
+         "Dicas": ("Nenhuma dica de economia agora.", "dica de economia", "dicas de economia"),
+         "Conferência": ("As novidades foram conferidas há pouco.", "conferência atrasada", "conferências atrasadas")}
 
 
 def vazio(rid, eid, achou):

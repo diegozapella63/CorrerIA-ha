@@ -188,7 +188,7 @@ class TestCasaNasFerramentas(unittest.TestCase):
     def test_casa_como_um_app(self):
         self.assertTrue(self.f.tem(), "sem nenhum app, a casa já basta")
         todas = self.f.todas()
-        self.assertEqual([x["id"] for x in todas], ["casa_comando", "casa_estado"])
+        self.assertEqual([x["id"] for x in todas], ["casa_comando", "casa_estado", "casa_historico"])
         cmd = self.f.achar("casa_comando", todas)
         self.assertEqual((cmd["grava"], cmd["app"]["nome"]), (True, "Casa"), "mexer na casa espera o sim")
         self.assertFalse(self.f.achar("casa_estado", todas)["grava"])
@@ -203,8 +203,88 @@ class TestCasaNasFerramentas(unittest.TestCase):
         self.addCleanup(cron.fechar)
         cron.publicar(self.share, "cronologia")
         self.ligada = True
-        self.assertEqual([x["id"] for x in self.f.todas()][-2:], ["casa_comando", "casa_estado"], "depois dos apps")
+        self.assertEqual([x["id"] for x in self.f.todas()][-3:], ["casa_comando", "casa_estado", "casa_historico"], "depois dos apps")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHistorico(unittest.TestCase):
+    """1.40.0 (o dono, às ferramentas que faltavam: "pode seguir neles"): casa_historico, o dia de uma coisa da casa pelo
+    /api/history: o que liga e desliga, o sensor de número e o consumo dos medidores de energia."""
+    E = [
+        {"entity_id": "light.sala", "state": "off", "attributes": {"friendly_name": "Luz da sala"}},
+        {"entity_id": "binary_sensor.porta", "state": "off", "attributes": {"friendly_name": "Porta da frente", "device_class": "door"}},
+        {"entity_id": "sensor.t_quarto", "state": "22", "attributes": {"friendly_name": "Temperatura do quarto", "unit_of_measurement": "°C", "device_class": "temperature"}},
+        {"entity_id": "sensor.e_geladeira", "state": "104", "attributes": {"friendly_name": "Energia da geladeira", "unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}},
+        {"entity_id": "sensor.e_chuveiro", "state": "9", "attributes": {"friendly_name": "Energia do chuveiro", "unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}},
+        {"entity_id": "person.ana", "state": "home", "attributes": {"friendly_name": "Ana da sala"}},
+    ]
+    H = {
+        "light.sala": [("2026-11-07T03:00:00+00:00", "off"), ("2026-11-07T10:00:00+00:00", "on"), ("2026-11-07T11:30:00+00:00", "off"),
+                       ("2026-11-07T22:00:00+00:00", "on"), ("2026-11-07T22:45:00+00:00", "off")],
+        "binary_sensor.porta": [("2026-11-07T03:00:00+00:00", "off"), ("2026-11-07T05:10:00+00:00", "on"), ("2026-11-07T05:11:00+00:00", "off")],
+        "sensor.t_quarto": [("2026-11-07T03:00:00+00:00", "20"), ("2026-11-07T09:00:00+00:00", "19.5"), ("2026-11-07T18:00:00+00:00", "27"), ("2026-11-07T21:00:00+00:00", "unavailable"),
+                            ("2026-11-07T23:00:00+00:00", "22")],
+        "sensor.e_geladeira": [("2026-11-06T03:00:00+00:00", "100"), ("2026-11-06T20:00:00+00:00", "101.5"), ("2026-11-07T03:00:00+00:00", "101.5"), ("2026-11-07T20:00:00+00:00", "103.5"),
+                               ("2026-11-07T21:00:00+00:00", "0.2"), ("2026-11-07T23:00:00+00:00", "0.5")],
+        "sensor.e_chuveiro": [("2026-11-07T03:00:00+00:00", "4"), ("2026-11-07T12:00:00+00:00", "9")],
+    }
+
+    def setUp(self):
+        from datetime import datetime, timezone, timedelta
+        self.agora = datetime(2026, 11, 8, 9, 30, tzinfo=timezone(timedelta(hours=-3)))
+        self.pedidos = []
+        self.c = C.Casa(self.get, lambda c, corpo: {}, print)
+
+    def get(self, caminho):
+        self.pedidos.append(caminho)
+        if caminho == "/states":
+            return self.E
+        from datetime import datetime
+        from urllib.parse import unquote
+        ids = unquote(caminho.split("filter_entity_id=")[1].split("&")[0]).split(",")
+        ini = datetime.fromisoformat(unquote(caminho.split("/history/period/")[1].split("?")[0]))
+        fim = datetime.fromisoformat(unquote(caminho.split("end_time=")[1].split("&")[0]))
+        out = []
+        for i in ids:
+            pts = [(t, st) for t, st in self.H.get(i, []) if ini <= datetime.fromisoformat(t) < fim]
+            if pts:
+                out.append([dict({"state": st, "last_changed": t}, **({"entity_id": i} if k == 0 else {})) for k, (t, st) in enumerate(pts)])
+        return out
+
+    def test_liga_e_desliga_numero_e_porta(self):
+        r = self.c.historico("luz sala", "ontem", agora=self.agora)
+        self.assertEqual(r, "- Luz da sala, ontem: 2 vezes, 2 h 15 min ao todo. 00:00 desligado · 07:00 ligado · 08:30 desligado · 19:00 ligado · 19:45 desligado")
+        self.assertIn("/history/period/2026-11-07T00%3A00%3A00-03%3A00?end_time=2026-11-08T00%3A00%3A00-03%3A00&filter_entity_id=light.sala&minimal_response&no_attributes", self.pedidos[-1])
+        self.assertEqual(self.c.historico("porta", "2026-11-07", agora=self.agora), "- Porta da frente, ontem: 1 vez, 1 min ao todo. 00:00 fechado · 02:10 aberto · 02:11 fechado")
+        r = self.c.historico("temperatura quarto", "ontem", agora=self.agora)
+        self.assertIn("- Temperatura do quarto, ontem: mínima 19,5 °C às 06:00, máxima 27 °C às 15:00, média ", r)
+        self.assertTrue(r.endswith("por último, 22 °C."))
+        self.assertEqual(self.c.historico("xyz", agora=self.agora), "Nada com “xyz” no Home Assistant.")
+        self.assertNotIn("Ana", self.c.historico("sala", "ontem", agora=self.agora), "as pessoas ficam de fora")
+        muitas = C.Casa(lambda c: [dict(self.E[0], entity_id=f"light.luz{i}", attributes={"friendly_name": f"Luz {i}"}) for i in range(5)], None, print)
+        self.assertIn("5 coisas com “luz”: diga qual. Luz 0; Luz 1", muitas.historico("luz", agora=self.agora))
+        self.assertEqual(self.c.historico("luz sala", "anteontem", agora=self.agora), "- Luz da sala: sem histórico de 06/11/2026.")
+
+    def test_energia_do_dia_com_o_dia_anterior(self):
+        r = self.c.historico(tipo="energia", dia="ontem", agora=self.agora)
+        self.assertEqual(r.split("\n"), ["Consumo de energia de ontem, do maior para o menor:", "- Energia do chuveiro: 5,00 kWh ontem",
+                                         "- Energia da geladeira: 2,30 kWh ontem (no dia anterior, 1,50 kWh)"], "a queda é o medidor recomeçando")
+        self.assertEqual(self.c.historico("energia geladeira", "ontem", agora=self.agora), "- Energia da geladeira: 2,30 kWh ontem.")
+        sem = C.Casa(lambda c: self.E[:3], None, print)
+        self.assertIn("Nenhum medidor de energia", sem.historico(tipo="energia", agora=self.agora))
+
+    def test_o_que_vale(self):
+        for args, parte in (({"busca": "luz", "dia": "amanhã"}, "hoje, ontem ou AAAA-MM-DD"), ({"busca": "luz", "dia": "2020-01-01"}, "até 30 dias"),
+                            ({}, "Diga a busca"), ({"tipo": "agua"}, "tipo vale energia")):
+            with self.assertRaises(C.ErroCasa) as e:
+                self.c.usar("historico", args)
+            self.assertIn(parte, str(e.exception))
+
+        def cai(c):
+            raise OSError("fora do ar")
+        with self.assertRaises(C.ErroCasa):
+            C.Casa(cai, None, print).historico("luz", agora=self.agora)
+        self.assertEqual([f["nome"] for f in C.FERRAMENTAS], ["comando", "estado", "historico"])

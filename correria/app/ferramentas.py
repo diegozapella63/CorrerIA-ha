@@ -9,9 +9,14 @@ import casa as C
 PERGUNTAR = "__perguntar"
 
 
+# 1.40.0: as ferramentas do próprio CorrerIA (as rondas), que valem para a IA do WhatsApp e da tela e para o MCP
+PROPRIO = {"app": "correria", "nome": "CorrerIA", "assunto": "as rondas da casa", "ferramentas": "", "rota": "", "anexos": []}
+
+
 class Ferramentas:
-    def __init__(self, apps, log, casa=None):
+    def __init__(self, apps, log, casa=None, proprias=None):
         self._apps, self.log = apps, log  # apps: um apps.Apps (ou uma função que o devolve)
+        self.proprias = proprias or []  # [(a definição da ferramenta, função(args, pessoa) -> texto)], só com algum app ligado
         self._casa = casa  # 1.5.0: a casa do Home Assistant (casa.Casa), ou uma função que a devolve (None: desligada)
         self.erros = {}  # app -> a última falha ao listar (para a tela)
 
@@ -47,6 +52,8 @@ class Ferramentas:
                             "grava": False, "apaga": False})
         if self.casa:
             out += [dict(f, id=f"{C.ID}_{f['nome']}", app=C.APP) for f in C.FERRAMENTAS]
+        if any(a["ferramentas"] for a in self.apps.lista()):
+            out += [dict(d, id=f"{PROPRIO['app']}_{d['nome']}", app=PROPRIO) for d, _ in self.proprias]
         return out
 
     def instrucoes(self):
@@ -107,6 +114,12 @@ class Ferramentas:
                 return f"Esta ferramenta não recebe esse tipo de arquivo ({anexo.get('tipo') or 'desconhecido'}); recebe: {', '.join(f['anexo'])}. Diga isso à pessoa.", True
         else:
             anexo = None
+        if f["app"]["app"] == PROPRIO["app"]:
+            faz = next((fn for d, fn in self.proprias if d["nome"] == f["nome"]), None)
+            try:
+                return (faz(args, pessoa), False) if faz else ("Ferramenta desconhecida.", True)
+            except ValueError as e:
+                return str(e), True
         if f["app"]["app"] == C.ID:
             casa = self.casa
             if not casa:

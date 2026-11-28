@@ -192,27 +192,29 @@ Na primeira pergunta de cada assunto, o CorrerIA mostra antes o que já há no a
 
 Depois da última pergunta, escolha o próximo cômodo: o que está em dia (feito hoje ou dentro do prazo do aviso) fica verde e cada um mostra há quantos dias foi a última ronda.
 
-**Ronda de compras** (antes de sair): a lista (e o que pode sair dela), o que está na hora de repor, os consumíveis acabando, as ofertas, os cupons e em qual loja a lista sai mais em conta.
+**Ronda de compras** (antes de sair): a lista (e o que pode sair dela), o que está na hora de repor, os consumíveis acabando (e os que ainda não estão na Reposição do EconomIA), as ofertas, os cupons e em qual loja a lista sai mais em conta.
 
 **Ronda da chegada das compras**: o que da lista foi comprado (e por quanto tempo vai durar, para a reposição e para o InventarIA), o que veio fora da lista, o que já foi reposto, os consumíveis e os itens novos para cadastrar e o gasto para lançar no GerencIA.
 
 **Ronda do mês**: os gastos, as contas a pagar, os recebimentos, os fixos, o saldo do caixa e as faturas do e-mail (GerencIA), os compromissos e as rotinas (CronologIA), as tarefas atrasadas e as que se repetem (ResolvIA), os itens que saíram (InventarIA), a reposição (EconomIA) e os blocos parados (MemorIA).
 
-**Ronda do patrimônio**: os investimentos (conferir, os que vencem, um novo), as oportunidades de investimento e as milhas (GerencIA), os bens, os itens mais valiosos, os sem valor, os sem foto, as novidades e os recursos dos equipamentos (InventarIA; com a pergunta *Quer que eu busque os recursos dos que ainda não têm?*).
+**Ronda do patrimônio**: os investimentos (conferir, os que vencem, um novo), as oportunidades de investimento e as milhas (GerencIA), os bens, os itens mais valiosos, os sem valor, os sem foto, as novidades (e conferir de novo quando a última conferência é velha) e os recursos dos equipamentos (InventarIA; com a pergunta *Quer que eu busque os recursos dos que ainda não têm?*).
 
 **Ronda da semana**: as tarefas de hoje, por onde começar, as dos próximos 7 dias e os serviços externos (ResolvIA), a agenda da semana, os aniversários, as manutenções, os equipamentos sem manutenção (com o InventarIA), os remédios, o placar, o prêmio do período (*Qual vai ser o prêmio do placar?*) e o prêmio que falta entregar (CronologIA), os consumíveis que acabam nos próximos 7 dias (InventarIA; *Ponho na lista de compras algum desses?*, com o EconomIA) e as contas atrasadas (GerencIA).
 
 **Ronda do lazer** (OdisseIA): as séries em andamento (*Viu algum episódio novo?*), os episódios e os jogos que vão sair (um lembrete no CronologIA), o que a casa quer ver (*Já viu algum desses?*) e jogar (*Já jogou algum desses?*), o que está em alta (*Quer pôr algum desses na lista?*), as estreias e as assinaturas em uso (com o GerencIA).
 
-**Ronda do dia** (de manhã): a agenda e os remédios de hoje (CronologIA), as tarefas de hoje e por onde começar (ResolvIA) e o que não vai acontecer hoje (**Pular hoje**).
+**Ronda do dia** (de manhã): a agenda e os remédios de hoje (CronologIA), as tarefas de hoje e por onde começar (ResolvIA) o que não vai acontecer hoje (**Pular hoje**) e o que sai hoje no OdisseIA.
 
-**Ronda da noite** (antes de dormir): o que ficou ligado ou aberto na casa (as luzes, as tomadas, as portas e as janelas, pelo Home Assistant), os remédios que faltam, o que ficou sem marcar hoje e os compromissos de amanhã.
+**Ronda da noite** (antes de dormir): o que ficou ligado ou aberto na casa (as luzes, as tomadas, as portas e as janelas, pelo Home Assistant), os remédios que faltam, o que ficou sem marcar hoje, o que sai hoje no OdisseIA e os compromissos de amanhã.
 
-**Ronda das finanças**: as faturas do e-mail para conferir, as contas atrasadas, os lançamentos e os recebimentos do mês, o saldo do caixa, os benefícios, as milhas, as assinaturas em promoção e as **assinaturas em uso**: cada assinatura de vídeo paga com quantos títulos a casa quer ver nela no OdisseIA (*Alguma assinatura pode ser cancelada?*).
+A IA também responde sobre as rondas («tem ronda atrasada?») e sobre o **histórico da casa**: o que aconteceu num dia com uma luz, uma porta, um sensor ou o consumo de energia (hoje, ontem ou uma data, até 30 dias atrás). Só lê.
+
+**Ronda das finanças**: as faturas do e-mail para conferir, as contas atrasadas, os lançamentos e os recebimentos do mês, o saldo do caixa, os benefícios, as milhas, as dicas de economia, as assinaturas em promoção e as **assinaturas em uso**: cada assinatura de vídeo paga com quantos títulos a casa quer ver nela no OdisseIA (*Alguma assinatura pode ser cancelada?*).
 
 **Ronda das anotações** (MemorIA): os blocos, as últimas folhas, os horários (quando cada bloco abre sozinho) e os blocos sem horário, os sem categoria, os parados há mais de 60 dias e os arquivados.
 
-**Ronda dos aparelhos** (a casa no Home Assistant): o que ficou ligado ou aberto, o que gasta energia agora (os sensores de consumo, em watts), as luzes acesas com o brilho e a cor, a temperatura e a umidade de cada cômodo (pelas áreas do Home Assistant), as portas, janelas e fechaduras, as baterias fracas (20% ou menos), o que o Home Assistant não alcança, o aspirador, os equipamentos sem manutenção na CronologIA e os recursos dos eletrônicos (InventarIA).
+**Ronda dos aparelhos** (a casa no Home Assistant): o que ficou ligado ou aberto, o que gasta energia agora (os sensores de consumo, em watts), a energia de ontem (o consumo de cada medidor, com o do dia anterior), as luzes acesas com o brilho e a cor, a temperatura e a umidade de cada cômodo (pelas áreas do Home Assistant), as portas, janelas e fechaduras, as baterias fracas (20% ou menos), o que o Home Assistant não alcança, o aspirador, os equipamentos sem manutenção na CronologIA e os recursos dos eletrônicos (InventarIA).
 
 **Ronda da viagem**: o modo férias (CronologIA), as contas do período (GerencIA), os remédios para levar e as compras para a viagem (EconomIA) e o que ficou ligado ou aberto em casa.
 

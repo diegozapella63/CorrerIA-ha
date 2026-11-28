@@ -485,7 +485,14 @@ ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
 CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log, lambda m: ha_texto("/template", {"template": m}))
 # 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Integrações › Casa)
-FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None)  # o APPS de agora (os testes trocam)
+# 1.40.0 (o dono, às ferramentas que faltavam: "pode seguir neles"): as rondas também pela IA («tem ronda atrasada?»)
+RONDAS_F = {"nome": "rondas", "titulo": "Rondas da casa", "grava": False, "apaga": False,
+            "descricao": "As rondas do CorrerIA (os roteiros pelos apps: a da casa, por cômodo, a da semana, a das finanças…): quando foi a "
+                         "última vez de cada uma (de cada cômodo, numa por cômodo), o aviso de cada uma e as que estão atrasadas. Só lê: uma "
+                         "ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa.",
+            "entrada": {"type": "object", "properties": {}, "additionalProperties": False}}
+FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None,
+                               proprias=[(RONDAS_F, lambda args, pessoa: texto_rondas(pessoa))])  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
 NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
 # 1.39.1 (o dono: «Não entendi, não é o mesmo item» virou «Tudo bem, não mudei nada»): só um «não» (sem mais nada) fica nisso;
@@ -2078,6 +2085,30 @@ def atrasadas_todas(disps, agora=None):
             out += [{"ronda": x["id"], "nome": x["nome"], "onde": c, "dias": ult.get(c), "prazo": limite}
                     for c in (x.get("onde") or []) if ult and (ult.get(c) is None or ult[c] > limite)]
     return out
+
+
+def texto_rondas(pessoa=None, agora=None):
+    """1.40.0: as rondas para a IA (a ferramenta correria_rondas): a última vez de cada uma, o aviso e as atrasadas."""
+    disps = rondas.disponiveis(FERR, pessoa) if FERR.tem() else []
+    if not disps:
+        return "Nenhuma ronda disponível: ligue o CorrerIA nos apps (Mais › Configurações › Integrações)."
+    ult, prazos = ultimas_de_todas(agora), ler_config()["ronda_prazos"]
+
+    def ha(d):
+        return "nunca" if d is None else "hoje" if d == 0 else "ontem" if d == 1 else f"há {d} dias"
+    linhas = []
+    for x in disps:
+        p = prazos.get(x["id"], 0)
+        aviso = f"aviso a cada {p} dias" if p else "sem aviso"
+        u = ult.get(x["id"], {})
+        if x.get("sem_onde"):
+            linhas.append(f"- {x['nome']} ({aviso}): {ha(u.get(''))}")
+        else:
+            linhas.append(f"- {x['nome']} (por cômodo; {aviso}): " + ("; ".join(f"{c} {ha(u.get(c))}" for c in x.get("onde") or []) or "sem cômodos"))
+    atras = atrasadas_todas(disps, agora)
+    linhas.append(("Atrasadas: " + "; ".join(a["nome"] + (f" ({a['onde']})" if a["onde"] else "") for a in atras) + ".") if atras else "Nenhuma ronda atrasada.")
+    linhas.append("Uma ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa.")
+    return "\n".join(linhas)
 
 
 def _atrasados_para_tela(atras):

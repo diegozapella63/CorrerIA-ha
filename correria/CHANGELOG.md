@@ -1,5 +1,17 @@
 # Mudanças
 
+## 1.40.0
+
+- **Histórico da casa**: a IA agora sabe o que aconteceu num dia com as coisas do Home Assistant: «a porta abriu de madrugada?», «quanto tempo a luz ficou acesa ontem?», «que temperatura fez no quarto?», «quanto gastou de energia ontem?». Só lê.
+- **Rondas pela IA**: «tem ronda atrasada?» responde quando foi a última de cada ronda (de cada cômodo) e quais estão atrasadas, também pelo WhatsApp e pelo conector MCP.
+- **Etapas novas** nas rondas (93 ao todo no Adicionar etapa):
+  - **Fora da reposição** (Ronda de compras): os consumíveis do InventarIA que ainda não estão na Reposição do EconomIA. *Quer que o EconomIA lembre de repor algum desses?*
+  - **Sai hoje** (Ronda do dia e da noite): o episódio ou o jogo do OdisseIA que sai hoje. *Quer ver algum desses hoje?*
+  - **Energia de ontem** (Ronda dos aparelhos): o consumo de ontem de cada medidor, com o do dia anterior.
+  - **Dicas de economia** (Ronda das finanças): *Quer seguir alguma dessas dicas?*
+  - **Conferir novidades** (Ronda do patrimônio): quando a última conferência é velha. *Quer que eu confira as novidades agora?*
+- Pedem o GerencIA 1.95.0 e o InventarIA 1.112.0 (ou mais novos). Os apps ganharam também ferramentas novas: mudar várias tarefas (ResolvIA 2.98.0) ou vários itens (InventarIA) de uma vez, e o Extrato e os deméritos do placar (CronologIA 1.119.0).
+
 ## 1.39.1
 
 - Uma foto com uma legenda que pede outro app («Adicionar no inventário») não vai mais para o GerencIA: palavras que qualquer frase tem («para», «casa») deixaram de contar como assunto de finanças, e o nome do app na legenda conta (também com uma letra trocada, como «inventaria»).
