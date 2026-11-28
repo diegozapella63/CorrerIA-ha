@@ -737,6 +737,12 @@ class TestComFerramentas(Base):
         self.assertFalse(S.foto_para_ferramenta("", "image/jpeg"), "sem legenda: para quem lê")
         self.assertTrue(S.foto_para_ferramenta("põe na tarefa do piso", "image/jpeg"), "fala de tarefa: para a ferramenta")
         self.assertFalse(S.foto_para_ferramenta("põe na tarefa", "application/pdf"), "um PDF nenhuma ferramenta recebe")
+        # 1.39.1: o «para» do assunto de quem lê não conta; o nome de um app que recebe a foto, sim
+        j.update(assunto="finanças da casa: contas a pagar e as faturas que chegam por e-mail para conferir")
+        with open(os.path.join(S.SHARE_DIR, "gerencia", "correria.json"), "w", encoding="utf-8") as f:
+            json.dump(j, f)
+        self.assertTrue(S.foto_para_ferramenta("Comprei um desses para a sala. Põe no resolvia", "image/jpeg"))
+        self.assertTrue(S.foto_para_ferramenta("Comprei um desses para a sala", "image/jpeg"), "nada de quem lê: a IA com as ferramentas escolhe")
 
     def test_foto_para_uma_tarefa_pelo_whatsapp(self):
         rv = self.resolvia()
@@ -774,6 +780,15 @@ class TestComFerramentas(Base):
         self.ia(LANCAR)
         self.mandar("lança 32,50 de feira")
         self.assertEqual(self.mandar("não, deixa")[0][1], "Tudo bem, não mudei nada.")
+        # 1.39.1 (o dono: «Não entendi, não é o mesmo item» ficou só no «Tudo bem»): um «não» que corrige vai para a IA, que refaz
+        self.ia(LANCAR, {"resposta": "Entendi: qual é o valor certo?"})
+        self.mandar("lança 32,50 de feira")
+        self.assertEqual(self.mandar("Não, não é isso, foi outra coisa")[0][1], "Entendi: qual é o valor certo?")
+        self.assertIn("Não fiz a mudança que você propôs. Refaça pelo que eu disse", self.falsa.pedidos[-1])
+        self.assertIsNone(S.pegar_pendente("wa:" + S.whatsapp.canonico(ANA_WA)), "a mudança de antes saiu")
+        for so in ("não", "Não.", "nao, obrigado", "agora não!", "cancela"):
+            self.assertTrue(S.NAO_SO_RE.match(so), so)
+        self.assertFalse(S.NAO_SO_RE.match("não é o mesmo item"))
         self.ia(LANCAR, {"chamar": [{"ferramenta": "gerencia_resumo"}]}, {"resposta": "Hoje: 3 contas."})
         self.mandar("lança 32,50 de feira")
         self.assertEqual(self.mandar("quanto tenho?")[0][1], "Hoje: 3 contas.", "outra pergunta desfaz o que esperava")

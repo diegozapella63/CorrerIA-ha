@@ -52,6 +52,22 @@ class TestLista(unittest.TestCase):
         self.assertEqual(self.a.escolher("oi")["app"], "cronologia", "sem pista nem última: o primeiro (em ordem)")
 
 
+class TestPontos(unittest.TestCase):
+    """1.39.1 (a foto com uma legenda que pedia o InventarIA foi para o GerencIA): o «para» do assunto do GerencIA contava."""
+
+    GER = {"app": "gerencia", "nome": "GerencIA", "assunto": "finanças da casa: caixa, gastos, contas a pagar, as faturas que chegam por e-mail para conferir"}
+    INV = {"app": "inventario", "nome": "InventarIA", "assunto": "inventário da casa: cômodos, itens com valor, categorias e os bens"}
+
+    def test_as_palavras_comuns_nao_contam_e_o_nome_do_app_conta(self):
+        legenda = "Comprei um desses para a sala. Adicionar no inventaria"
+        self.assertEqual((A.Apps.pontos(self.GER, legenda), A.Apps.pontos(self.INV, legenda)), (0, A.NOME_VALE))
+        self.assertEqual(A.Apps.pontos(self.GER, "uma coisa para a casa"), 0, "para e casa não dizem de que app é")
+        self.assertEqual(A.Apps.pontos(self.GER, "quanto deu essa fatura?"), 1)
+        self.assertEqual(A.Apps.pontos(self.INV, "põe no Inventário"), 1 + A.NOME_VALE, "a palavra do assunto e o nome")
+        self.assertEqual(A.Apps.pontos(self.GER, "lança no gerencia"), A.NOME_VALE)
+        self.assertEqual(A.Apps.pontos(self.INV, "invento"), 0, "parecido não é o nome")
+
+
 class TestAnexos(unittest.TestCase):
     def test_so_os_apps_que_leem_o_tipo(self):
         share = pasta_temp()

@@ -158,6 +158,36 @@ class TestAgente(unittest.TestCase):
         self.assertEqual(I.validar(esq, "x"), ["os argumentos: mande um objeto"])
         self.assertEqual(I.validar({"type": "object"}, {"a": 1}), [], "sem campos declarados, nada a conferir")
 
+    def test_o_nome_de_outra_foto_nao_vale(self):
+        """1.39.1 (o dono mandou outra foto com «Adicionar no escritório também» e a IA propôs «mais um <o item da foto de
+        antes>»): sem ler o arquivo novo, o nome que a pessoa não disse volta para a IA; insistindo, sai e o app lê a foto."""
+        from unittest import mock
+        base = next(f for f in self.ferr.todas() if f["grava"])
+        guarda = dict(base, id="gerencia_cadastrar_por_foto", nome="cadastrar_por_foto", titulo="Cadastrar pela foto", anexo=["image/jpeg"],
+                      entrada={"type": "object", "properties": {"comodo": {"type": "string"}, "nome": {"type": "string"}}, "required": ["comodo"]})
+        def velho():  # uma cópia a cada uso: o Agente tira o nome do próprio pedido
+            return {"chamar": [{"ferramenta": "gerencia_cadastrar_por_foto", "argumentos": {"comodo": "Escritório", "nome": "Divisor Azul"},
+                                "resumo": "Cadastrar mais um Divisor Azul no Escritório"}]}
+        sem_nome = {"chamar": [{"ferramenta": "gerencia_cadastrar_por_foto", "argumentos": {"comodo": "Escritório"}, "resumo": "Cadastrar a foto no Escritório"}]}
+        foto = {"tipo": "image/jpeg", "nome": "f", "b64": "x"}
+        with mock.patch.object(self.ferr, "todas", return_value=self.ferr.todas() + [guarda]):
+            ag = self.agente(velho(), sem_nome)
+            r = ag.responder(self.hist("Adicionar no escritório também"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto)
+            self.assertEqual([p["argumentos"] for p in r["pendente"]], [{"comodo": "Escritório"}])
+            self.assertIn("a pessoa não disse o nome «Divisor Azul». É outro arquivo, não o de antes", self.ia.pedidos[1])
+            self.assertIn("Este arquivo é outro, não o de antes na conversa", self.ia.pedidos[0])
+            r = self.agente(velho(), velho()).responder(self.hist("Adicionar no escritório também"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto)
+            self.assertEqual((r["pendente"][0]["argumentos"], r["pendente"][0]["resumo"]), ({"comodo": "Escritório"}, "Cadastrar pela foto: comodo: Escritório"),
+                             "insistindo, o nome sai e o resumo é o do app")
+            # o nome que a pessoa disse, ou o que a leitura do arquivo deu, vale
+            r = self.agente(velho()).responder(self.hist("põe o divisor no escritório"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto)
+            self.assertEqual(r["pendente"][0]["argumentos"]["nome"], "Divisor Azul")
+            r = self.agente(velho()).responder(self.hist("põe no escritório"), ANA, "correria", "CorrerIA", AGORA, foto="f, foto JPG", anexo=foto,
+                                             lido={"gerencia_ler_arquivo({})": "Divisor Azul"})
+            self.assertEqual(r["pendente"][0]["argumentos"]["nome"], "Divisor Azul")
+        self.assertFalse(I.nome_de_fora({"nome": ""}, "x"))
+        self.assertFalse(I.nome_de_fora("x", "x"))
+
     def test_o_arquivo_e_lido_uma_vez_por_conversa(self):
         """1.26.0 (o dono: cada «analisei de novo» vinha com outra lista): a leitura do arquivo fica guardada; a mesma leitura
         não chama o app de novo e as respostas seguintes falam dela."""

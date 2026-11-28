@@ -34,6 +34,13 @@ PALAVRAS = {
 }
 
 
+# 1.39.1: palavras do assunto de um app que qualquer frase tem: não dizem de que app é o pedido
+COMUNS = frozenset("para pela pelo pelas pelos casa como cada mais menos onde quando quem qual quais isso esse essa esses essas este esta "
+                   "estes estas tudo todo toda todos todas outro outra outros outras entre sobre seus suas dele dela deles delas fica ficam "
+                   "chegam chega pode podem cada".split())
+NOME_VALE = 3  # o nome do app na frase («põe no inventário») vale mais que uma palavra do assunto
+
+
 def _sem_acento(t):
     return "".join(c for c in unicodedata.normalize("NFD", str(t or "")) if unicodedata.category(c) != "Mn").lower()
 
@@ -146,10 +153,14 @@ class Apps:
 
     @staticmethod
     def pontos(app, texto):
-        """Quantas palavras do assunto do app há no texto."""
+        """Quantas palavras do assunto do app há no texto. 1.39.1 (o dono: a foto com «Comprei um desses para o escritório.
+        Adicionar no inventaria» foi para o GerencIA): as palavras que qualquer frase tem («para», «casa») não contam, e o nome
+        do app na frase vale NOME_VALE (também com a última letra trocada: «inventaria», «inventário»)."""
         palavras = set(re.findall(r"[a-z]+", _sem_acento(texto)))
-        vocab = set(PALAVRAS.get(app["app"], "").split()) | set(re.findall(r"[a-z]{4,}", _sem_acento(app["assunto"])))
-        return len(palavras & vocab)
+        vocab = set(PALAVRAS.get(app["app"], "").split()) | (set(re.findall(r"[a-z]{4,}", _sem_acento(app["assunto"]))) - COMUNS)
+        nomes = {app["app"], _sem_acento(app.get("nome") or "")} - {""}
+        nomeado = any(p in nomes or (len(p) >= 7 and any(len(n) == len(p) and p[:-1] == n[:-1] for n in nomes)) for p in palavras)
+        return len(palavras & vocab) + (NOME_VALE if nomeado else 0)
 
     def _pedir(self, app, rota, corpo=None, timeout=60, ferramenta=False):
         """GET (sem corpo) ou POST no app, com a chave. Tenta o nome do app na rede interna e depois o IP. Com

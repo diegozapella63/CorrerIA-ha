@@ -488,6 +488,11 @@ CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log, l
 FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None)  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
 NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
+# 1.39.1 (o dono: «Não entendi, não é o mesmo item» virou «Tudo bem, não mudei nada»): só um «não» (sem mais nada) fica nisso;
+# um «não» que explica ou corrige cancela a mudança e vai para a IA, que refaz pelo que a pessoa disse
+_NAO_SO = (r"(?:n|nao|não|não quero|nao quero|agora não|agora nao|melhor não|melhor nao|cancela|cancelar|deixa|deixa pra l[aá]|"
+           r"esquece|nada|não precisa|nao precisa|obrigad[oa]|valeu|tudo bem)")
+NAO_SO_RE = re.compile(rf"^\s*{_NAO_SO}(?:\s*[,;]?\s*{_NAO_SO})*\s*[.!]*\s*$", re.I)
 
 
 # ---------------------------------------------------------------- a IA do Home Assistant com as ferramentas dos apps
@@ -899,7 +904,9 @@ def responder_ia(chave, texto, hist, pessoa, canal, cliente):
                     return feito + "\n\n" + r["resposta"], nomes, False
             return feito, nomes, False
         if NAO_RE.match(texto):
-            return "Tudo bem, não mudei nada.", [], False
+            if NAO_SO_RE.match(texto):
+                return "Tudo bem, não mudei nada.", [], False
+            texto = f"{texto}\n(Não fiz a mudança que você propôs. Refaça pelo que eu disse; se precisar, leia o arquivo de novo.)"
     if not FERR.tem():
         return None
     CANAL.tipo = "whatsapp" if canal == "whatsapp" else "conversa"

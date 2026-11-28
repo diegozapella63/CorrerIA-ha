@@ -6,6 +6,7 @@ O pedido à IA vai em texto (as ferramentas, a conversa e os resultados) e ela d
 {"chamar": [{"ferramenta", "argumentos", "resumo"}], "resposta": ""}. Até RODADAS idas e voltas por mensagem."""
 import json
 import re
+import unicodedata
 from datetime import datetime
 
 import ferramentas as F
@@ -180,7 +181,8 @@ class Agente:
                           "guardar a foto numa tarefa ou num item, ache o id com uma ferramenta de leitura e chame a que guarda a foto. Para "
                           "cadastrar no inventário o que está na foto, chame a de cadastrar pela foto, sem pedir o nome: o app lê. Se a "
                           "pessoa não disse o que fazer com o arquivo nem de que app é, pergunte. Nunca descreva o arquivo sem tê-lo lido "
-                          "por uma ferramenta.")
+                          "por uma ferramenta. Este arquivo é outro, não o de antes na conversa: não suponha que é a mesma coisa (nem por um "
+                          "«também», que fala do que fazer, não do que é), e não use o nome nem o que foi lido de um arquivo anterior.")
         fatos = [str(x).strip() for x in (self.lembrancas() if self.lembrancas else []) if str(x).strip()]
         if fatos:
             partes.append("O que a casa pediu para você lembrar (vale em toda conversa; a pessoa vê e apaga em Configurações › Integrações › Memória da IA):\n"
@@ -218,7 +220,7 @@ class Agente:
         # e as respostas seguintes falam dessa mesma leitura (o dono: cada "analisei de novo" vinha com outra lista)
         lido = lido if isinstance(lido, dict) else {}
         leu_arquivo = bool(lido)  # o arquivo que a pessoa mandou foi lido por uma ferramenta (agora ou antes, nesta conversa)
-        usou_arquivo = False
+        usou_arquivo = trocou_nome = False
         recusadas = 0
         for rodada in range(RODADAS):
             ultima = rodada == RODADAS - 1
@@ -247,6 +249,20 @@ class Agente:
                     resultados.append(f"{f['id']}({json.dumps(c.get('argumentos'), ensure_ascii=False)}) → ERRO: não foi proposta, os argumentos não "
                                       f"servem: {'; '.join(p)}. Corrija e chame de novo (junto com as outras mudanças desta resposta).")
                 continue
+            # 1.39.1 (o dono mandou outra foto com «Adicionar no escritório também» e a IA propôs «mais um Splitter…», o nome da
+            # foto anterior): o arquivo à mão ainda não lido é outra coisa; o nome de uma gravação que recebe o arquivo vem da
+            # pessoa ou da leitura. Volta uma vez para a IA; depois, o nome sai (o app lê o arquivo) e o resumo é o do app.
+            de_outro = [(f, c) for f, c in gravar if anexo and not leu_arquivo and f.get("anexo") and nome_de_fora(c.get("argumentos"), pedido)]
+            if de_outro and not ultima and not trocou_nome:
+                trocou_nome = True
+                for f, c in de_outro:
+                    resultados.append(f"{f['id']}({json.dumps(c.get('argumentos'), ensure_ascii=False)}) → ERRO: não foi proposta: o arquivo desta "
+                                      f"mensagem ainda não foi lido e a pessoa não disse o nome «{c['argumentos']['nome']}». É outro arquivo, não o de "
+                                      "antes: mande sem o nome (o app lê o arquivo) ou leia antes com a ferramenta de ler do app e use o que ela devolver.")
+                continue
+            for f, c in de_outro:
+                c["argumentos"].pop("nome", None)
+                c["resumo"] = f"{f['titulo']}: {F.resumo_args(c['argumentos'])}"
             if gravar and leu_de_fora and not desconfiou and not ultima and any(f.get("apaga") for f, _ in gravar) and not APAGAR_RE.search(pedido):
                 desconfiou = True
                 resultados.append("ERRO: você propôs apagar algo, mas a pessoa não falou em apagar nesta mensagem. Se a ideia veio de um texto "
@@ -327,6 +343,19 @@ class Agente:
             if ultima:
                 break
         return {"resposta": SEM_RESPOSTA, "pendente": [], "apps": usados}
+
+
+def nome_de_fora(args, pedido):
+    """1.39.1: o nome numa gravação que não saiu da mensagem da pessoa (nenhuma palavra dele está no que ela escreveu)."""
+    nome = (args or {}).get("nome") if isinstance(args, dict) else None
+    if not isinstance(nome, str) or not nome.strip():
+        return False
+    dela = set(re.findall(r"[a-z0-9]{3,}", _dobra(pedido)))
+    return not (set(re.findall(r"[a-z0-9]{3,}", _dobra(nome))) & dela)
+
+
+def _dobra(t):
+    return "".join(c for c in unicodedata.normalize("NFD", str(t or "")) if unicodedata.category(c) != "Mn").lower()
 
 
 # 1.22.1: o pedido do sim é do app, nunca da IA. No histórico que vai para a IA, o bloco que o app escreveu vira uma nota

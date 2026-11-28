@@ -1,5 +1,11 @@
 # Mudanças
 
+## 1.39.1
+
+- Uma foto com uma legenda que pede outro app («Adicionar no inventário») não vai mais para o GerencIA: palavras que qualquer frase tem («para», «casa») deixaram de contar como assunto de finanças, e o nome do app na legenda conta (também com uma letra trocada, como «inventaria»).
+- Uma foto nova é outra coisa: a IA não usa mais o nome de uma foto anterior («mais um …») sem ler a nova; deixa o app ler a foto.
+- Um «não» que explica («Não, não é o mesmo item») desfaz a mudança proposta e a IA refaz pelo que você disse. Só um «não» sozinho fica no «Tudo bem, não mudei nada».
+
 ## 1.39.0
 
 - **Etapas novas** nas rondas (e no Adicionar etapa, 88 ao todo):
