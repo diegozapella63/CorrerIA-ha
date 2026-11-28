@@ -34,6 +34,22 @@ class TestFerramentas(unittest.TestCase):
         self.assertIn("é do inventário: busque lá", linhas[3])
         self.assertIn("Só diga que não achou depois de procurar, e diga onde procurou.", linhas[3])
 
+    def test_1_43_pergunta_de_decisao_cruza_os_apps(self):
+        """1.43.0: com dois apps ou mais para cruzar, a instrução manda ler cada um antes de responder a um «posso comprar…?»."""
+        self.assertEqual(self.f.cruzar(), "", "um app só: nada a cruzar")
+        self.assertNotIn("Pergunta de decisão", self.f.instrucoes())
+        ferr = lambda n: {"nome": n, "titulo": n, "descricao": n, "entrada": {"type": "object", "properties": {}}, "grava": False, "apaga": False}  # noqa: E731
+        for app, nome, lista in (("gerencia", "GerencIA", ["resumo", "previsao_mes", "lancar"]), ("inventario", "InventarIA", ["buscar_itens"])):
+            a = AppFalso(nome, ferramentas=[ferr(n) for n in lista])
+            self.addCleanup(a.fechar)
+            a.publicar(self.share, app)
+        t = self.f.cruzar()
+        self.assertIn("gerencia_resumo (o saldo em caixa e o que há investido); gerencia_previsao_mes (o gasto previsto no mês contra a média); "
+                      "inventario_buscar_itens (se a casa já tem um igual ou parecido (e a garantia dele))", t)
+        self.assertNotIn("economia_historico_precos", t, "só as ferramentas que existem")
+        self.assertIn("primeiro a conclusão", t)
+        self.assertTrue(self.f.instrucoes().endswith(t))
+
     def test_instrucoes_um_app_ligado_que_nao_responde(self):
         self.cron.chave = "outra"  # o app recusa a chave
         self.f.apps._ferr.clear()

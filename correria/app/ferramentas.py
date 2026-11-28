@@ -93,7 +93,32 @@ class Ferramentas:
                           "tem, usa ou guardou (\"o que eu tenho para…\", \"tenho algum…\", \"onde está…\") é do inventário: busque lá, "
                           "com mais de uma palavra se a primeira não achar (câmera, tripé, lente, celular). Se o assunto cabe em mais de "
                           "um app, procure em todos antes de responder. Só diga que não achou depois de procurar, e diga onde procurou.")
+            cruza = self.cruzar()
+            if cruza:
+                linhas.append(cruza)
         return "\n".join(linhas)
+
+    # 1.43.0 (o dono: "uma pergunta em vários apps… cruzar saldo, previsão, inventário e preços antes de responder. Pode fazer este")
+    CRUZAR = (("gerencia_resumo", "o saldo em caixa e o que há investido"), ("gerencia_previsao_mes", "o gasto previsto no mês contra a média"),
+              ("gerencia_contas_a_pagar", "as contas que ainda vencem"), ("inventario_buscar_itens", "se a casa já tem um igual ou parecido (e a garantia dele)"),
+              ("economia_historico_precos", "o preço de hoje contra a média, se o item está na lista de compras"),
+              ("cronologia_agenda", "o que já está marcado para a data"), ("resolvia_tarefas", "as tarefas ligadas ao assunto"))
+
+    def cruzar(self):
+        """A instrução das perguntas de decisão, que nenhum app responde sozinho («posso comprar uma TV nova?», «dá para viajar em
+        janeiro?»): antes de responder, ler cada app ligado que tem a ver. Só cita as ferramentas que existem agora; com menos
+        de dois apps para cruzar, nada."""
+        ids = {f["id"] for f in self.todas()}
+        tem = [(i, o) for i, o in self.CRUZAR if i in ids]
+        if len({i.split("_", 1)[0] for i, _ in tem}) < 2:
+            return ""
+        return ("Pergunta de decisão, que nenhum app responde sozinho (\"posso comprar…?\", \"dá para…?\", \"vale a pena trocar…?\", "
+                "\"cabe no mês…?\"): antes de responder, leia o que tem a ver, na mesma resposta: "
+                + "; ".join(f"{i} ({o})" for i, o in tem)
+                + ". Depois responda em poucas linhas: primeiro a conclusão (dá, dá com aperto ou melhor esperar), depois os números que a "
+                  "sustentam, cada um com o app de onde veio, e o que você não conseguiu ver. Não invente preço nem valor: sem o preço "
+                  "do que a pessoa quer comprar, pergunte quanto custa (ou pesquise na internet, se tiver essa ferramenta). A decisão é "
+                  "da pessoa: não proponha mudança nenhuma sem ela pedir.")
 
     def recebem(self, tipo):
         """1.17.0: os ids dos apps com uma ferramenta que recebe um arquivo desse tipo (uma foto para uma tarefa)."""

@@ -161,6 +161,10 @@ Embaixo de um «Feito!» aparece o **Desfazer**, por 10 minutos: a IA propõe o 
 
 Enquanto a IA trabalha, ao lado dos pontinhos aparece o que ela está fazendo. A resposta chega inteira (a IA do Home Assistant não manda o texto aos poucos).
 
+## Uma pergunta, vários apps
+
+Numa pergunta de decisão, que nenhum app responde sozinho ("posso comprar uma TV nova?", "dá para viajar em janeiro?", "vale a pena trocar a geladeira?"), a IA lê primeiro os apps ligados que têm a ver: o saldo, o gasto previsto no mês e as contas que ainda vencem (GerencIA), se a casa já tem um igual ou parecido (InventarIA), o preço de hoje contra a média (EconomIA), a agenda e as tarefas. A resposta vem com a conclusão primeiro, depois os números, cada um com o app de onde veio. Precisa de pelo menos dois apps ligados; sem o preço do que você quer comprar, ela pergunta.
+
 ## Resumo do dia e da semana
 
 Em **Mais › Configurações › Opções › Resumo** há duas chaves, desligadas de início:

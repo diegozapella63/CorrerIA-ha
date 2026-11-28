@@ -1,5 +1,9 @@
 # Mudanças
 
+## 1.43.0
+
+- **Uma pergunta, vários apps**: numa pergunta de decisão ("posso comprar uma TV nova?", "dá para viajar em janeiro?", "cabe no mês?"), a IA agora olha os apps que têm a ver antes de responder: o saldo, o gasto previsto no mês e as contas que vencem (GerencIA), se a casa já tem um igual (InventarIA), o preço contra a média (EconomIA) e a agenda. Responde primeiro a conclusão, depois os números, dizendo de que app veio cada um. Vale na Conversa, no WhatsApp e nas IAs conectadas.
+
 ## 1.42.0
 
 - **Resumo do dia** (Configurações › Opções › Resumo, desligado de início): no horário que você escolher, a IA lê os apps e manda para o seu celular o que importa hoje: a agenda e os remédios, as tarefas que vencem, as contas, o tempo, os consumíveis acabando e os gastos fora do padrão. O texto inteiro fica também na Conversa. Você escolhe quem recebe e pode **Testar no meu celular**.
