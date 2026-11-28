@@ -132,7 +132,7 @@ class TestConfig(Base):
         self.addCleanup(ha.fechar)
         with mock.patch.object(S, "TOKEN", "t"), mock.patch.object(S, "HA_API", ha.url + "/api"):
             self.assertTrue(S.FERR.tem())
-            self.assertEqual([f["id"] for f in S.FERR.todas()], ["casa_comando", "casa_estado", "casa_historico"])
+            self.assertEqual([f["id"] for f in S.FERR.todas()], ["casa_comando", "casa_estado", "casa_historico", "casa_tempo", "casa_manutencao", "casa_avisar"])
             texto, nomes = S.executar([{"ferramenta": "casa_comando", "argumentos": {"pedido": "liga a luz da entrada"}, "resumo": "Ligar a luz da entrada"}], {"id": "person.ana", "nome": "Ana"}, "WhatsApp")
             self.assertEqual((texto, nomes), ("Feito!\n- Luz da entrada ligada", ["Casa"]))
             metodo, caminho, cab, corpo = ha.pedidos[-1]
@@ -265,6 +265,23 @@ class TestResponder(Base):
         self.assertEqual((c["texto"], c["historico"], c["pessoa"]), ("Quanto gastei?", [], {"id": "person.ana", "nome": "Ana"}))
         self.assertEqual(self.registro(), [("recebida", "Ana", "Quanto gastei?"), ("enviada", "Ana", "Resposta para *Ana*: Quanto gastei?")])
         self.assertEqual(S.ler_conversas()["registro"][0]["app"], "GerencIA")
+
+    def test_ronda_pelo_whatsapp(self):
+        """1.41.0: «ronda» é respondido pelas rondas (sem ir ao app); no meio de uma ronda, a resposta leva os botões Próxima e Sair."""
+        self.configurar()
+        self.addCleanup(S.RONDAS_ATIVAS.clear)
+        self.addCleanup(S.RONDAS_WA.clear)
+        self.mandar(texto("Ronda"))
+        self.assertEqual(self.gerencia.pedidos, [], "não foi para o app")
+        self.assertRegex(self.meta.textos()[-1][1], r"^(Qual ronda\?|Nenhuma ronda disponível)")
+        self.assertEqual(S.historico(ANA_WA)[0]["texto"], "Ronda")
+        eid = S.rondas.RONDAS["compras"]["etapas"][0]["id"]
+        S.RONDAS_ATIVAS["wa:" + W.canonico(ANA_WA)] = {"id": "compras", "onde": "", "i": 0, "etapas": [eid], "opcoes": [], "em": time.time()}
+        self.mandar(texto("Quanto gastei?", mid="wamid.2"))
+        self.assertEqual(self.meta.botoes()[-1], [("proxima", "Próxima"), ("sair", "Sair da ronda")])
+        self.mandar(texto("Sair da ronda", mid="wamid.3"))
+        self.assertEqual(self.meta.textos()[-1][1], "Saí da Ronda de compras.")
+        self.assertEqual(S.RONDAS_ATIVAS, {})
 
     def test_a_conversa_vai_junto(self):
         self.configurar()
@@ -823,6 +840,20 @@ class TestComFerramentas(Base):
         self.assertEqual(oct(os.stat(S.MEMORIA_ARQ).st_mode & 0o777), "0o600")
         with self.assertRaisesRegex(ValueError, "Escreva o que é para lembrar"):
             S.lembrar(" a ")
+        # 1.41.0: correria_lembrancas e correria_esquecer (ver e apagar pela IA; guardar é o correria_lembrar)
+        S.lembrar("O mercado da casa é o da esquina", {"nome": "Beto"})
+        t = S.texto_lembrancas().splitlines()
+        self.assertEqual(t[0], "2 frases na Memória da IA da casa:")
+        self.assertRegex(t[1], r"^1\. Creme é sempre Higiene \(CorrerIA, \d\d/\d\d/\d{4}\)$")
+        for v, erro in (("", "Falta a frase"), ("9", "Não achei"), ("pizza", "Não achei"), (" é ", "2 frases têm esse trecho")):
+            with self.assertRaisesRegex(ValueError, erro):
+                S.esquecer_frase(v)
+        self.assertEqual(S.esquecer_frase("mercado da CASA"), "Apagada da Memória da IA: «O mercado da casa é o da esquina».")
+        self.assertEqual([x["texto"] for x in S.lembrancas()], ["Creme é sempre Higiene"])
+        S.lembrar("Outra frase qualquer")
+        self.assertEqual(S.esquecer_frase("2"), "Apagada da Memória da IA: «Outra frase qualquer».")
+        nomes = {d["nome"]: (d["grava"], d["apaga"]) for d, _ in S.FERR.proprias}
+        self.assertEqual((nomes["lembrancas"], nomes["esquecer"]), ((False, False), (True, True)))
         # outro app escreveu no mesmo arquivo: aparece aqui
         M.lembrar("O café é sempre o da marca azul", "EconomIA", arquivo=S.MEMORIA_ARQ)
         self.assertEqual([x["app"] for x in S.lembrancas()], ["CorrerIA", "EconomIA"])
@@ -1187,7 +1218,7 @@ class TestMcpHttp(Base):
         self.assertEqual((st, r["result"]["serverInfo"]["name"]), (200, "correria"))
         self.assertEqual(self.mcp(tok, "notifications/initialized", mid=None)[0], 202)
         st, r = self.mcp(tok, "tools/list")
-        self.assertEqual([t["name"] for t in r["result"]["tools"]], ["gerencia_resumo", "gerencia_lancar", "gerencia_apagar", "correria_rondas"])
+        self.assertEqual([t["name"] for t in r["result"]["tools"]], ["gerencia_resumo", "gerencia_lancar", "gerencia_apagar", "correria_rondas", "correria_lembrancas", "correria_esquecer"])
         st, r = self.mcp(tok, "tools/call", {"name": "gerencia_lancar", "arguments": {"descricao": "Feira", "valor": 12}})
         self.assertEqual(r["result"]["isError"], False)
         self.assertEqual((self.app.feitos[-1]["pessoa"]["nome"], self.app.feitos[-1]["cliente"]), ("Ana", "Claude"))

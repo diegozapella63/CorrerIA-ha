@@ -125,7 +125,7 @@ class Ferramentas:
             if not casa:
                 return "A casa do Home Assistant está desligada no CorrerIA.", True
             try:
-                return casa.usar(f["nome"], args), False
+                return casa.usar(f["nome"], args, pessoa), False
             except C.ErroCasa as e:
                 return str(e), True
         try:

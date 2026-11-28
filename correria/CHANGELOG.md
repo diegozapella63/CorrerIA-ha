@@ -1,5 +1,14 @@
 # Mudanças
 
+## 1.41.0
+
+- **Ronda pelo WhatsApp**: mande **ronda** e escolha qual (ou mande direto «ronda da noite», «ronda da casa cozinha»). Cada etapa chega com os botões **Próxima** e **Sair da ronda**; «voltar» volta uma. O que você responde é da etapa, e as mudanças esperam o Sim, como na tela.
+- **Recados**: «avisa o Beto que cheguei» manda um aviso para o celular dele (ou de todos), depois do Sim.
+- **Previsão do tempo** e **a casa em dia** (as atualizações pendentes, as automações desligadas e o último backup do Home Assistant) pela IA.
+- **Memória da IA**: a IA agora mostra as frases guardadas e apaga uma («esquece a frase do mercado»).
+- **Onze etapas novas** nas rondas (104 no Adicionar etapa): Tempo de hoje, Casa em dia, O que mais subiu, Projeção, Promoção de verdade, Preços de hoje, Tarefas paradas, Pendências por lista, Garantias vencendo, O que ver hoje e Memória da IA.
+- Pedem os apps atualizados: GerencIA 1.96.0, EconomIA 1.59.0, ResolvIA 2.100.0, InventarIA 1.113.0 e OdisseIA 0.15.0. Num app mais antigo, a etapa só não aparece.
+
 ## 1.40.0
 
 - **Histórico da casa**: a IA agora sabe o que aconteceu num dia com as coisas do Home Assistant: «a porta abriu de madrugada?», «quanto tempo a luz ficou acesa ontem?», «que temperatura fez no quarto?», «quanto gastou de energia ontem?». Só lê.

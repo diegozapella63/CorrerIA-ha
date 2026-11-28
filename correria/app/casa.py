@@ -68,6 +68,25 @@ FERRAMENTAS = [
                                                   "dia": {"type": "string", "description": "hoje, ontem ou AAAA-MM-DD."}},
                  "additionalProperties": False},
      "grava": False, "apaga": False},
+    # 1.41.0 (o dono, às ferramentas que faltavam: "pode seguir em todas"): a previsão do tempo, a casa em dia e um recado
+    {"nome": "tempo", "titulo": "Previsão do tempo",
+     "descricao": "O tempo de agora e a previsão dos próximos dias (a máxima, a mínima e a chuva), pela previsão do tempo do Home "
+                  "Assistant. Não mexe em nada.",
+     "entrada": {"type": "object", "properties": {"dias": {"type": "integer", "minimum": 1, "maximum": 7, "description": "Quantos dias (padrão 3)."}},
+                 "additionalProperties": False},
+     "grava": False, "apaga": False},
+    {"nome": "manutencao", "titulo": "A casa em dia",
+     "descricao": "O que o Home Assistant tem para cuidar: as atualizações pendentes (com a versão), as automações desligadas e "
+                  "quando foi o último backup. Não mexe em nada: para atualizar, a pessoa usa as Configurações do Home Assistant.",
+     "entrada": {"type": "object", "properties": {}, "additionalProperties": False},
+     "grava": False, "apaga": False},
+    {"nome": "avisar", "titulo": "Mandar um recado",
+     "descricao": "Manda um recado para o celular de uma pessoa da casa (o aviso do app Home Assistant): para quem (o nome, ou "
+                  "«todos») e a mensagem, como a pessoa ditou. Só para pessoas da casa.",
+     "entrada": {"type": "object", "properties": {"para": {"type": "string", "description": "O nome da pessoa da casa, ou todos."},
+                                                  "mensagem": {"type": "string", "description": "O recado (até 300 letras)."}},
+                 "required": ["para", "mensagem"], "additionalProperties": False},
+     "grava": True, "apaga": False},
 ]
 
 
@@ -121,12 +140,24 @@ def ligado(s):
 
 
 class Casa:
-    def __init__(self, get, post, log, texto=None):
+    def __init__(self, get, post, log, texto=None, recado=None):
         self.get, self.post, self.log = get, post, log  # get(caminho) e post(caminho, corpo): a API do Home Assistant
         self.texto = texto  # texto(modelo): o que o /api/template responde (as áreas, para o cômodo)
+        self.recado = recado  # 1.41.0: recado(para, mensagem, de) -> texto (o servidor sabe os celulares de cada pessoa)
 
-    def usar(self, nome, args):
+    def usar(self, nome, args, pessoa=None):
         args = args if isinstance(args, dict) else {}
+        if nome == "tempo":
+            return self.tempo(args.get("dias"))
+        if nome == "manutencao":
+            return self.manutencao()
+        if nome == "avisar":
+            para, msg = re.sub(r"\s+", " ", str(args.get("para") or "")).strip()[:60], re.sub(r"\s+", " ", str(args.get("mensagem") or "")).strip()[:300]
+            if not para or not msg:
+                raise ErroCasa("Faltam para (o nome da pessoa, ou todos) e a mensagem.")
+            if not self.recado:
+                raise ErroCasa("Os recados não estão disponíveis aqui.")
+            return self.recado(para, msg, pessoa)
         if nome == "comando":
             return self.comando(str(args.get("pedido") or "").strip())
         if nome == "estado":
@@ -157,6 +188,84 @@ class Casa:
             raise ErroCasa(fala or f"Não deu: {', '.join(map(str, falhou))}.")
         feitos = [x.get("name") or x.get("id") for x in dados.get("success") or [] if isinstance(x, dict) and x.get("type") == "entity"]
         return (fala or "Feito.") + (f" ({', '.join(map(str, feitos[:8]))})" if feitos and not any(str(n) in fala for n in feitos) else "")
+
+    def _estados(self):
+        try:
+            todos = self.get("/states")
+        except Exception as e:  # noqa: BLE001
+            raise ErroCasa(f"O Home Assistant não respondeu ({str(e).rstrip('.')}).") from e
+        return [s for s in todos or [] if isinstance(s, dict)]
+
+    def tempo(self, dias=None):
+        """1.41.0: o tempo de agora (a primeira entidade weather.*) e a previsão de cada dia, pelo weather.get_forecasts."""
+        try:
+            n = max(1, min(7, int(dias))) if dias is not None else 3
+        except (TypeError, ValueError):
+            raise ErroCasa("dias: de 1 a 7.") from None
+        w = sorted((s for s in self._estados() if str(s.get("entity_id", "")).startswith("weather.") and s.get("state") not in ("unavailable", "unknown")),
+                   key=lambda s: s["entity_id"])
+        if not w:
+            raise ErroCasa("Não há previsão do tempo no Home Assistant (Configurações › Dispositivos e serviços › Adicionar integração, uma de tempo).")
+        s = w[0]
+        a = s.get("attributes") or {}
+        un = a.get("temperature_unit") or "°C"
+        agora = f"Agora ({a.get('friendly_name') or s['entity_id']}): {TEMPO.get(s.get('state'), s.get('state'))}"
+        if _num(a.get("temperature")) is not None:
+            agora += f", {_br(_num(a['temperature']))} {un}"
+        if _num(a.get("humidity")) is not None:
+            agora += f", umidade {_br(_num(a['humidity']), 0)}%"
+        linhas = [agora + "."]
+        try:
+            r = self.post("/services/weather/get_forecasts?return_response", {"entity_id": s["entity_id"], "type": "daily"})
+            prev = (((r or {}).get("service_response") or {}).get(s["entity_id"]) or {}).get("forecast") or []
+        except Exception as e:  # noqa: BLE001 (a integração sem a previsão diária)
+            self.log(f"Casa: a previsão do tempo não veio ({e})")
+            prev = []
+        for i, d in enumerate([x for x in prev if isinstance(x, dict)][:n]):
+            dia = str(d.get("datetime") or "")[:10]
+            nome = ("Hoje", "Amanhã")[i] if i < 2 else (f"{dia[8:10]}/{dia[5:7]}" if len(dia) == 10 else f"Dia {i + 1}")
+            t = f"{nome}: {TEMPO.get(d.get('condition'), d.get('condition') or 'sem previsão')}"
+            if _num(d.get("temperature")) is not None:
+                t += f", máxima {_br(_num(d['temperature']), 0)} {un}"
+            if _num(d.get("templow")) is not None:
+                t += f", mínima {_br(_num(d['templow']), 0)} {un}"
+            if _num(d.get("precipitation_probability")) is not None:
+                t += f", {_br(_num(d['precipitation_probability']), 0)}% de chance de chuva"
+            if _num(d.get("precipitation")):
+                t += f" ({_br(_num(d['precipitation']))} mm)"
+            linhas.append(t + ".")
+        if len(linhas) == 1:
+            linhas.append("Essa previsão do tempo não dá os próximos dias.")
+        return "\n".join(linhas)
+
+    def manutencao(self, agora=None):
+        """1.41.0: as atualizações pendentes (update.* ligado), as automações desligadas e o último backup (os sensores do
+        Backup do Home Assistant, sensor.backup_last_successful_automatic_backup)."""
+        todos = self._estados()
+        nome = lambda s: str((s.get("attributes") or {}).get("friendly_name") or s.get("entity_id"))  # noqa: E731
+        ups = sorted((s for s in todos if str(s.get("entity_id", "")).startswith("update.") and s.get("state") == "on"), key=lambda s: dobrar(nome(s)))
+        autos = sorted((nome(s) for s in todos if str(s.get("entity_id", "")).startswith("automation.") and s.get("state") == "off"), key=dobrar)
+        linhas = [f"{len(ups)} {'atualização pendente' if len(ups) == 1 else 'atualizações pendentes'}" + (":" if ups else ".")]
+        for s in ups[:12]:
+            a = s.get("attributes") or {}
+            linhas.append(f"- {a.get('title') or nome(s)}" + (f": {a.get('installed_version')} → {a.get('latest_version')}" if a.get("latest_version") else ""))
+        if len(ups) > 12:
+            linhas.append(f"- e mais {len(ups) - 12}")
+        linhas.append(f"{len(autos)} {'automação desligada' if len(autos) == 1 else 'automações desligadas'}" + (": " + ", ".join(autos[:10]) + ("…" if len(autos) > 10 else "") + "." if autos else "."))
+        bk = next((s for s in todos if str(s.get("entity_id", "")).startswith("sensor.backup_last_successful")), None)
+        quando_foi = None
+        if bk:
+            try:
+                quando_foi = datetime.fromisoformat(str(bk.get("state")).replace("Z", "+00:00"))
+            except ValueError:
+                quando_foi = None
+        if quando_foi:
+            agora = agora or datetime.now(quando_foi.tzinfo)
+            d = max(0, (agora - quando_foi).days)
+            linhas.append("Último backup do Home Assistant: " + ("hoje" if d == 0 else "ontem" if d == 1 else f"há {d} dias") + ("." if d <= 7 else ": faz mais de uma semana."))
+        else:
+            linhas.append("Não sei do último backup (o Home Assistant não tem o backup automático ligado, ou não o mostra)." if not bk else "Ainda não há um backup automático feito.")
+        return "\n".join(linhas)
 
     def areas(self):
         """{id: área} de tudo o que tem área no Home Assistant, ou None sem o /api/template."""
@@ -382,6 +491,9 @@ def linha_do_dia(s, pts, ini, fim, nome_dia):
 
 # 1.38.0 (o dono: "cria mais para a casa, energia, cores da luz talvez, temperatura cômodos?"): as visões prontas do
 # casa_estado, para as etapas das rondas. Cada linha diz o cômodo (a área do Home Assistant), quando há.
+TEMPO = {"clear-night": "céu limpo", "cloudy": "nublado", "fog": "neblina", "hail": "granizo", "lightning": "raios", "lightning-rainy": "tempestade",
+         "partlycloudy": "parcialmente nublado", "pouring": "chuva forte", "rainy": "chuva", "snowy": "neve", "snowy-rainy": "neve com chuva",
+         "sunny": "sol", "windy": "vento", "windy-variant": "vento com nuvens", "exceptional": "tempo fora do comum"}
 TIPOS = ("energia", "temperatura", "luzes", "seguranca", "baterias", "sem_resposta")
 BATERIA_FRACA = 20
 # o nome da cor de uma luz pelo matiz (0 a 360) do hs_color; pouca saturação é branca

@@ -343,6 +343,36 @@ MAIS = {"mais": {"nome": "Mais etapas", "onde": None, "resumo": "", "etapas": [
     _e("novidades_conferir", "Conferência", "Conferir novidades", "inventario", "InventarIA", "inventario_conferir_novidades", "Quer que eu confira as novidades agora?",
        "Use inventario_novidades com limite 1 e diga de quando é a última conferência (conferido_em) e quantas novidades há. O TOTAL é 1 se a última "
        "conferência tem mais de 30 dias ou nunca foi feita e 0 se é mais nova.", so_com="novidades", se_tem=True, tambem=("inventario_novidades",)),
+    # 1.41.0 (o dono, às etapas que faltavam: "pode seguir em todas" e "pode adicionar esses também"): com as ferramentas novas da
+    # casa (casa_tempo, casa_manutencao), a correria_lembrancas e as dos apps (GerencIA 1.96.0, EconomIA 1.59.0, ResolvIA 2.100.0,
+    # InventarIA 1.113.0 e OdisseIA 0.15.0); cada uma no seu grupo
+    _e("tempo_hoje", "Tempo", "Tempo de hoje", "casa", "Casa", "casa_tempo", "Quer mudar algum compromisso por causa do tempo?",
+       "Use casa_tempo com dias 2 e conte o tempo de agora e a previsão de hoje e de amanhã. O TOTAL é 1 se a previsão de hoje tem chuva forte, "
+       "tempestade, granizo ou mais de 60% de chance de chuva e 0 se não.", se_tem=True, tambem=("cronologia_editar_compromisso",)),
+    _e("casa_em_dia", "Casa em dia", "Casa em dia", "casa", "Casa", "casa_manutencao", "Quer criar uma tarefa para cuidar de algum desses?",
+       "Use casa_manutencao e conte as atualizações pendentes (com a versão), as automações desligadas e o último backup. O TOTAL é o das "
+       "atualizações mais o das automações desligadas, mais 1 se o backup tem mais de uma semana.", se_tem=True, tambem=("resolvia_criar_tarefa",)),
+    _e("subiu", "Gastos", "O que mais subiu", "gerencia", "GerencIA", "gerencia_comparar_meses", "Quer rever algum desses gastos?",
+       "Use gerencia_comparar_meses e conte o total dos dois meses e as categorias que subiram (até 6; o TOTAL é só o das que subiram).", se_tem=True),
+    _e("projecao", "Projeção", "Projeção dos investimentos", "gerencia", "GerencIA", "gerencia_projecao", "Quer simular com um aporte por mês?",
+       "Use gerencia_projecao com meses 12 e conte quanto há hoje e quanto os investimentos viram em um ano (o TOTAL é o dos investimentos).", se_tem=True),
+    _e("promocao", "Preços bons", "Promoção de verdade", "economia", "EconomIA", "economia_historico_precos", "Quer aproveitar algum desses preços?",
+       "Use economia_historico_precos sem produto e conte só os itens da lista que estão abaixo da média hoje (o preço, a loja e a média; até 8; "
+       "o TOTAL é só o dos que estão abaixo da média).", se_tem=True),
+    _e("precos_hoje", "Busca", "Preços de hoje", "economia", "EconomIA", "economia_buscar_agora", "Quer que eu busque os preços agora?",
+       "Use economia_lista e diga quantos itens há na lista e quantos estão sem preço (o TOTAL é o dos itens da lista).", se_tem=True, tambem=("economia_lista",)),
+    _e("memoria_ia", "Memória", "Memória da IA", "correria", "CorrerIA", "correria_esquecer", "Alguma dessas frases não vale mais?",
+       "Use correria_lembrancas e conte as frases guardadas, com o número de cada uma (até 20).", se_tem=True, tambem=("correria_lembrancas",)),
+    _e("paradas", "Paradas", "Tarefas paradas", "resolvia", "ResolvIA", "resolvia_editar_tarefa", "Quer dar um prazo a alguma dessas?",
+       "Use resolvia_tarefas com na_lista_ha_dias 30 e quando sem_prazo e conte as tarefas sem prazo que estão na lista há mais de um mês "
+       "(a tarefa e há quantos dias; até 8).", se_tem=True, tambem=("resolvia_tarefas",)),
+    _e("pendencias", "Pendências", "Pendências por lista", "resolvia", "ResolvIA", "resolvia_relatorio", "Quer ver as tarefas de alguma dessas listas?",
+       "Use resolvia_relatorio e conte as pendentes e as atrasadas de cada lista (o TOTAL é o das pendentes).", se_tem=True),
+    _e("garantias", "Garantias", "Garantias vencendo", "inventario", "InventarIA", "inventario_buscar_itens", "Quer acionar alguma dessas garantias?",
+       "Use inventario_buscar_itens com garantia_em_dias 60 e conte os itens com a garantia que acaba nos próximos dois meses (o item e até quando; até 8).",
+       se_tem=True),
+    _e("ver_hoje", "Sugestões de hoje", "O que ver hoje", "odisseia", "OdisseIA", "odisseia_sugerir", "Quer começar algum desses?",
+       "Use odisseia_sugerir com quantos 5 e conte as sugestões, cada uma com o porquê.", se_tem=True),
 ]}}
 for _x in MAIS["mais"]["etapas"]:
     _x["orig"], _x["da"] = _x["id"], "mais"
@@ -356,26 +386,26 @@ def _ronda_de_mais(nome, resumo, ids):
 
 for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os investimentos, as oportunidades, as milhas, os bens, os itens de valor e as novidades dos equipamentos.",
                                                ["invest", "invest_vence", "invest_novo", "oportunidades", "milhas", "bens", "bem_novo", "valiosos", "sem_valor", "sem_foto", "novidades",
-                                                "novidades_conferir", "recursos"])),
+                                                "novidades_conferir", "garantias", "recursos"])),
                  ("semana", _ronda_de_mais("Ronda da semana", "Uma vez por semana: as tarefas, os serviços externos, a agenda, os aniversários, as manutenções, os remédios, "
                                            "os consumíveis que acabam, as contas atrasadas, o placar e o prêmio.",
-                                           ["hoje", "comece", "semana", "externos", "agenda_semana", "aniversarios", "manut", "equip_sem_manut", "remedios",
+                                           ["hoje", "comece", "semana", "paradas", "pendencias", "externos", "agenda_semana", "aniversarios", "manut", "equip_sem_manut", "remedios",
                                             "consumiveis_semana", "atrasadas", "placar", "premio", "premio_entregue"])),
                  # 1.36.0: a do OdisseIA, sem cômodo
                  ("lazer", _ronda_de_mais("Ronda do lazer", "As séries em andamento, o que vai sair, o que a casa quer ver e jogar, quem viu e as sugestões.",
-                                          ["continuar", "quem_viu", "lancamentos", "quero_ver", "quero_jogar", "em_alta", "estreias", "colecoes", "assinaturas_uso"])),
+                                          ["continuar", "quem_viu", "lancamentos", "quero_ver", "quero_jogar", "ver_hoje", "em_alta", "estreias", "colecoes", "assinaturas_uso"])),
                  # 1.37.0: cinco rondas novas, todas com as etapas do MAIS
                  ("dia", _ronda_de_mais("Ronda do dia", "De manhã: a agenda, os remédios e as tarefas de hoje, e por onde começar.",
-                                        ["agenda_hoje", "remedio_hoje", "hoje", "comece", "pular", "sai_hoje"])),
+                                        ["tempo_hoje", "agenda_hoje", "remedio_hoje", "hoje", "comece", "pular", "sai_hoje"])),
                  ("noite", _ronda_de_mais("Ronda da noite", "Antes de dormir: o que ficou ligado ou aberto, os remédios, o que falta marcar e o dia de amanhã.",
-                                          ["ligado", "remedio_hoje", "agenda_hoje", "sai_hoje", "amanha"])),
+                                          ["ligado", "remedio_hoje", "agenda_hoje", "sai_hoje", "ver_hoje", "amanha"])),
                  ("financas", _ronda_de_mais("Ronda das finanças", "As faturas do e-mail, as contas atrasadas, os lançamentos, o saldo, os benefícios e as milhas.",
-                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "milhas", "assinaturas", "assinaturas_uso", "dicas"])),
+                                             ["faturas_email", "atrasadas", "lancados", "recebidos", "saldo", "beneficios", "subiu", "projecao", "milhas", "assinaturas", "assinaturas_uso", "dicas"])),
                  ("anotacoes", _ronda_de_mais("Ronda das anotações", "Os blocos, as últimas folhas, os horários, as categorias, os parados e os arquivados.",
                                               ["blocos", "folhas", "horarios", "sem_horario", "sem_categoria", "parados", "arquivados"])),
                  # 1.38.0: a casa no Home Assistant, sem cômodo
                  ("aparelhos", _ronda_de_mais("Ronda dos aparelhos", "A casa no Home Assistant: o que ficou ligado, o consumo, as luzes, a temperatura, as portas, as baterias e o que não responde.",
-                                              ["ligado", "energia", "energia_ontem", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "aspirador", "equip_sem_manut", "recursos"])),
+                                              ["ligado", "energia", "energia_ontem", "luzes", "temperatura", "seguranca", "baterias", "sem_resposta", "casa_em_dia", "aspirador", "equip_sem_manut", "recursos"])),
                  ("viagem", _ronda_de_mais("Ronda da viagem", "Antes de viajar: as férias, as contas do período, os remédios, as compras e a casa.",
                                            ["ferias", "contas_viagem", "remedios_levar", "lista_viagem", "ligado"]))):
     RONDAS[_rid] = _r
@@ -384,10 +414,10 @@ for _rid, _r in (("patrimonio", _ronda_de_mais("Ronda do patrimônio", "Os inves
 
 # 1.37.0: e etapas do MAIS também nas rondas daqui que não são feitas só delas: (ronda, depois de qual etapa, [as do MAIS])
 for _rid, _depois, _ids in (("casa", "rotina_sai", ["manut"]), ("casa", "manut", ["equip_sem_manut"]), ("casa", "item_mudou", ["sem_foto"]), ("casa", "pet", ["ligado"]),
-                            ("compras", "acabando", ["repor_sozinho"]), ("compras", "ofertas", ["cupons"]),
+                            ("compras", "acabando", ["repor_sozinho"]), ("compras", "ofertas", ["promocao", "cupons", "precos_hoje"]),
                             ("chegada", "fora", ["reposto"]),
                             ("mes", "contas", ["recebidos", "fixos", "saldo", "faturas_email"]), ("mes", "tarefas", ["repete"]),
-                            ("mes", "repor", ["parados"])):
+                            ("mes", "repor", ["parados", "memoria_ia"]), ("mes", "saldo", ["subiu"])):
     _por_id = {e["id"]: e for e in MAIS["mais"]["etapas"]}
     for _r in (RONDAS[_rid], PADRAO[_rid]):
         _k = next(i for i, e in enumerate(_r["etapas"]) if e["id"] == _depois) + 1
@@ -613,7 +643,7 @@ def disponiveis(ferr, pessoa=None):
     out = []
     for rid, r in RONDAS.items():
         etapas = [e for e in r["etapas"] if all(f in ids for f in precisa_todas(e)) and (not e.get("so_com") or e["so_com"] in ligado)]
-        if etapas:
+        if etapas and any(e["app"] != "correria" for e in etapas):  # 1.41.0: só com a etapa daqui (a Memória da IA), a ronda não aparece
             onde = comodos if r["onde"] else []
             out.append({"id": rid, "nome": r["nome"], "resumo": r["resumo"],
                         "etapas": [{"id": e["id"], "titulo": e["titulo"], "grupo": e["grupo"], "app": e["nome_app"]} for e in etapas],
@@ -840,7 +870,19 @@ VAZIO = {"Tarefas": ("Nenhuma tarefa encontrada.", "tarefa", "tarefas"), "Rotina
          "Estreias de hoje": ("Nada sai hoje.", "lançamento hoje", "lançamentos hoje"),
          "Consumo": ("Nenhum medidor de energia com histórico de ontem.", "medidor de energia", "medidores de energia"),
          "Dicas": ("Nenhuma dica de economia agora.", "dica de economia", "dicas de economia"),
-         "Conferência": ("As novidades foram conferidas há pouco.", "conferência atrasada", "conferências atrasadas")}
+         "Conferência": ("As novidades foram conferidas há pouco.", "conferência atrasada", "conferências atrasadas"),
+         # 1.41.0
+         "Tempo": ("O tempo de hoje não atrapalha.", "aviso do tempo", "avisos do tempo"),
+         "Casa em dia": ("O Home Assistant está em dia.", "coisa para cuidar", "coisas para cuidar"),
+         "Gastos": ("Nenhuma categoria subiu.", "categoria subiu", "categorias subiram"),
+         "Projeção": ("Nenhum investimento para projetar.", "investimento", "investimentos"),
+         "Preços bons": ("Nenhum item da lista abaixo da média hoje.", "item abaixo da média", "itens abaixo da média"),
+         "Busca": ("A lista está vazia.", "item na lista", "itens na lista"),
+         "Memória": ("A Memória da IA está vazia.", "frase na Memória da IA", "frases na Memória da IA"),
+         "Paradas": ("Nenhuma tarefa parada há mais de um mês.", "tarefa parada", "tarefas paradas"),
+         "Pendências": ("Nenhuma tarefa pendente.", "tarefa pendente", "tarefas pendentes"),
+         "Garantias": ("Nenhuma garantia acaba nos próximos dois meses.", "garantia vencendo", "garantias vencendo"),
+         "Sugestões de hoje": ("Nada na lista para sugerir.", "sugestão", "sugestões")}
 
 
 def vazio(rid, eid, achou):

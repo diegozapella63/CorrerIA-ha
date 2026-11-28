@@ -483,16 +483,26 @@ SO_TEXTO = "Por enquanto eu entendo texto, áudio, foto e PDF."
 NAO_LE = "Esse tipo de arquivo eu ainda não leio. Mande uma foto ou um PDF."
 ROTULO = {"image": "foto", "document": "arquivo", "audio": "áudio"}
 SEM_APP = "Ainda não há app ligado por aqui. Em cada app, ligue Mais › Configurações › Integrações › CorrerIA."
-CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log, lambda m: ha_texto("/template", {"template": m}))
+CASA = casa.Casa(lambda c: ha_get(c), lambda c, corpo: ha_post(c, corpo), log, lambda m: ha_texto("/template", {"template": m}),
+                 recado=lambda para, msg, pessoa: mandar_recado(para, msg, pessoa))
 # 1.5.0: a casa do Home Assistant (o Assist) entra como mais um app, ligada de início (Configurações › Integrações › Casa)
 # 1.40.0 (o dono, às ferramentas que faltavam: "pode seguir neles"): as rondas também pela IA («tem ronda atrasada?»)
 RONDAS_F = {"nome": "rondas", "titulo": "Rondas da casa", "grava": False, "apaga": False,
             "descricao": "As rondas do CorrerIA (os roteiros pelos apps: a da casa, por cômodo, a da semana, a das finanças…): quando foi a "
                          "última vez de cada uma (de cada cômodo, numa por cômodo), o aviso de cada uma e as que estão atrasadas. Só lê: uma "
-                         "ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa.",
+                         "ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa, ou no WhatsApp, mandando «ronda».",
             "entrada": {"type": "object", "properties": {}, "additionalProperties": False}}
+# 1.41.0 (o dono, às ferramentas que faltavam: "pode seguir em todas"): ver e apagar as frases da Memória da IA (guardar é o correria_lembrar)
+LEMBRANCAS_F = {"nome": "lembrancas", "titulo": "Memória da IA", "grava": False, "apaga": False,
+                "descricao": "As frases guardadas na Memória da IA da casa (a que todos os apps leem), numeradas, com o app e o dia em que cada uma entrou.",
+                "entrada": {"type": "object", "properties": {}, "additionalProperties": False}}
+ESQUECER_F = {"nome": "esquecer", "titulo": "Apagar da Memória da IA", "grava": True, "apaga": True,
+              "descricao": "Apaga uma frase da Memória da IA da casa: pelo número de correria_lembrancas ou por um trecho dela.",
+              "entrada": {"type": "object", "properties": {"frase": {"type": "string", "description": "O número da frase, ou um trecho dela."}},
+                          "required": ["frase"], "additionalProperties": False}}
 FERR = ferramentas.Ferramentas(lambda: APPS, log, casa=lambda: CASA if (TOKEN and ler_config()["casa"]) else None,
-                               proprias=[(RONDAS_F, lambda args, pessoa: texto_rondas(pessoa))])  # o APPS de agora (os testes trocam)
+                               proprias=[(RONDAS_F, lambda args, pessoa: texto_rondas(pessoa)), (LEMBRANCAS_F, lambda args, pessoa: texto_lembrancas()),
+                                         (ESQUECER_F, lambda args, pessoa: esquecer_frase(args.get("frase")))])  # o APPS de agora (os testes trocam)
 SIM_RE = re.compile(r"^\s*(sim|s|ss|pode|pode sim|pode fazer|ok|okay|confirmo|confirma|confirmado|isso|isso mesmo|manda|faz|faça|beleza|blz|certo|claro|bora|fechado)\s*[.!]*\s*$", re.I)
 NAO_RE = re.compile(r"^\s*(n|nao|não|cancela|cancelar|deixa|deixa pra l[aá]|esquece|nada)\b", re.I)
 # 1.39.1 (o dono: «Não entendi, não é o mesmo item» virou «Tudo bem, não mudei nada»): só um «não» (sem mais nada) fica nisso;
@@ -667,6 +677,41 @@ def lembrar(texto, pessoa=None):
 
 def esquecer(lid):
     memoria_ia.esquecer(lid, MEMORIA_ARQ)
+
+
+def texto_lembrancas():
+    """1.41.0: correria_lembrancas: as frases da Memória da IA, numeradas."""
+    ls = lembrancas()
+    if not ls:
+        return "A Memória da IA está vazia."
+    linhas = [f"{len(ls)} {'frase' if len(ls) == 1 else 'frases'} na Memória da IA da casa:"]
+    for i, l in enumerate(ls, 1):
+        em = str(l.get("em") or "")[:10]
+        de = ", ".join(x for x in (str(l.get("app") or ""), f"{em[8:10]}/{em[5:7]}/{em[:4]}" if len(em) == 10 else "") if x)
+        linhas.append(f"{i}. {l.get('texto')}" + (f" ({de})" if de else ""))
+    return "\n".join(linhas)
+
+
+def esquecer_frase(v):
+    """1.41.0: correria_esquecer: apaga uma frase pelo número (o de correria_lembrancas) ou por um trecho. ValueError diz o que vale."""
+    ls = lembrancas()
+    t = " ".join(str(v or "").split())
+    if not t:
+        raise ValueError("Falta a frase: o número de correria_lembrancas ou um trecho dela.")
+    if t.isdigit():
+        achadas = [ls[int(t) - 1]] if 1 <= int(t) <= len(ls) else []
+    else:
+        n = casa.dobrar(t)
+        achadas = [l for l in ls if n in casa.dobrar(str(l.get("texto") or ""))]
+    if not achadas:
+        raise ValueError("Não achei essa frase na Memória da IA. Veja as de agora em correria_lembrancas.")
+    if len(achadas) > 1:
+        raise ValueError(f"{len(achadas)} frases têm esse trecho: mande o número (correria_lembrancas).")
+    try:
+        esquecer(achadas[0]["id"])
+    except memoria_ia.ErroMemoria as e:
+        raise ValueError(str(e)) from e
+    return f"Apagada da Memória da IA: «{achadas[0].get('texto')}»."
 
 
 def migrar_lembrancas():
@@ -944,6 +989,9 @@ def responder_pergunta(texto, pessoa, numero=None, confirmar=None):
     que responde com a IA dele); devolve (resposta, app). Serve para o WhatsApp. confirmar (uma lista): ganha True quando
     a resposta espera o sim (1.10.0: vai com os botões Sim e Não)."""
     hist = historico(numero) if numero else []
+    rd = RONDAS_ATIVAS.get("wa:" + whatsapp.canonico(numero)) if numero else None
+    if rd:  # 1.41.0: no meio de uma ronda pelo WhatsApp, a resposta é da etapa (como na tela)
+        hist = hist + [{"papel": "eu", "texto": rondas.contexto(rd["id"], rd["etapas"][rd["i"]], rd["onde"])}]
     r = responder_ia("wa:" + whatsapp.canonico(numero) if numero else "wa:", texto, hist, pessoa, "whatsapp", "WhatsApp")
     if r is not None:
         if confirmar is not None and r[2]:
@@ -1026,11 +1074,131 @@ def responder_texto(wa, de, pessoa, texto, ja_registrada=False):
         return
     if not ja_registrada:
         registrar("recebida", pessoa["nome"], texto)
+    rw = ronda_whatsapp(de, pessoa, texto)  # 1.41.0: «ronda», «próxima», «voltar» e «sair»
+    if rw:
+        guardar_conversa(de, texto, rw[0], {"app": "_ia", "nome": "CorrerIA"})
+        return enviar(wa, de, pessoa, rw[0], {"app": "_ia", "nome": "CorrerIA"}, botoes=rw[1])
     confirmar = []
     resposta, app = responder_pergunta(texto, pessoa, de, confirmar)
     if app:
         guardar_conversa(de, texto, resposta, app)
-    enviar(wa, de, pessoa, resposta, app, botoes=SIM_NAO if confirmar else None)
+    em_ronda = "wa:" + whatsapp.canonico(de) in RONDAS_ATIVAS
+    enviar(wa, de, pessoa, resposta, app, botoes=SIM_NAO if confirmar else BOTOES_RONDA if em_ronda else None)
+
+
+# ---------------------------------------------------------------- as rondas pelo WhatsApp (1.41.0)
+# o dono: "Ronda pelo WhatsApp: hoje as rondas são só da tela da CorrerIA. Pode seguir". «ronda» mostra as rondas; «ronda da
+# noite» (ou «ronda da casa sala») começa; cada etapa chega com os botões Próxima e Sair; «voltar» volta uma. O que a pessoa
+# responde no meio vai para a IA com o contexto da etapa, e as mudanças esperam o sim, como na tela. Nada é mandado sem a
+# pessoa escrever (a regra das 24 horas da Meta): cada etapa é a resposta a uma mensagem dela.
+RONDA_WA_RE = re.compile(r"^(?:quero |vamos |bora )?(?:fazer |faz |comecar |comeca |iniciar |inicia )?(?:a |as |uma )?rondas?\b[\s:,-]*(.*)$")
+PROXIMA_RE = re.compile(r"^(proxima|proximo|seguir|segue|pular|pula|continuar|continua|avancar|avanca)$")
+VOLTAR_RE = re.compile(r"^(voltar|volta|anterior)$")
+SAIR_RONDA_RE = re.compile(r"^(sair|sai|parar|para|encerrar|chega)( d?a ronda)?$")
+BOTOES_RONDA = (("proxima", "Próxima"), ("sair", "Sair da ronda"))
+RONDAS_WA = {}  # "wa:<número>" -> a escolha que espera a resposta: {"rondas": [ids]} ou {"ronda": id}
+RONDA_WA_HORAS = 2  # uma ronda parada há mais que isso acaba sozinha
+_ARTIGO_RE = re.compile(r"^(da|do|de|das|dos|na|no|em|a|o)\s+")
+
+
+def _sem_artigo(t):
+    return _ARTIGO_RE.sub("", t.strip())
+
+
+def _ronda_pelo_nome(disps, resto):
+    """(a ronda, o que sobrou do texto) pelo nome sem «Ronda» e sem o artigo («da noite», «noite», «de compras»); (None, resto) sem achar."""
+    alvo = _sem_artigo(resto)
+    for d in sorted(disps, key=lambda x: -len(x["nome"])):
+        chave = _sem_artigo(casa.dobrar(d["nome"]).replace("ronda", "", 1))
+        if chave and (alvo == chave or alvo.startswith(chave + " ")):
+            return d, alvo[len(chave):].strip()
+    return None, resto
+
+
+def _lista_numerada(titulo, nomes, fim):
+    return "\n".join([titulo] + [f"{i}. {n}" for i, n in enumerate(nomes, 1)] + [fim])
+
+
+def ronda_whatsapp(de, pessoa, texto):
+    """Uma mensagem do WhatsApp que é das rondas: (a resposta, os botões) ou None (não é: segue para a IA)."""
+    k = "wa:" + whatsapp.canonico(de)
+    t = re.sub(r"\s+", " ", casa.dobrar(texto)).strip().rstrip(".!?").strip()
+    r = RONDAS_ATIVAS.get(k)
+    if r and time.time() - r.get("em", 0) > RONDA_WA_HORAS * 3600:
+        RONDAS_ATIVAS.pop(k, None)
+        r = None
+    esc = RONDAS_WA.pop(k, None)
+    if r:
+        nome = rondas.RONDAS.get(r["id"], {}).get("nome", "Ronda")
+        if SAIR_RONDA_RE.match(t):
+            RONDAS_ATIVAS.pop(k, None)
+            return f"Saí da {nome}.", None
+        if PROXIMA_RE.match(t):
+            if r["i"] + 1 >= len(r["etapas"]):
+                RONDAS_ATIVAS.pop(k, None)
+                anotar_ronda(r["id"], r["onde"], pessoa, len(r["etapas"]))
+                threading.Thread(target=lambda: _tentar(conferir_rondas), daemon=True).start()
+                return f"{nome}{' · ' + r['onde'] if r['onde'] else ''} concluída.", None
+            r["i"] += 1
+            return _ronda_wa_etapa(k, de, r, pessoa)
+        if VOLTAR_RE.match(t):
+            r["i"] = max(0, r["i"] - 1)
+            return _ronda_wa_etapa(k, de, r, pessoa)
+    m = RONDA_WA_RE.match(t)
+    if not m and not esc:
+        return None
+    disps = rondas.disponiveis(FERR, pessoa) if FERR.tem() else []
+    if not disps:
+        return ("Nenhuma ronda disponível: ligue o CorrerIA nos apps (Mais › Configurações › Integrações), no Home Assistant.", None) if m else None
+    d, resto, do_comodo = None, "", False
+    if m:
+        resto = m.group(1).strip()
+        if not resto:
+            RONDAS_WA[k] = {"rondas": [x["id"] for x in disps]}
+            return _lista_numerada("Qual ronda?", [x["nome"] for x in disps], "Responda com o número ou o nome."), None
+        d, resto = _ronda_pelo_nome(disps, resto)
+        if not d:
+            RONDAS_WA[k] = {"rondas": [x["id"] for x in disps]}
+            return _lista_numerada("Não achei essa ronda. As que há:", [x["nome"] for x in disps], "Responda com o número ou o nome."), None
+    elif "rondas" in esc:  # a resposta ao «Qual ronda?»
+        ids = [i for i in esc["rondas"] if any(x["id"] == i for x in disps)]
+        if t.isdigit():
+            d = next((x for x in disps if 1 <= int(t) <= len(ids) and x["id"] == ids[int(t) - 1]), None)
+        else:
+            d, resto = _ronda_pelo_nome(disps, t)
+        if not d:
+            return None
+    else:  # a resposta ao «Qual cômodo?»
+        d = next((x for x in disps if x["id"] == esc["ronda"]), None)
+        if not d:
+            return None
+        resto, do_comodo = t, True
+    onde = ""
+    if not d["sem_onde"]:
+        alvo = _sem_artigo(resto)
+        if alvo.isdigit() and 1 <= int(alvo) <= len(d["onde"]):
+            onde = d["onde"][int(alvo) - 1]
+        elif alvo:
+            onde = (next((c for c in d["onde"] if casa.dobrar(c) == alvo), None) or next((c for c in d["onde"] if casa.dobrar(c).startswith(alvo)), None)
+                    or (alvo.title()[:60] if d["livre"] else ""))
+        if not onde:
+            if do_comodo and alvo:  # não é um cômodo: a mensagem é outra coisa
+                return None
+            RONDAS_WA[k] = {"ronda": d["id"]}
+            return (f"{d['nome']}: qual cômodo? Escreva o nome." if d["livre"]
+                    else _lista_numerada(f"{d['nome']}: qual cômodo?", d["onde"], "Responda com o número ou o nome.")), None
+    etapas = [e["id"] for e in d["etapas"] if rondas.vale_em(rondas.etapa_de(d["id"], e["id"]), onde)]
+    if not etapas:
+        return "Nenhuma pergunta desta ronda vale neste cômodo.", None
+    r = RONDAS_ATIVAS[k] = {"id": d["id"], "onde": onde, "i": 0, "etapas": etapas, "opcoes": d["opcoes"]}
+    return _ronda_wa_etapa(k, de, r, pessoa)
+
+
+def _ronda_wa_etapa(k, de, r, pessoa):
+    r["em"] = time.time()
+    guardar_pendente(k, None)  # mudou de etapa: o que esperava o sim da anterior não vale mais
+    rot, texto, _nomes, confirmar, _link = _ronda_etapa(r, k, historico(de), pessoa, "whatsapp", "WhatsApp")
+    return f"*{rot}*\n{whatsapp.para_whatsapp(texto)}", SIM_NAO if confirmar else BOTOES_RONDA
 
 
 def tratar_anexo(wa, m, de, pessoa):
@@ -2107,7 +2275,7 @@ def texto_rondas(pessoa=None, agora=None):
             linhas.append(f"- {x['nome']} (por cômodo; {aviso}): " + ("; ".join(f"{c} {ha(u.get(c))}" for c in x.get("onde") or []) or "sem cômodos"))
     atras = atrasadas_todas(disps, agora)
     linhas.append(("Atrasadas: " + "; ".join(a["nome"] + (f" ({a['onde']})" if a["onde"] else "") for a in atras) + ".") if atras else "Nenhuma ronda atrasada.")
-    linhas.append("Uma ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa.")
+    linhas.append("Uma ronda se faz na tela do CorrerIA, pelo botão das Rondas da Conversa, ou no WhatsApp, mandando «ronda».")
     return "\n".join(linhas)
 
 
@@ -2194,6 +2362,47 @@ def mandar_aviso(alvos, titulo, mensagem, tag):
         except Exception as e:  # noqa: BLE001
             log(f"Aviso (Rondas) para {alvo}:", e)
     return n
+
+
+TODOS_RE = re.compile(r"^(todos|todas|todo mundo|a casa toda|a casa|geral)$")
+
+
+def mandar_recado(para, mensagem, pessoa=None):
+    """1.41.0: casa_avisar: um recado para os celulares de uma pessoa da casa (ou de todos, menos de quem manda), pelo aviso do
+    app Home Assistant. casa.ErroCasa diz o que vale (a pessoa que não existe, sem celular)."""
+    try:
+        gente = pessoas_com_celular()
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise casa.ErroCasa("Não consegui ver as pessoas da casa no Home Assistant.") from e
+    de = str((pessoa or {}).get("nome") or "").strip()
+    alvo = casa.dobrar(para).strip()
+    if TODOS_RE.match(alvo):
+        quem = [p for p in gente if p["celulares"] and p["id"] != (pessoa or {}).get("id")]
+        if not quem:
+            raise casa.ErroCasa("Nenhuma outra pessoa da casa tem celular ligado no Home Assistant.")
+    else:
+        quem = [p for p in gente if casa.dobrar(p["nome"]).strip() == alvo] or [p for p in gente if casa.dobrar(p["nome"]).split()[:1] == [alvo]]
+        if not quem:
+            raise casa.ErroCasa(f"{para} não é uma pessoa da casa. As pessoas: {', '.join(p['nome'] for p in gente) or 'nenhuma'}.")
+        if not quem[0]["celulares"]:
+            raise casa.ErroCasa(f"{quem[0]['nome']} não tem celular ligado no Home Assistant.")
+        quem = quem[:1]
+    foram = []
+    for p in quem:
+        n = 0
+        for alvo_ in p["celulares"]:
+            try:
+                ha_post(f"/services/notify/{alvo_}", avisos.corpo("💬 Recado" + (f" de {de}" if de else ""), mensagem, f"correria-recado-{int(time.time())}", atalho(),
+                                                                 grupo="correria-recados", canal="Recados"))
+                n += 1
+            except Exception as e:  # noqa: BLE001
+                log(f"Recado para {alvo_}:", e)
+        if n:
+            foram.append(p["nome"])
+    if not foram:
+        raise casa.ErroCasa("O Home Assistant não aceitou o recado.")
+    log(f"Recado{' de ' + de if de else ''} para {', '.join(foram)}")
+    return f"Recado enviado para {' e '.join(foram)}: «{mensagem}»."
 
 
 def texto_atrasados(nomes, dias):
@@ -2306,17 +2515,31 @@ def ronda_passo(corpo, pessoa, chave):
         r["i"] = max(0, r["i"] - 1)
     else:
         raise ValueError("acao vale iniciar, proxima, voltar ou sair.")
-    eid, total = r["etapas"][r["i"]], len(r["etapas"])
     guardar_pendente("tela:" + chave, None)  # mudou de etapa: o que esperava o sim da anterior não vale mais
     lista = conversa_tela(chave)
     hist = [{"papel": m.get("papel"), "texto": m.get("texto") or ""} for m in lista][-MAX_HISTORICO:]
-    eu = {"papel": "eu", "em": agora_iso(), "ronda": True}
+    rot, texto, nomes, confirmar, link = _ronda_etapa(r, "tela:" + chave, hist, pessoa, "correria", "CorrerIA")
+    eu = {"papel": "eu", "em": agora_iso(), "ronda": True, "texto": rot}
+    ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
+    if confirmar:
+        ia_msg["confirmar"] = True
+    if link:
+        ia_msg["abrir"] = link
+    lista += [eu, ia_msg]
+    _gravar_tela(chave, lista)
+    return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
+
+
+def _ronda_etapa(r, chave_ia, hist, pessoa, canal, cliente):
+    """A etapa de agora de uma ronda (r muda: as etapas que saem com o TOTAL 0): (o rótulo, o texto, os apps, espera o sim,
+    o link do Abrir). 1.41.0: a mesma para a tela e para o WhatsApp."""
+    eid, total = r["etapas"][r["i"]], len(r["etapas"])
     ped = rondas.pedido(r["id"], eid, r["onde"], FERR.todas(), r["i"] + 1, total, r.get("opcoes") or ())
     etapa = rondas.etapa_de(r["id"], eid)
     if ped is None:  # a etapa só pergunta: sem a IA, na hora
         texto, nomes, confirmar = rondas.arrumar("", r["id"], eid, r["onde"]), [etapa["nome_app"]], False
     else:
-        resp = responder_ia("tela:" + chave, ped, hist, pessoa, "correria", "CorrerIA")
+        resp = responder_ia(chave_ia, ped, hist, pessoa, canal, cliente)
         texto, nomes, confirmar = resp if resp is not None else ("", [etapa["nome_app"]], False)
         if str(texto or "").strip() in ia.NAO_DEU:
             # 1.31.1 (o dono mandou o print: «Não consegui responder agora. Pode perguntar de outro jeito?» em cima da
@@ -2335,18 +2558,10 @@ def ronda_passo(corpo, pessoa, chave):
             etapa = rondas.etapa_de(r["id"], eid)
         texto = rondas.arrumar(texto, r["id"], eid, r["onde"], perguntar=junta is not None or not (achou == 0 and etapa.get("se_tem")), vazio=sem_texto)
         texto = rondas.e_mais(texto, achou)
-    ia_msg = {"papel": "ia", "texto": whatsapp.para_whatsapp(texto), "em": agora_iso(), "app": ", ".join(nomes) or "CorrerIA", "app_id": "_ia"}
-    if confirmar:
-        ia_msg["confirmar"] = True
     # 1.22.0: o botão embaixo da mensagem abre o app da etapa, já no lugar. 1.22.2 (o dono: "é só uma pergunta e ele já
     # mostrou o abrir"): só na etapa que leu o app e mostrou o que há lá; numa pergunta só, não
     link = rondas.abrir(r["id"], eid, r["onde"], {a["app"]: a.get("painel") for a in APPS.lista()}) if ped is not None else None
-    if link:
-        ia_msg["abrir"] = link
-    eu["texto"] = rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, len(r["etapas"]))
-    lista += [eu, ia_msg]
-    _gravar_tela(chave, lista)
-    return {"mensagens": lista[-MAX_TELA:], "conversa": conversa_aberta(chave), "ronda": rondas_estado(chave)}
+    return rondas.rotulo(r["id"], eid, r["onde"], r["i"] + 1, len(r["etapas"])), texto, nomes, confirmar, link
 
 
 class Tela(BaseHTTPRequestHandler):

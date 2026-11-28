@@ -188,7 +188,7 @@ class TestCasaNasFerramentas(unittest.TestCase):
     def test_casa_como_um_app(self):
         self.assertTrue(self.f.tem(), "sem nenhum app, a casa já basta")
         todas = self.f.todas()
-        self.assertEqual([x["id"] for x in todas], ["casa_comando", "casa_estado", "casa_historico"])
+        self.assertEqual([x["id"] for x in todas], ["casa_comando", "casa_estado", "casa_historico", "casa_tempo", "casa_manutencao", "casa_avisar"])
         cmd = self.f.achar("casa_comando", todas)
         self.assertEqual((cmd["grava"], cmd["app"]["nome"]), (True, "Casa"), "mexer na casa espera o sim")
         self.assertFalse(self.f.achar("casa_estado", todas)["grava"])
@@ -203,7 +203,7 @@ class TestCasaNasFerramentas(unittest.TestCase):
         self.addCleanup(cron.fechar)
         cron.publicar(self.share, "cronologia")
         self.ligada = True
-        self.assertEqual([x["id"] for x in self.f.todas()][-3:], ["casa_comando", "casa_estado", "casa_historico"], "depois dos apps")
+        self.assertEqual([x["id"] for x in self.f.todas()][-6:], ["casa_comando", "casa_estado", "casa_historico", "casa_tempo", "casa_manutencao", "casa_avisar"], "depois dos apps")
 
 
 if __name__ == "__main__":
@@ -287,4 +287,76 @@ class TestHistorico(unittest.TestCase):
             raise OSError("fora do ar")
         with self.assertRaises(C.ErroCasa):
             C.Casa(cai, None, print).historico("luz", agora=self.agora)
-        self.assertEqual([f["nome"] for f in C.FERRAMENTAS], ["comando", "estado", "historico"])
+        self.assertEqual([f["nome"] for f in C.FERRAMENTAS], ["comando", "estado", "historico", "tempo", "manutencao", "avisar"])
+
+
+class TestCasa141(unittest.TestCase):
+    """1.41.0 (o dono, às ferramentas que faltavam: "pode seguir em todas"): casa_tempo, casa_manutencao e casa_avisar."""
+    E = [
+        {"entity_id": "weather.casa", "state": "partlycloudy", "attributes": {"friendly_name": "Previsão de casa", "temperature": 23.4, "humidity": 71, "temperature_unit": "°C"}},
+        {"entity_id": "weather.zz_fora", "state": "unavailable", "attributes": {}},
+        {"entity_id": "update.core", "state": "on", "attributes": {"friendly_name": "Core update", "title": "Home Assistant Core", "installed_version": "2026.11.1", "latest_version": "2026.11.3"}},
+        {"entity_id": "update.zigbee", "state": "on", "attributes": {"friendly_name": "Zigbee da sala"}},
+        {"entity_id": "update.em_dia", "state": "off", "attributes": {"friendly_name": "Em dia"}},
+        {"entity_id": "automation.luz", "state": "off", "attributes": {"friendly_name": "Luz ao chegar"}},
+        {"entity_id": "automation.ok", "state": "on", "attributes": {"friendly_name": "Bom dia"}},
+        {"entity_id": "sensor.backup_last_successful_automatic_backup", "state": "2026-11-05T04:00:00+00:00", "attributes": {}},
+    ]
+    PREV = [{"datetime": "2026-11-08T12:00:00+00:00", "condition": "rainy", "temperature": 27.2, "templow": 19, "precipitation_probability": 80, "precipitation": 12.5},
+            {"datetime": "2026-11-09T12:00:00+00:00", "condition": "sunny", "temperature": 30, "templow": 20, "precipitation": 0},
+            {"datetime": "2026-11-10T12:00:00+00:00", "condition": "nova"}, {"datetime": "2026-11-11T12:00:00+00:00", "condition": "cloudy"}]
+
+    def setUp(self):
+        self.posts, self.recados = [], []
+        self.estados = list(self.E)
+        self.c = C.Casa(lambda c: self.estados, self.post, lambda *a: None, recado=lambda para, msg, pessoa: (self.recados.append((para, msg, pessoa)), "ok")[1])
+
+    def post(self, caminho, corpo):
+        self.posts.append((caminho, corpo))
+        return {"service_response": {"weather.casa": {"forecast": self.PREV}}}
+
+    def test_tempo(self):
+        t = self.c.usar("tempo", {}).splitlines()
+        self.assertEqual(self.posts, [("/services/weather/get_forecasts?return_response", {"entity_id": "weather.casa", "type": "daily"})])
+        self.assertEqual(t, ["Agora (Previsão de casa): parcialmente nublado, 23,4 °C, umidade 71%.",
+                             "Hoje: chuva, máxima 27 °C, mínima 19 °C, 80% de chance de chuva (12,5 mm).",
+                             "Amanhã: sol, máxima 30 °C, mínima 20 °C.", "10/11: nova."])
+        self.assertEqual(len(self.c.usar("tempo", {"dias": 1}).splitlines()), 2)
+        with self.assertRaisesRegex(C.ErroCasa, "dias: de 1 a 7"):
+            self.c.usar("tempo", {"dias": "x"})
+        def falha(c, corpo):
+            raise OSError("sem serviço")
+        self.assertTrue(C.Casa(lambda c: self.E, falha, lambda *a: None).tempo().endswith("Essa previsão do tempo não dá os próximos dias."))
+        with self.assertRaisesRegex(C.ErroCasa, "Não há previsão do tempo"):
+            C.Casa(lambda c: [], self.post, print).tempo()
+        def cai(c):
+            raise OSError("fora do ar")
+        with self.assertRaisesRegex(C.ErroCasa, "não respondeu"):
+            C.Casa(cai, self.post, print).tempo()
+
+    def test_manutencao(self):
+        from datetime import datetime, timezone
+        t = self.c.manutencao(datetime(2026, 11, 8, 12, 0, tzinfo=timezone.utc)).splitlines()
+        self.assertEqual(t, ["2 atualizações pendentes:", "- Home Assistant Core: 2026.11.1 → 2026.11.3", "- Zigbee da sala",
+                             "1 automação desligada: Luz ao chegar.", "Último backup do Home Assistant: há 3 dias."])
+        self.estados = [{"entity_id": "sensor.backup_last_successful_automatic_backup", "state": "unknown"}]
+        self.assertEqual(self.c.usar("manutencao", {}).splitlines(), ["0 atualizações pendentes.", "0 automações desligadas.", "Ainda não há um backup automático feito."])
+        self.estados = [{"entity_id": f"update.u{i}", "state": "on", "attributes": {"friendly_name": f"U{i:02d}"}} for i in range(14)]
+        t = self.c.manutencao()
+        self.assertIn("- e mais 2", t)
+        self.assertIn("Não sei do último backup", t)
+        self.estados = [{"entity_id": "sensor.backup_last_successful_automatic_backup", "state": "2026-10-01T04:00:00+00:00"}]
+        self.assertIn("faz mais de uma semana", self.c.manutencao(datetime(2026, 11, 8, 12, 0, tzinfo=timezone.utc)))
+        self.assertIn("backup do Home Assistant: hoje.", self.c.manutencao(datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)))
+        self.assertIn("ontem.", self.c.manutencao(datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)))
+
+    def test_avisar(self):
+        ana = {"id": "person.ana", "nome": "Ana"}
+        self.assertEqual(self.c.usar("avisar", {"para": " Beto ", "mensagem": "Cheguei  em casa"}, ana), "ok")
+        self.assertEqual(self.recados, [("Beto", "Cheguei em casa", ana)])
+        with self.assertRaisesRegex(C.ErroCasa, "Faltam para"):
+            self.c.usar("avisar", {"para": "Beto"})
+        with self.assertRaisesRegex(C.ErroCasa, "não estão disponíveis"):
+            C.Casa(lambda c: [], self.post, print).usar("avisar", {"para": "Beto", "mensagem": "oi"})
+        f = {x["nome"]: x for x in C.FERRAMENTAS}
+        self.assertEqual((f["avisar"]["grava"], f["tempo"]["grava"], f["manutencao"]["grava"]), (True, False, False))
